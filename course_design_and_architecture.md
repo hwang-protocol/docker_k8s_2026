@@ -247,3 +247,875 @@
 - `wk-edge01`、`wk-obs01`、`wk-app01`、`wk-app02` 的节点职责划分
 
 只要上述信息确认，本设计就可以正式进入实施阶段。
+
+---
+
+## 五、 实施记录
+
+### 阶段 01：`ops` 到各 Linux 节点 SSH 免密登录
+
+#### 1. 本阶段目标
+
+为了便于后续统一执行初始化脚本、批量下发配置、安装 Kubernetes 组件，先将 `ops(10.1.1.201)` 作为运维跳板机，为其他 Linux 节点配置 `root` 用户 SSH 公钥免密登录。
+
+#### 2. 执行范围
+
+本次已配置以下目标节点：
+
+- `lb01` `10.1.1.11`
+- `lb02` `10.1.1.12`
+- `cp01` `10.1.1.101`
+- `cp02` `10.1.1.102`
+- `cp03` `10.1.1.103`
+- `wk-app01` `10.1.1.1`
+- `wk-app02` `10.1.1.2`
+- `wk-edge01` `10.1.1.3`
+- `wk-obs01` `10.1.1.4`
+- `git` `10.1.1.202`
+- `harbor` `10.1.1.203`
+
+不包含：
+
+- `win2019` `10.1.1.100`
+- `10.1.1.254`
+
+#### 3. 实施动作
+
+在 `ops` 节点执行了以下逻辑：
+
+1. 检查 `/root/.ssh` 目录
+2. 若不存在 `ed25519` 密钥对，则自动生成 `/root/.ssh/id_ed25519`
+3. 读取 `ops` 的公钥
+4. 将公钥追加到各目标节点的 `/root/.ssh/authorized_keys`
+5. 修正 `.ssh` 和 `authorized_keys` 权限
+6. 从 `ops` 节点反向验证到各节点是否可免密执行 `ssh root@<ip> hostname`
+
+#### 4. 验证结果
+
+验证结果：全部成功。
+
+| 源节点 | 目标节点 | IP | 结果 |
+| :--- | :--- | :--- | :--- |
+| `ops` | `lb01` | `10.1.1.11` | 成功 |
+| `ops` | `lb02` | `10.1.1.12` | 成功 |
+| `ops` | `cp01` | `10.1.1.101` | 成功 |
+| `ops` | `cp02` | `10.1.1.102` | 成功 |
+| `ops` | `cp03` | `10.1.1.103` | 成功 |
+| `ops` | `wk-app01` | `10.1.1.1` | 成功 |
+| `ops` | `wk-app02` | `10.1.1.2` | 成功 |
+| `ops` | `wk-edge01` | `10.1.1.3` | 成功 |
+| `ops` | `wk-obs01` | `10.1.1.4` | 成功 |
+| `ops` | `git` | `10.1.1.202` | 成功 |
+| `ops` | `harbor` | `10.1.1.203` | 成功 |
+
+#### 5. 当前结论
+
+后续可以直接基于 `ops` 节点执行：
+
+- 批量系统初始化
+- 批量安装容器运行时
+- 批量安装 `kubeadm`、`kubelet`、`kubectl`
+- 批量分发配置文件
+- 执行 Ansible 或 Shell 自动化运维脚本
+
+### 阶段 02：统一切换实验环境 DNS
+
+#### 1. 本阶段目标
+
+将所有 Ubuntu 实验节点的上游 DNS 统一指向 `win2019(10.1.1.100)`，并统一设置搜索域为 `qytk8s.com`，为后续的实验域名解析、Harbor、Git、API VIP、应用入口与证书规划做准备。
+
+#### 2. 执行范围
+
+本次已处理以下节点：
+
+- `lb01` `10.1.1.11`
+- `lb02` `10.1.1.12`
+- `cp01` `10.1.1.101`
+- `cp02` `10.1.1.102`
+- `cp03` `10.1.1.103`
+- `wk-app01` `10.1.1.1`
+- `wk-app02` `10.1.1.2`
+- `wk-edge01` `10.1.1.3`
+- `wk-obs01` `10.1.1.4`
+- `ops` `10.1.1.201`
+- `git` `10.1.1.202`
+- `harbor` `10.1.1.203`
+
+不包含：
+
+- `win2019` `10.1.1.100`
+- `10.1.1.254`
+
+#### 3. 配置方式
+
+确认所有 Ubuntu 节点均使用：
+
+- `netplan`
+- 配置文件：`/etc/netplan/ens160.yaml`
+
+统一将 `nameservers` 配置为：
+
+```yaml
+nameservers:
+  addresses: [10.1.1.100]
+  search: [qytk8s.com]
+```
+
+#### 4. 自动化脚本
+
+已在当前目录生成脚本：
+
+- `configure_lab_dns.py`
+
+该脚本的作用：
+
+1. 使用 `root` SSH 登录目标节点
+2. 备份原始 `netplan` 文件
+3. 替换 `nameservers` 配置
+4. 执行 `netplan generate`
+5. 执行 `netplan apply`
+6. 使用 `resolvectl` 验证 DNS Server 与 Search Domain
+
+#### 5. 验证结果
+
+验证结果：全部成功。
+
+| 节点 | IP | DNS Server | Search Domain | 结果 |
+| :--- | :--- | :--- | :--- | :--- |
+| `lb01` | `10.1.1.11` | `10.1.1.100` | `qytk8s.com` | 成功 |
+| `lb02` | `10.1.1.12` | `10.1.1.100` | `qytk8s.com` | 成功 |
+| `cp01` | `10.1.1.101` | `10.1.1.100` | `qytk8s.com` | 成功 |
+| `cp02` | `10.1.1.102` | `10.1.1.100` | `qytk8s.com` | 成功 |
+| `cp03` | `10.1.1.103` | `10.1.1.100` | `qytk8s.com` | 成功 |
+| `wk-app01` | `10.1.1.1` | `10.1.1.100` | `qytk8s.com` | 成功 |
+| `wk-app02` | `10.1.1.2` | `10.1.1.100` | `qytk8s.com` | 成功 |
+| `wk-edge01` | `10.1.1.3` | `10.1.1.100` | `qytk8s.com` | 成功 |
+| `wk-obs01` | `10.1.1.4` | `10.1.1.100` | `qytk8s.com` | 成功 |
+| `ops` | `10.1.1.201` | `10.1.1.100` | `qytk8s.com` | 成功 |
+| `git` | `10.1.1.202` | `10.1.1.100` | `qytk8s.com` | 成功 |
+| `harbor` | `10.1.1.203` | `10.1.1.100` | `qytk8s.com` | 成功 |
+
+#### 6. 当前结论
+
+实验环境已经具备统一 DNS 基础。
+
+后续只要在 `win2019 DNS` 中继续补齐对应记录，即可支持：
+
+- `api.qytk8s.com`
+- `harbor.qytk8s.com`
+- `git.qytk8s.com`
+- `app.qytk8s.com`
+- `grafana.qytk8s.com`
+- `argocd.qytk8s.com`
+
+---
+
+## 六、 第一章实施记录：Kubernetes 基础架构
+
+### 阶段 01：版本冻结
+
+#### 1. 最终结论
+
+本课程后续所有 Kubernetes 相关内容，统一冻结为：
+
+- Kubernetes：`v1.33.9`
+
+#### 2. 选择依据
+
+- `v1.31.x` 已经停止维护，不适合作为新课程长期基线
+- `v1.34.x` 虽然较新，但对后续 `Longhorn` 章节的公开兼容证据不够强
+- `v1.33.9` 在课程目标涉及的关键组件上更平衡：
+  - `Cilium`
+  - `Istio Ambient Mesh`
+  - `Argo CD`
+  - `Longhorn`
+
+#### 3. 执行要求
+
+从第一章开始，到后续章节结束：
+
+- 所有脚本
+- 所有文档
+- 所有镜像清单
+- 所有 `kubeadm` 配置
+
+全部统一按 `v1.33.9` 编写，不再变动。
+
+### 阶段 02：第一章第 1 步 - 所有节点系统初始化
+
+#### 1. 本阶段目标
+
+在正式部署 Harbor、containerd 和 kubeadm 之前，先将所有 Ubuntu 节点初始化为适合 Kubernetes 的基础状态。
+
+本阶段完成后需要满足：
+
+- swap 已关闭
+- `overlay` 与 `br_netfilter` 已加载
+- `net.ipv4.ip_forward=1`
+- 时区统一为 `Asia/Shanghai`
+- SSH 登录关闭 `UseDNS`
+- 课堂环境不再受 `unattended-upgrades` 抢占 `apt/dpkg` 锁影响
+- 基础工具已安装
+- `open-iscsi` 与 `iscsid` 已准备完成
+
+#### 2. 处理节点
+
+本阶段已处理：
+
+- `lb01`
+- `lb02`
+- `cp01`
+- `cp02`
+- `cp03`
+- `wk-app01`
+- `wk-app02`
+- `wk-edge01`
+- `wk-obs01`
+- `harbor`
+- `git`
+
+#### 3. 交付物
+
+本阶段已生成：
+
+- 课件总入口：`k8s/01-k8s-architecture/docs/01_chapter_guide.md`
+- 第 1 步课件：`k8s/01-k8s-architecture/docs/02_prepare_os.md`
+- 第 1 步小脚本：`k8s/01-k8s-architecture/scripts/01_prepare_os_remote.sh`
+
+#### 4. 实施说明
+
+本阶段采用“文档主导 + 小脚本辅助”的方式进行：
+
+- 学员在 `ops` 节点阅读 `02_prepare_os.md`
+- 按文档说明执行 `01_prepare_os_remote.sh`
+- 该脚本通过 SSH 使用主机名批量下发系统初始化命令
+
+脚本实际处理的关键动作包括：
+
+1. 关闭 swap
+2. 配置内核模块
+3. 配置 sysctl
+4. 设置时区
+5. 关闭 `UseDNS`
+6. 关闭 `UFW`
+7. 关闭自动更新与 `apt` 定时任务
+8. 安装基础工具
+9. 启动 `iscsid`
+
+#### 5. 过程中的关键修正
+
+在首次执行时发现：
+
+- `Ubuntu 24.04` 默认的 `unattended-upgrades` 会占用 `apt/dpkg` 锁
+
+因此已将脚本增强为：
+
+- 先关闭 `unattended-upgrades.service`
+- 关闭 `apt-daily.timer` 和 `apt-daily-upgrade.timer`
+- 等待 `apt/dpkg` 锁释放后再继续安装
+
+这样更适合课堂环境和快照恢复后的重复执行。
+
+#### 6. 验证结果
+
+批量脚本第二次执行后已完整成功结束。
+
+并对以下节点进行了抽查验证：
+
+- `cp01`
+- `wk-app01`
+
+抽查项包括：
+
+- `swapon --show`
+- `lsmod | grep br_netfilter`
+- `lsmod | grep overlay`
+- `sysctl net.ipv4.ip_forward`
+- `timedatectl`
+- `systemctl is-enabled unattended-upgrades.service`
+- `systemctl is-enabled apt-daily.timer`
+- `resolvectl dns ens160`
+- `systemctl is-active iscsid`
+
+抽查结果：
+
+- swap 关闭成功
+- `br_netfilter` 与 `overlay` 已加载
+- `net.ipv4.ip_forward = 1`
+- 时区为 `Asia/Shanghai`
+- 自动更新服务与定时任务已禁用
+- DNS 仍为 `10.1.1.100`
+- `iscsid` 为 `active`
+
+#### 7. 当前结论
+
+第一章第 1 步已经完成，可以进入下一步：
+
+- Harbor 部署
+
+### 阶段 03：第一章第 2 步 - 部署 Harbor 私有镜像仓库
+
+#### 1. 本阶段目标
+
+在 `harbor` 节点部署 Harbor 私有镜像仓库，为后续 Kubernetes 核心镜像和课程业务镜像提供本地仓库存储。
+
+本阶段完成后需要满足：
+
+- `harbor.qytk8s.com` 可访问
+- Harbor 使用 HTTPS
+- Harbor 管理员账号可登录
+- Harbor 健康状态为 `healthy`
+
+#### 2. 固定参数
+
+本阶段已固定以下参数：
+
+- Harbor 域名：`harbor.qytk8s.com`
+- Harbor 节点：`harbor`
+- Harbor 版本：`v2.13.0`
+- Harbor 管理员账号：`admin`
+- Harbor 管理员密码：`Harbor12345`
+
+#### 3. 交付物
+
+本阶段已生成：
+
+- 第 2 步课件：`k8s/01-k8s-architecture/docs/03_harbor.md`
+- 第 2 步小脚本：`k8s/01-k8s-architecture/scripts/02_install_harbor_remote.sh`
+
+#### 4. 实施说明
+
+本阶段采用“ops 本机生成证书 + 远程部署 Harbor”的方式进行：
+
+1. 在 `ops` 上生成 Harbor 根 CA
+2. 在 `ops` 上签发 `harbor.qytk8s.com` 服务端证书
+3. 下载 Harbor Offline Installer
+4. 将安装包和证书下发到 `harbor` 节点
+5. 在 `harbor` 节点安装 `docker.io` 和 `docker-compose-v2`
+6. 配置 Harbor HTTPS
+7. 执行 Harbor 安装
+
+#### 5. 证书与目录结果
+
+在 `ops` 上已生成 Harbor 证书材料目录：
+
+- `k8s/01-k8s-architecture/pki/harbor`
+
+其中包含：
+
+- Harbor CA 私钥
+- Harbor CA 证书
+- `harbor.qytk8s.com` 服务端私钥
+- `harbor.qytk8s.com` 服务端证书
+
+这些文件后续还会继续用于：
+
+- 分发 Harbor CA 到 Kubernetes 节点
+- 配置 `containerd` 信任 Harbor
+
+#### 6. 实施结果
+
+在 `harbor` 节点已成功完成：
+
+- `docker.io` 安装
+- `docker-compose-v2` 安装
+- Harbor Offline Installer 解压
+- Harbor HTTPS 配置
+- Harbor 核心组件启动
+
+实际运行容器包括：
+
+- `harbor-core`
+- `harbor-db`
+- `harbor-jobservice`
+- `harbor-log`
+- `harbor-portal`
+- `nginx`
+- `redis`
+- `registry`
+- `registryctl`
+- `trivy-adapter`
+
+#### 7. 验证结果
+
+本阶段已完成以下验证：
+
+1. `docker ps` 检查 Harbor 组件状态
+2. `curl -k https://harbor.qytk8s.com/api/v2.0/health`
+3. `curl -k -u 'admin:Harbor12345' https://harbor.qytk8s.com/api/v2.0/projects?page=1&page_size=2`
+4. 检查 `docker compose version`
+5. 检查 `docker --version`
+
+验证结论：
+
+- Harbor 所有核心组件健康
+- Harbor 健康接口返回 `status=healthy`
+- 管理员账号认证成功
+- 默认 `library` 项目存在
+- Harbor 已具备承载 Kubernetes 核心镜像的基础能力
+
+#### 8. 当前结论
+
+第一章第 2 步已经完成，可以进入下一步：
+
+- 预热 Kubernetes 基础镜像到 Harbor
+
+### 阶段 04：第一章第 3 步 - 预热 Kubernetes 核心镜像到 Harbor
+
+#### 1. 本阶段目标
+
+将第一章所需的 Kubernetes `v1.33.9` 核心镜像全部推送到本地 Harbor，保证后续 `kubeadm init` 尽量走本地仓库。
+
+#### 2. 固定镜像版本
+
+本阶段已固定并推送的镜像如下：
+
+- `kube-apiserver:v1.33.9`
+- `kube-controller-manager:v1.33.9`
+- `kube-scheduler:v1.33.9`
+- `kube-proxy:v1.33.9`
+- `pause:3.10`
+- `etcd:3.5.24-0`
+- `coredns:v1.12.0`
+
+目标仓库统一为：
+
+- `harbor.qytk8s.com/k8s`
+
+#### 3. 交付物
+
+本阶段已生成：
+
+- 第 3 步课件：`k8s/01-k8s-architecture/docs/04_push_k8s_images.md`
+- 第 3 步小脚本：`k8s/01-k8s-architecture/scripts/03_push_k8s_images_remote.sh`
+
+#### 4. 实施说明
+
+本阶段脚本完成的动作：
+
+1. 通过 Harbor API 创建 `k8s` 项目
+2. 在 `harbor` 节点执行 `docker login`
+3. 从 `registry.k8s.io` 拉取上游镜像
+4. 按课程预定目标路径重新打标签
+5. 推送到 `harbor.qytk8s.com/k8s`
+
+#### 5. 验证结果
+
+已完成以下验证：
+
+1. Harbor API 列出 `k8s` 项目仓库
+2. `harbor` 节点本地 `docker images` 检查目标镜像
+3. Harbor 项目元数据检查
+
+实际已确认存在的仓库包括：
+
+- `k8s/kube-apiserver`
+- `k8s/kube-controller-manager`
+- `k8s/kube-scheduler`
+- `k8s/kube-proxy`
+- `k8s/pause`
+- `k8s/etcd`
+- `k8s/coredns`
+
+并且已确认：
+
+- Harbor 项目 `k8s` 的 `metadata.public=true`
+
+这样后续 `containerd` 和 `kubeadm` 从 Harbor 拉取基础镜像时，不需要额外处理 Harbor 项目访问认证。
+
+#### 6. 当前结论
+
+第一章第 3 步已经完成，可以进入下一步：
+
+- API Server 高可用入口部署
+
+### 阶段 05：第一章第 4 步 - 部署 API Server 高可用入口
+
+#### 1. 本阶段目标
+
+在 `lb01` 和 `lb02` 上部署 `HAProxy + Keepalived`，提供统一的控制平面入口：
+
+- 域名：`api.qytk8s.com`
+- VIP：`10.1.1.10`
+
+#### 2. 固定参数
+
+本阶段使用的固定参数如下：
+
+- VIP：`10.1.1.10`
+- 接口：`ens160`
+- `lb01`：MASTER
+- `lb02`：BACKUP
+- 后端控制平面节点：
+  - `cp01:6443`
+  - `cp02:6443`
+  - `cp03:6443`
+
+#### 3. 交付物
+
+本阶段已生成：
+
+- 第 4 步课件：`k8s/01-k8s-architecture/docs/05_loadbalancer.md`
+- 第 4 步小脚本：`k8s/01-k8s-architecture/scripts/04_setup_haproxy_keepalived_remote.sh`
+
+#### 4. 实施说明
+
+本阶段脚本完成的动作：
+
+1. 在 `lb01` 和 `lb02` 安装 `haproxy`
+2. 在 `lb01` 和 `lb02` 安装 `keepalived`
+3. 配置 `haproxy.cfg`，监听 `6443`
+4. 配置 `keepalived.conf`，提供漂移 VIP
+5. 配置 `haproxy` 进程健康检查脚本
+6. 启动并设置服务开机自启
+
+#### 5. 验证结果
+
+已完成以下验证：
+
+1. `lb01` 和 `lb02` 的 `haproxy` 服务状态
+2. `lb01` 和 `lb02` 的 `keepalived` 服务状态
+3. VIP 所在节点检查
+4. `api.qytk8s.com:6443` TCP 连通性测试
+5. 两台负载均衡器本地 `6443` 监听状态
+
+验证结论：
+
+- `lb01` 的 `haproxy` 为 `active`
+- `lb01` 的 `keepalived` 为 `active`
+- `lb02` 的 `haproxy` 为 `active`
+- `lb02` 的 `keepalived` 为 `active`
+- VIP `10.1.1.10` 当前漂移在 `lb01`
+- `api.qytk8s.com:6443` 已经可以建立 TCP 连接
+
+#### 6. 当前结论
+
+第一章第 4 步已经完成，可以进入下一步：
+
+- 安装 containerd
+
+### 阶段 06：第一章第 5 步 - 安装 containerd
+
+#### 1. 本阶段目标
+
+在所有 Kubernetes 节点安装并启用 `containerd`，同时明确启用：
+
+- `SystemdCgroup = true`
+
+#### 2. 处理节点
+
+本阶段已处理：
+
+- `cp01`
+- `cp02`
+- `cp03`
+- `wk-app01`
+- `wk-app02`
+- `wk-edge01`
+- `wk-obs01`
+
+#### 3. 交付物
+
+本阶段已生成：
+
+- 第 5 步课件：`k8s/01-k8s-architecture/docs/06_containerd.md`
+- 第 5 步小脚本：`k8s/01-k8s-architecture/scripts/05_install_containerd_remote.sh`
+
+#### 4. 验证结果
+
+已对 `cp01` 和 `wk-app01` 进行抽查：
+
+- `containerd --version`
+- `systemctl is-active containerd`
+- `containerd config dump | grep SystemdCgroup`
+
+验证结论：
+
+- 所有目标节点的 `containerd` 已安装
+- `containerd` 版本为 `1.7.28`
+- `containerd` 服务为 `active`
+- `SystemdCgroup = true`
+
+#### 5. 当前结论
+
+第一章第 5 步已经完成，可以进入下一步：
+
+- 配置 containerd 信任 Harbor
+
+### 阶段 07：第一章第 6 步 - 配置 containerd 信任 Harbor
+
+#### 1. 本阶段目标
+
+让所有 Kubernetes 节点上的 `containerd` 信任 `harbor.qytk8s.com`，并将基础 `pause` 镜像切换到 Harbor。
+
+#### 2. 交付物
+
+本阶段已生成：
+
+- 第 6 步课件：`k8s/01-k8s-architecture/docs/07_containerd_harbor.md`
+- 第 6 步小脚本：`k8s/01-k8s-architecture/scripts/06_config_containerd_harbor_remote.sh`
+
+#### 3. 实施说明
+
+本阶段脚本完成：
+
+1. 从 `ops` 分发 Harbor CA 到各节点
+2. 创建 `/etc/containerd/certs.d/harbor.qytk8s.com/hosts.toml`
+3. 设置 `config_path = "/etc/containerd/certs.d"`
+4. 设置 `sandbox_image = "harbor.qytk8s.com/k8s/pause:3.10"`
+5. 重启 `containerd`
+
+#### 4. 验证结果
+
+已对 `cp01` 和 `wk-app01` 进行抽查：
+
+- Harbor CA 文件存在
+- `hosts.toml` 内容正确
+- `sandbox_image` 指向 Harbor
+- `containerd` 服务为 `active`
+
+并额外在 `cp01` 上执行了：
+
+- `ctr -n k8s.io images pull --hosts-dir /etc/containerd/certs.d harbor.qytk8s.com/k8s/pause:3.10`
+
+验证结论：
+
+- Harbor 信任链已经真正打通
+- 节点已经可以从本地 Harbor 拉取 `pause:3.10`
+
+#### 5. 当前结论
+
+第一章第 6 步已经完成，可以进入下一步：
+
+- 安装 kubeadm、kubelet、kubectl
+
+### 阶段 08：第一章第 7 步 - 安装 kubeadm、kubelet、kubectl
+
+#### 1. 本阶段目标
+
+在 Kubernetes 节点安装固定版本的：
+
+- `kubeadm`
+- `kubelet`
+- `kubectl`
+
+并在 `ops` 本机安装：
+
+- `kubectl`
+
+#### 2. 版本冻结
+
+本阶段实际锁定的 apt 包版本为：
+
+- `kubeadm=1.33.9-1.1`
+- `kubelet=1.33.9-1.1`
+- `kubectl=1.33.9-1.1`
+
+#### 3. 交付物
+
+本阶段已生成：
+
+- 第 7 步课件：`k8s/01-k8s-architecture/docs/08_kube_tools.md`
+- 第 7 步小脚本：`k8s/01-k8s-architecture/scripts/07_install_kube_tools_remote.sh`
+
+#### 4. 验证结果
+
+已完成：
+
+- `ops` 本机 `kubectl version --client`
+- `cp01` 上 `kubeadm version -o short`
+- `cp01` 上 `kubectl version --client`
+- `wk-app01` 上 `kubeadm version -o short`
+- `wk-app01` 上 `kubectl version --client`
+- `systemctl is-enabled kubelet`
+
+验证结论：
+
+- `ops` 本机已经具备 `kubectl`
+- 所有 Kubernetes 节点已安装 `kubeadm/kubelet/kubectl`
+- 版本统一为 `v1.33.9`
+- `kubelet` 已设置开机自启
+
+#### 5. 当前结论
+
+第一章第 7 步已经完成，可以进入下一步：
+
+- 初始化第一个控制平面节点
+
+### 阶段 09：第一章第 8 步 - 初始化 cp01
+
+#### 1. 本阶段目标
+
+在 `cp01` 上执行 `kubeadm init`，创建第一台控制平面节点，并将 `ops` 连接到集群管理链路。
+
+#### 2. 固定参数
+
+本阶段实际使用：
+
+- Kubernetes 版本：`v1.33.9`
+- 控制平面统一入口：`api.qytk8s.com:6443`
+- Service CIDR：`10.96.0.0/12`
+- Pod CIDR：`10.244.0.0/16`
+- 镜像仓库：`harbor.qytk8s.com/k8s`
+
+#### 3. 交付物
+
+本阶段已生成：
+
+- 第 8 步课件：`k8s/01-k8s-architecture/docs/09_kubeadm_init.md`
+- 第 8 步小脚本：`k8s/01-k8s-architecture/scripts/08_kubeadm_init_remote.sh`
+
+#### 4. 实施结果
+
+本阶段完成了：
+
+- `cp01` 执行 `kubeadm init`
+- `cp01` 配置 `/root/.kube/config`
+- 生成：
+  - `/root/kubeadm-join-worker.sh`
+  - `/root/kubeadm-join-control-plane.sh`
+- 将 `/etc/kubernetes/admin.conf` 拷回 `ops`
+
+#### 5. 验证结果
+
+验证结论：
+
+- `cp01` 已成为第一个控制平面节点
+- `ops` 上已经可以直接执行 `kubectl`
+- 当前 `cp01` 为 `NotReady`，原因是本章尚未安装 CNI，这一状态符合预期
+
+#### 6. 当前结论
+
+第一章第 8 步已经完成，可以进入下一步：
+
+- 加入额外控制平面节点
+
+### 阶段 10：第一章第 9 步 - 加入 cp02 与 cp03
+
+#### 1. 本阶段目标
+
+将 `cp02` 与 `cp03` 加入当前集群，形成 3 控制平面高可用架构。
+
+#### 2. 交付物
+
+本阶段已生成：
+
+- 第 9 步课件：`k8s/01-k8s-architecture/docs/10_join_control_planes.md`
+- 第 9 步小脚本：`k8s/01-k8s-architecture/scripts/09_join_control_planes_remote.sh`
+
+#### 3. 实施结果
+
+脚本从 `cp01` 读取控制平面 join 命令，并成功让：
+
+- `cp02`
+- `cp03`
+
+加入控制平面。
+
+#### 4. 验证结果
+
+`kubectl get nodes -o wide` 已确认：
+
+- `cp01`
+- `cp02`
+- `cp03`
+
+三台控制平面节点均已加入集群。
+
+#### 5. 当前结论
+
+第一章第 9 步已经完成，可以进入下一步：
+
+- 加入 Worker 节点
+
+### 阶段 11：第一章第 10 步 - 加入 Worker 节点并打标签
+
+#### 1. 本阶段目标
+
+将四台 Worker 节点加入集群，并为后续章节提前打好角色标签。
+
+#### 2. 处理节点
+
+本阶段已加入：
+
+- `wk-app01`
+- `wk-app02`
+- `wk-edge01`
+- `wk-obs01`
+
+#### 3. 标签结果
+
+本阶段已写入标签：
+
+- `wk-app01` -> `node-role=app`
+- `wk-app02` -> `node-role=app`
+- `wk-edge01` -> `node-role=edge`
+- `wk-obs01` -> `node-role=observability`
+
+#### 4. 交付物
+
+本阶段已生成：
+
+- 第 10 步课件：`k8s/01-k8s-architecture/docs/11_join_workers.md`
+- 第 10 步小脚本：`k8s/01-k8s-architecture/scripts/10_join_workers_remote.sh`
+
+#### 5. 验证结果
+
+`kubectl get nodes --show-labels` 已确认：
+
+- 4 台 Worker 节点全部加入
+- 标签全部正确
+
+#### 6. 当前结论
+
+第一章第 10 步已经完成，可以进入本章总验收。
+
+### 阶段 12：第一章总验收
+
+#### 1. 交付物
+
+本阶段已生成：
+
+- 第一章总览：`k8s/01-k8s-architecture/docs/01_chapter_guide.md`
+- 第一章总验收文档：`k8s/01-k8s-architecture/docs/12_verify.md`
+
+#### 2. 验证项
+
+本章已完成以下总体验证：
+
+1. `kubectl get nodes -o wide`
+2. `kubectl get nodes --show-labels`
+3. `kubectl get pods -A -o wide`
+4. `curl -k https://harbor.qytk8s.com/api/v2.0/health`
+5. `nc -vz api.qytk8s.com 6443`
+6. 在 `cp01` 上通过 `crictl exec ... etcdctl member list` 查看 etcd 成员
+
+#### 3. 最终验收结论
+
+当前状态如下：
+
+- Harbor 正常，健康状态为 `healthy`
+- `api.qytk8s.com:6443` 可以建立 TCP 连接
+- 3 控制平面节点全部加入
+- 4 Worker 节点全部加入
+- etcd 已形成 3 成员集群
+- 节点标签已提前完成
+- 当前所有节点为 `NotReady`
+
+这里的 `NotReady` 属于**预期现象**，原因是：
+
+- 本章尚未安装 CNI
+- `coredns` 处于 `Pending`
+
+这正好为第二章：
+
+- 云原生网络与服务互联
+- Cilium
+- eBPF
+- Hubble
+
+做铺垫。
+
+#### 4. 第一章最终结论
+
+第一章“Kubernetes 基础架构”已经完成。
