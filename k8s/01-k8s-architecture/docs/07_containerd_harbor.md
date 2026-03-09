@@ -14,11 +14,7 @@
 
 Harbor 现在是 HTTPS 部署，而且使用的是课程内部自签发证书。
 
-如果不把 Harbor CA 分发到 Kubernetes 节点，后面节点拉镜像时就会遇到典型错误：
-
-```text
-x509: certificate signed by unknown authority
-```
+如果不把 Harbor CA 分发到 Kubernetes 节点，节点在通过 TLS 校验 Harbor 证书时就无法建立受信任连接。
 
 所以这一步的本质是：
 
@@ -30,7 +26,7 @@ x509: certificate signed by unknown authority
 
 `pause` 是 Kubernetes 每个 Pod 都会依赖的基础镜像之一。
 
-后续即使你的业务镜像都是本地的，如果 `pause` 还指向公网仓库，集群初始化和启动 Pod 时仍然可能失败。
+后续即使业务镜像都来自本地 Harbor，`pause` 仍然属于 Pod 启动过程依赖的基础镜像，因此也需要统一切换到本地仓库。
 
 所以这里要明确改成：
 

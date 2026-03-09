@@ -18,8 +18,8 @@
 
 说明：
 
-- 如果你恢复的是“第一章起点快照”，这一步需要执行
-- 如果 Harbor 已经保留，并且 `https://harbor.qytk8s.com` 正常可访问，这一步可以不重复执行，只做验证
+- 当环境中尚未部署 Harbor 时，执行本步
+- 当 Harbor 已保留，且 `https://harbor.qytk8s.com` 可正常访问时，本步按验证流程执行
 
 ## 为什么本章先部署 Harbor
 

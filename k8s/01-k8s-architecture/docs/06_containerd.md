@@ -36,11 +36,11 @@ Kubernetes 本身不直接负责运行容器。
 在 Ubuntu 24.04 上，`systemd` 是系统的初始化和服务管理器。  
 Kubernetes 的 `kubelet` 也默认更适合配合 `systemd` 的 cgroup 驱动工作。
 
-如果 `containerd` 和 `kubelet` 的 cgroup 驱动不一致，后续经常会遇到：
+如果 `containerd` 和 `kubelet` 的 cgroup 驱动不一致，后续可能出现：
 
-- Pod 起不来
-- kubelet 报错
-- 资源管理异常
+- Pod 生命周期管理不一致
+- `kubelet` 与运行时协同异常
+- 资源隔离与统计结果不一致
 
 所以这里必须明确设置：
 

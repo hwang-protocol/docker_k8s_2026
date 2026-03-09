@@ -106,24 +106,29 @@ bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/04_setup_haproxy_keepalive
 ### 验证 1：检查服务状态
 
 ```bash
-ssh root@lb01 "systemctl status haproxy --no-pager && systemctl status keepalived --no-pager"
-ssh root@lb02 "systemctl status haproxy --no-pager && systemctl status keepalived --no-pager"
+for node in lb01 lb02; do
+  echo "===== ${node} ====="
+  ssh root@${node} "systemctl is-active haproxy keepalived"
+done
 ```
 
 预期：
 
-- 两台机器上的 `haproxy` 都是 `active`
-- 两台机器上的 `keepalived` 都是 `active`
+- 每台机器都会先打印主机名分隔线
+- `haproxy` 和 `keepalived` 都显示为 `active`
 
 ### 验证 2：检查 VIP 在哪台机器上
 
 ```bash
-ssh root@lb01 "ip addr show ens160 | grep 10.1.1.10 || true"
-ssh root@lb02 "ip addr show ens160 | grep 10.1.1.10 || true"
+for node in lb01 lb02; do
+  echo "===== ${node} ====="
+  ssh root@${node} "ip addr show ens160 | grep 10.1.1.10 || true"
+done
 ```
 
 预期：
 
+- 哪台机器输出了 `10.1.1.10`，VIP 就在那台机器上
 - 正常情况下，VIP 出现在 `lb01`
 
 ### 验证 3：检查 `api.qytk8s.com` 是否能连到 6443

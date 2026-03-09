@@ -513,6 +513,9 @@ nameservers:
 - 先关闭 `unattended-upgrades.service`
 - 关闭 `apt-daily.timer` 和 `apt-daily-upgrade.timer`
 - 等待 `apt/dpkg` 锁释放后再继续安装
+- 对 `apt-get update` 与 `apt-get install` 增加锁等待与重试
+- 如果锁等待超时，主动清理 `unattended-upgrades` 残留进程
+- 支持只传入单个主机名进行补刷，例如只补刷 `wk-app02`
 
 这样更适合课堂环境和快照恢复后的重复执行。
 
@@ -1106,6 +1109,19 @@ nameservers:
 
 - 本章尚未安装 CNI
 - `coredns` 处于 `Pending`
+- 此处的 `coredns` 为集群内 DNS 组件 `CoreDNS`
+- `CoreDNS Pod Pending` 的直接原因是 Pod 网络尚未建立
+- 该现象不属于外部 DNS 解析问题，与 `win2019` 无关
+
+结合本次 `kubectl get pods -A -o wide` 的实际结果，可以进一步确认：
+
+- `etcd-cp01`、`etcd-cp02`、`etcd-cp03` 均为 `Running`
+- `kube-apiserver`、`kube-controller-manager`、`kube-scheduler` 在 3 台控制平面节点均为 `Running`
+- `kube-proxy` 已在 `cp01`、`cp02`、`cp03`、`wk-app01`、`wk-app02`、`wk-edge01`、`wk-obs01` 全部运行
+- 两个 `CoreDNS` Pod 均为 `Pending`
+- 两个 `CoreDNS` Pod 当前都没有分配节点与 Pod IP，符合“尚未安装 CNI”的阶段特征
+
+这说明第一章已经完成控制平面、Worker 加入和基础系统组件启动；当前剩余的关键工作是下一章的 CNI 与 Pod 网络建设。
 
 这正好为第二章：
 
@@ -1119,3 +1135,30 @@ nameservers:
 #### 4. 第一章最终结论
 
 第一章“Kubernetes 基础架构”已经完成。
+
+### 阶段 13：第一章课件语言清洗
+
+#### 1. 目标
+
+将第一章 `k8s/01-k8s-architecture/docs/` 全部课件正文统一为正式教材口吻。
+
+#### 2. 清洗原则
+
+- 只保留教学目标、理论说明、执行步骤、验证方法、预期结果和结论
+- 不写开发过程中的试错、修正、排障、补救和过程性叙事
+- 保留必要的条件执行说明，但使用客观、稳定、可复现的表达
+
+#### 3. 本次处理范围
+
+- `docs/01_chapter_guide.md`
+- `docs/02_prepare_os.md`
+- `docs/03_harbor.md`
+- `docs/04_push_k8s_images.md`
+- `docs/06_containerd.md`
+- `docs/07_containerd_harbor.md`
+- `docs/08_kube_tools.md`
+- `docs/12_verify.md`
+
+#### 4. 结果
+
+第一章课件正文已统一为“默认一次通过”的课程材料风格，可直接用于课堂讲解与按顺序复制执行。

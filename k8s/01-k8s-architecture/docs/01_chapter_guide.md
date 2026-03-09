@@ -36,7 +36,7 @@
 
 | 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
 | :--- | :--- | :--- | :--- | :--- |
-| 1 | `02_prepare_os.md` | `scripts/01_prepare_os_remote.sh` | 必须执行 | 从本章起点快照恢复后，先做所有 Ubuntu 节点系统初始化 |
+| 1 | `02_prepare_os.md` | `scripts/01_prepare_os_remote.sh` | 必须执行 | 在所有 Ubuntu 节点完成系统初始化 |
 | 2 | `03_harbor.md` | `scripts/02_install_harbor_remote.sh` | 条件执行 | 如果 `harbor` 还没部署，就执行；如果 Harbor 已经保留，可只做验证 |
 | 3 | `04_push_k8s_images.md` | `scripts/03_push_k8s_images_remote.sh` | 条件执行 | 如果 Harbor 中已经保留了 `k8s` 项目和核心镜像，这一步可以跳过，只做验证 |
 | 4 | `05_loadbalancer.md` | `scripts/04_setup_haproxy_keepalived_remote.sh` | 必须执行 | 需要为控制平面准备统一 VIP 入口 |
@@ -48,13 +48,13 @@
 | 10 | `11_join_workers.md` | `scripts/10_join_workers_remote.sh` | 必须执行 | 加入 4 台 Worker，并打标签 |
 | 11 | `12_verify.md` | 无 | 只读验证 | 本章最终验收，不改配置 |
 
-## 适合你的重刷方式
+## 执行路径说明
 
-如果你准备恢复快照后重新刷第一章，建议按下面方式理解：
+根据当前环境中已保留的基础设施状态，可以按下面方式选择执行路径：
 
-### 场景 A：恢复到“第一章起点快照”
+### 路径 A：从第一章起点环境开始执行
 
-这时通常应该：
+推荐执行：
 
 - 执行步骤 1
 - 执行步骤 2
@@ -62,9 +62,9 @@
 - 执行步骤 4 ~ 10
 - 执行步骤 11 验收
 
-### 场景 B：你保留了 Harbor 和已经推送好的基础镜像
+### 路径 B：已保留 Harbor 与基础镜像
 
-这时通常可以：
+推荐执行：
 
 - 执行步骤 1
 - 先检查步骤 2，如果 Harbor 正常，则不重复部署
@@ -72,12 +72,12 @@
 - 执行步骤 4 ~ 10
 - 执行步骤 11 验收
 
-也就是说，对你来说最可能跳过的是：
+在该路径下，通常可以不重复执行：
 
 - `scripts/02_install_harbor_remote.sh`
 - `scripts/03_push_k8s_images_remote.sh`
 
-前提是：
+前提条件：
 
 - Harbor 服务还在
 - Harbor 中 `k8s` 项目和核心镜像还在
@@ -106,14 +106,3 @@
 
 本章以及后续章节都统一按这个版本编写，不再变动。
 
-## 当前阶段说明
-
-我们现在先做 **第 1 步：所有节点系统初始化**。
-
-对应文档：
-
-- `docs/02_prepare_os.md`
-
-对应脚本：
-
-- `scripts/01_prepare_os_remote.sh`

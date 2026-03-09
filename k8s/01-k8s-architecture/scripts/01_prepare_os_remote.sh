@@ -29,6 +29,80 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
+wait_for_apt_lock() {
+  local max_wait_seconds=180
+  local waited=0
+
+  while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 \
+     || fuser /var/lib/dpkg/lock >/dev/null 2>&1 \
+     || fuser /var/cache/apt/archives/lock >/dev/null 2>&1 \
+     || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+    if (( waited >= max_wait_seconds )); then
+      echo "apt/dpkg 锁等待超时，尝试终止自动更新相关进程..."
+      pkill -f unattended-upgr >/dev/null 2>&1 || true
+      pkill -f apt-daily >/dev/null 2>&1 || true
+      pkill -f apt-get >/dev/null 2>&1 || true
+      sleep 5
+      break
+    fi
+
+    echo "等待 apt/dpkg 锁释放... (${waited}s/${max_wait_seconds}s)"
+    sleep 3
+    waited=$((waited + 3))
+  done
+}
+
+run_apt_update() {
+  local try
+
+  for try in 1 2 3; do
+    if apt-get -o DPkg::Lock::Timeout=600 -o Acquire::Retries=3 update -y; then
+      return 0
+    fi
+
+    echo "apt-get update 第 ${try} 次失败，准备重试..."
+    sleep 5
+    dpkg --configure -a >/dev/null 2>&1 || true
+    apt-get -f install -y >/dev/null 2>&1 || true
+    wait_for_apt_lock
+  done
+
+  return 1
+}
+
+run_apt_install() {
+  local try
+
+  for try in 1 2 3; do
+    if apt-get -o DPkg::Lock::Timeout=600 -o Acquire::Retries=3 install -y \
+      apt-transport-https \
+      ca-certificates \
+      conntrack \
+      curl \
+      gpg \
+      iproute2 \
+      ipset \
+      jq \
+      multipath-tools \
+      netcat-openbsd \
+      open-iscsi \
+      socat \
+      tar \
+      vim \
+      wget; then
+      return 0
+    fi
+
+    echo "apt-get install 第 ${try} 次失败，准备重试..."
+    sleep 5
+    dpkg --configure -a >/dev/null 2>&1 || true
+    apt-get -f install -y >/dev/null 2>&1 || true
+    wait_for_apt_lock
+  done
+
+  return 1
+}
+
 echo "[1/9] 关闭 swap"
 swapoff -a || true
 sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
@@ -67,33 +141,12 @@ echo "[7/9] 关闭自动更新，避免 apt 锁冲突"
 systemctl disable --now unattended-upgrades.service >/dev/null 2>&1 || true
 systemctl disable --now apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
 systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
-
-while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 \
-   || fuser /var/lib/dpkg/lock >/dev/null 2>&1 \
-   || fuser /var/cache/apt/archives/lock >/dev/null 2>&1 \
-   || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-  echo "等待 apt/dpkg 锁释放..."
-  sleep 3
-done
+systemctl mask unattended-upgrades.service >/dev/null 2>&1 || true
+wait_for_apt_lock
 
 echo "[8/9] 安装基础工具"
-apt-get update -y
-apt-get install -y \
-  apt-transport-https \
-  ca-certificates \
-  conntrack \
-  curl \
-  gpg \
-  iproute2 \
-  ipset \
-  jq \
-  multipath-tools \
-  netcat-openbsd \
-  open-iscsi \
-  socat \
-  tar \
-  vim \
-  wget
+run_apt_update
+run_apt_install
 
 echo "[9/9] 启动 Longhorn 依赖服务"
 systemctl enable --now iscsid >/dev/null 2>&1 || true
@@ -126,12 +179,19 @@ run_remote() {
 # - 逐台执行系统初始化
 main() {
   local node
+  local target_nodes=()
 
-  for node in "${ALL_NODES[@]}"; do
+  if (( $# > 0 )); then
+    target_nodes=("$@")
+  else
+    target_nodes=("${ALL_NODES[@]}")
+  fi
+
+  for node in "${target_nodes[@]}"; do
     run_remote "${node}"
   done
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-  main
+  main "$@"
 fi

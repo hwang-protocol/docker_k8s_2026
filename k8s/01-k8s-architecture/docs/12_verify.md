@@ -13,7 +13,7 @@
 
 ## 为什么本章结束时节点仍然可能是 NotReady
 
-这是第一章最容易让学员误解的地方。
+这里需要明确区分“控制平面完成”和“网络插件安装完成”两个阶段。
 
 当前我们已经完成了：
 
@@ -29,7 +29,7 @@
 - Pod 网络
 - CNI 安装
 
-所以节点现在显示 `NotReady`，并不是失败，而是课程进度还没有进入下一章 `Cilium`。
+因此节点当前显示 `NotReady`，说明本章已经完成控制平面与节点加入阶段，而 Pod 网络平面将在下一章 `Cilium` 中完成。
 
 ## 验收命令
 
@@ -67,7 +67,30 @@ kubectl get pods -A -o wide
 预期：
 
 - 控制平面静态 Pod 正常
-- `coredns` 可能还未完全 Ready
+- `coredns` 当前可能显示为 `Pending`
+
+说明：
+
+- 这里的 `coredns` 指的是集群内 DNS 组件 `CoreDNS`
+- 当前状态的关键原因是第一章尚未安装 CNI，Pod 网络尚未建立
+- 因此 `CoreDNS Pod Pending` 属于本章阶段的预期现象
+- 这不是外部 DNS 配置异常，也不是 `win2019` 的解析问题
+
+本次实际观测可按下面方式理解：
+
+- `etcd` 已在 `cp01`、`cp02`、`cp03` 正常运行
+- `kube-apiserver`、`kube-controller-manager`、`kube-scheduler` 已在 3 台控制平面节点正常运行
+- `kube-proxy` 已在 3 台控制平面节点和 4 台 Worker 节点全部运行
+- 两个 `CoreDNS` Pod 当前都为 `Pending`
+- `CoreDNS` 还没有分配到具体节点，`NODE` 显示为 `<none>`
+- `CoreDNS` 还没有拿到 Pod IP，`IP` 显示为 `<none>`
+
+这组结果说明：
+
+- 控制平面组件状态正常
+- 节点加入状态正常
+- 集群基础服务已经启动到“等待网络插件”的阶段
+- 下一章安装 `Cilium` 后，`CoreDNS` 会继续完成调度与网络分配
 
 ### 验收 4：查看 Harbor 健康状态
 

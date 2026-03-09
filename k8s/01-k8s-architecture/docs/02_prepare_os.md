@@ -20,7 +20,7 @@
 ### 1. 为什么要关闭 swap
 
 `kubelet` 默认要求关闭 swap。  
-如果不关闭，后续初始化集群时经常会报错，或者留下不稳定因素。
+如果不关闭，后续初始化集群时可能无法满足 Kubernetes 的基础运行要求。
 
 ### 2. 为什么要加载 `overlay` 和 `br_netfilter`
 
@@ -34,8 +34,7 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 
 ### 4. 为什么要关闭 `UseDNS`
 
-之前你已经发现 SSH 登录会有明显等待。  
-关闭 `UseDNS` 后，SSH 登录体验会更顺畅，也更适合课堂演示。
+关闭 `UseDNS` 后，SSH 登录过程会更顺畅，也更适合批量运维与课堂演示。
 
 ### 5. 为什么现在就安装 `open-iscsi`
 
@@ -45,9 +44,19 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 ### 6. 为什么要关闭自动更新
 
 `Ubuntu Server 24.04` 默认会运行 `unattended-upgrades`。  
-如果它正在后台更新软件包，就会占用 `apt/dpkg` 锁，导致我们课堂上执行安装命令时报错。
+如果它正在后台更新软件包，就会占用 `apt/dpkg` 锁，从而影响初始化阶段的软件安装顺序。
 
 对于课程环境和快照复现环境，更适合先关闭自动更新，保证每次执行结果稳定、可控。
+
+## 包管理执行机制
+
+为了保证系统初始化过程稳定、连续，这个脚本在软件包处理阶段采用了下面的执行机制：
+
+1. 先停止并禁用 `unattended-upgrades`、`apt-daily`、`apt-daily-upgrade`
+2. 在执行安装前检查并等待 `apt/dpkg` 锁释放
+3. `apt-get update` 和 `apt-get install` 使用锁等待与重试机制
+
+学员需要理解的是：这一步的目标不是“手工处理软件包冲突”，而是让系统初始化流程可以按既定顺序自动完成。
 
 ## 本步涉及节点
 
@@ -99,6 +108,12 @@ chmod +x /docker_k8s_2026/k8s/01-k8s-architecture/scripts/01_prepare_os_remote.s
 bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/01_prepare_os_remote.sh
 ```
 
+脚本也支持按主机名单独执行。示例：
+
+```bash
+bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/01_prepare_os_remote.sh wk-app02
+```
+
 ## 你会看到什么
 
 正常情况下，脚本会按节点逐台输出，类似下面这种结构：
@@ -114,6 +129,9 @@ bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/01_prepare_os_remote.sh
 [5/9] 优化 SSH 登录
 [6/9] 关闭 UFW
 [7/9] 关闭自动更新，避免 apt 锁冲突
+[等待阶段可能会出现]
+等待 apt/dpkg 锁释放... (0s/180s)
+等待 apt/dpkg 锁释放... (3s/180s)
 [8/9] 安装基础工具
 [9/9] 启动 Longhorn 依赖服务
 hostname=cp01
@@ -205,7 +223,7 @@ systemctl status iscsid --no-pager
 
 只要满足下面条件，就可以进入下一步：
 
-- 所有目标节点脚本执行无报错
+- 所有目标节点脚本执行完成
 - 至少抽查 1 台控制平面节点和 1 台工作节点
 - swap 已关闭
 - `ip_forward=1`
