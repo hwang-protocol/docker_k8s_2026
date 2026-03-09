@@ -120,7 +120,14 @@ ssh root@cp01 "export CONTAINER_RUNTIME_ENDPOINT=unix:///run/containerd/containe
 
 预期：
 
-- 能看到 3 个 etcd 成员
+- 能看到 3 个 etcd 成员，每个成员状态为 `started`
+- 分别对应 `cp01`、`cp02`、`cp03`
+
+说明：
+
+- 输出中可能出现 `Config "/etc/crictl.yaml" does not exist` 的 warning
+- 这是 `crictl` 提示没找到默认配置文件，不影响结果
+- 关键看 `member list` 输出中有 3 行且状态均为 `started`
 
 ## 本章最终完成标准
 

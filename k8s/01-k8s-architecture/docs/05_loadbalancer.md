@@ -149,7 +149,9 @@ nc -vz api.qytk8s.com 6443
 ### 验证 4：检查配置文件
 
 ```bash
+echo "===== lb01 haproxy.cfg ====="
 ssh root@lb01 "cat /etc/haproxy/haproxy.cfg"
+echo "===== lb01 keepalived.conf ====="
 ssh root@lb01 "cat /etc/keepalived/keepalived.conf"
 ```
 

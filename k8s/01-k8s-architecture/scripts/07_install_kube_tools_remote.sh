@@ -25,27 +25,32 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
+echo "[1/5] 导入 Kubernetes APT 签名密钥"
 mkdir -p /etc/apt/keyrings
 curl -fsSL "https://pkgs.k8s.io/core:/stable:/v1.33/deb/Release.key" \
   | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg --yes
 
+echo "[2/5] 配置 Kubernetes APT 仓库"
 cat >/etc/apt/sources.list.d/kubernetes.list <<'INNER'
 deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /
 INNER
 
 apt-get update -y
 
+echo "[3/5] 校验仓库候选版本"
 candidate_version=$(apt-cache madison kubeadm | awk 'NR==1 {print $3}')
 if [[ "${candidate_version}" != "1.33.9-1.1" ]]; then
   echo "仓库候选版本不是 1.33.9-1.1，而是：${candidate_version}"
   exit 1
 fi
 
+echo "[4/5] 安装 kubelet、kubeadm、kubectl"
 apt-get install -y \
   kubelet=1.33.9-1.1 \
   kubeadm=1.33.9-1.1 \
   kubectl=1.33.9-1.1
 
+echo "[5/5] 锁定版本，防止自动升级"
 apt-mark hold kubelet kubeadm kubectl
 
 kubeadm version -o short
@@ -56,16 +61,19 @@ EOF
 )
 
 install_on_ops() {
+  echo "[ops 1/4] 导入 Kubernetes APT 签名密钥"
   mkdir -p /etc/apt/keyrings
   curl -fsSL "https://pkgs.k8s.io/core:/stable:/v1.33/deb/Release.key" \
     | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg --yes
 
+  echo "[ops 2/4] 配置 Kubernetes APT 仓库"
   cat >/etc/apt/sources.list.d/kubernetes.list <<'EOF'
 deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.33/deb/ /
 EOF
 
   apt-get update -y
 
+  echo "[ops 3/4] 校验仓库候选版本"
   local candidate_version
   candidate_version=$(apt-cache madison kubectl | awk 'NR==1 {print $3}')
   if [[ "${candidate_version}" != "${K8S_PACKAGE_VERSION}" ]]; then
@@ -73,6 +81,7 @@ EOF
     exit 1
   fi
 
+  echo "[ops 4/4] 安装并锁定 kubectl"
   apt-get install -y "kubectl=${K8S_PACKAGE_VERSION}"
   apt-mark hold kubectl
 

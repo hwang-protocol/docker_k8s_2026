@@ -1162,3 +1162,41 @@ nameservers:
 #### 4. 结果
 
 第一章课件正文已统一为“默认一次通过”的课程材料风格，可直接用于课堂讲解与按顺序复制执行。
+
+### 阶段 15：课程文件 HTTP 发布与 YAML 独立管理
+
+#### 1. 目标
+
+在 `ops` 上部署 nginx HTTP 服务，将课程 YAML 文件通过 HTTP 发布，实现：
+
+- YAML 文件从脚本中独立出来，统一放在 `manifests/` 目录
+- 脚本和远程节点通过 HTTP 直接获取 YAML
+- 后续 `kubectl apply -f` 可直接使用 HTTP 地址
+
+#### 2. nginx 配置
+
+- 监听端口：`9000`
+- 根目录：`/docker_k8s_2026/k8s/`
+- 配置文件：`/etc/nginx/sites-available/k8s-manifests`
+- autoindex 已开启
+
+#### 3. 本次处理的文件
+
+新建：
+
+- `k8s/01-k8s-architecture/manifests/kubeadm-init-cp01.yaml`
+
+改动：
+
+- `scripts/08_kubeadm_init_remote.sh`：不再嵌入 YAML，改为 `cp01` 通过 HTTP 下载
+- `docs/01_chapter_guide.md`：新增"课程文件 HTTP 服务"段落，包含安装步骤和验证方法
+- `docs/09_kubeadm_init.md`：更新配置文件引用方式
+- `.cursor/rules/course_implementation.mdc`：新增"YAML 文件管理与 HTTP 发布"规则
+
+删除：
+
+- `tmp/kubeadm-init-cp01.yaml`（已迁移到 `manifests/`）
+
+#### 4. 结果
+
+nginx 已在 `ops` 上运行，`http://ops:9000/` 可访问所有章节目录和 YAML 文件。第一章 `kubeadm` 初始化配置已通过 HTTP 方式验证可用。

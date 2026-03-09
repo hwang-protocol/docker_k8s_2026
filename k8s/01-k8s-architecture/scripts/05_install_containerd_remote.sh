@@ -17,14 +17,18 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
+echo "[1/4] 安装 containerd"
 apt-get update -y
 apt-get install -y containerd
 
+echo "[2/4] 生成默认配置文件"
 mkdir -p /etc/containerd
 containerd config default >/etc/containerd/config.toml
 
+echo "[3/4] 设置 SystemdCgroup = true"
 sed -ri 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
 
+echo "[4/4] 启动 containerd 并设置开机自启"
 systemctl enable --now containerd
 systemctl restart containerd
 

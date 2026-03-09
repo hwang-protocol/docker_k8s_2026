@@ -5,51 +5,23 @@ set -euo pipefail
 # 脚本名称：08_kubeadm_init_remote.sh
 # 适用场景：第一章第 8 步，在 cp01 初始化第一个控制平面
 # 执行位置：ops 节点
+# 说明：
+# 1. kubeadm 初始化配置文件存放在 manifests/kubeadm-init-cp01.yaml
+# 2. cp01 通过 HTTP 从 ops 直接下载该配置文件
+# 3. kubeadm init 完成后，admin.conf 会拷回 ops
 # ==============================================================================
 
-BASE_DIR="/docker_k8s_2026/k8s/01-k8s-architecture"
-TMP_DIR="${BASE_DIR}/tmp"
-CONFIG_FILE="${TMP_DIR}/kubeadm-init-cp01.yaml"
+MANIFEST_URL="http://ops:9000/01-k8s-architecture/manifests/kubeadm-init-cp01.yaml"
 
-mkdir -p "${TMP_DIR}"
+echo "========================================================="
+echo "开始初始化第一个控制平面 cp01"
+echo "========================================================="
 
-cat >"${CONFIG_FILE}" <<'EOF'
-apiVersion: kubeadm.k8s.io/v1beta4
-kind: InitConfiguration
-localAPIEndpoint:
-  advertiseAddress: 10.1.1.101
-  bindPort: 6443
-nodeRegistration:
-  criSocket: unix:///run/containerd/containerd.sock
-  name: cp01
----
-apiVersion: kubeadm.k8s.io/v1beta4
-kind: ClusterConfiguration
-kubernetesVersion: v1.33.9
-controlPlaneEndpoint: api.qytk8s.com:6443
-imageRepository: harbor.qytk8s.com/k8s
-networking:
-  serviceSubnet: 10.96.0.0/12
-  podSubnet: 10.244.0.0/16
-  dnsDomain: cluster.local
-apiServer:
-  certSANs:
-    - api.qytk8s.com
-    - 10.1.1.10
-    - cp01
-    - cp02
-    - cp03
-    - 10.1.1.101
-    - 10.1.1.102
-    - 10.1.1.103
----
-apiVersion: kubelet.config.k8s.io/v1beta1
-kind: KubeletConfiguration
-cgroupDriver: systemd
-EOF
+echo "[1/4] cp01 从 ops HTTP 服务下载 kubeadm 初始化配置"
+ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@cp01 \
+  "curl -fsSL ${MANIFEST_URL} -o /root/kubeadm-init.yaml"
 
-scp -o StrictHostKeyChecking=no "${CONFIG_FILE}" root@cp01:/root/kubeadm-init.yaml
-
+echo "[2/4] 在 cp01 执行 kubeadm init"
 ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@cp01 "bash -s" <<'EOF'
 set -euo pipefail
 
@@ -72,8 +44,11 @@ kubeadm token create --print-join-command --certificate-key "$(kubeadm init phas
 kubectl get nodes -o wide
 EOF
 
+echo "[3/4] 将 admin.conf 拷回 ops，配置 kubectl"
 mkdir -p /root/.kube
 scp -o StrictHostKeyChecking=no root@cp01:/etc/kubernetes/admin.conf /root/.kube/config
 chmod 600 /root/.kube/config
 
+echo "[4/4] 在 ops 验证 kubectl"
 kubectl get nodes -o wide
+echo "OK: cp01 初始化完成"

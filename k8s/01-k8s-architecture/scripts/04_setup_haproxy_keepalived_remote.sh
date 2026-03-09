@@ -17,9 +17,12 @@ configure_lb01() {
 set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
+
+echo "[lb01 1/5] 安装 haproxy 和 keepalived"
 apt-get update -y
 apt-get install -y haproxy keepalived
 
+echo "[lb01 2/5] 写入 haproxy.cfg"
 cat >/etc/haproxy/haproxy.cfg <<'INNER'
 global
     log /dev/log local0
@@ -46,12 +49,14 @@ backend k8s_api_backend
     server cp03 cp03:6443 check
 INNER
 
+echo "[lb01 3/5] 写入健康检查脚本"
 cat >/etc/keepalived/check_haproxy.sh <<'INNER'
 #!/usr/bin/env bash
 systemctl is-active --quiet haproxy
 INNER
 chmod +x /etc/keepalived/check_haproxy.sh
 
+echo "[lb01 4/5] 写入 keepalived.conf"
 cat >/etc/keepalived/keepalived.conf <<INNER
 global_defs {
    router_id LB01
@@ -90,6 +95,7 @@ vrrp_instance VI_K8S_API {
 }
 INNER
 
+echo "[lb01 5/5] 启动 haproxy 和 keepalived"
 systemctl enable --now haproxy
 systemctl enable --now keepalived
 systemctl restart haproxy keepalived
@@ -104,9 +110,12 @@ configure_lb02() {
 set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
+
+echo "[lb02 1/5] 安装 haproxy 和 keepalived"
 apt-get update -y
 apt-get install -y haproxy keepalived
 
+echo "[lb02 2/5] 写入 haproxy.cfg"
 cat >/etc/haproxy/haproxy.cfg <<'INNER'
 global
     log /dev/log local0
@@ -133,12 +142,14 @@ backend k8s_api_backend
     server cp03 cp03:6443 check
 INNER
 
+echo "[lb02 3/5] 写入健康检查脚本"
 cat >/etc/keepalived/check_haproxy.sh <<'INNER'
 #!/usr/bin/env bash
 systemctl is-active --quiet haproxy
 INNER
 chmod +x /etc/keepalived/check_haproxy.sh
 
+echo "[lb02 4/5] 写入 keepalived.conf"
 cat >/etc/keepalived/keepalived.conf <<INNER
 global_defs {
    router_id LB02
@@ -177,6 +188,7 @@ vrrp_instance VI_K8S_API {
 }
 INNER
 
+echo "[lb02 5/5] 启动 haproxy 和 keepalived"
 systemctl enable --now haproxy
 systemctl enable --now keepalived
 systemctl restart haproxy keepalived

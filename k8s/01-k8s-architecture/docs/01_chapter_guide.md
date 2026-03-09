@@ -98,6 +98,67 @@
 10. `11_join_workers.md`
 11. `12_verify.md`
 
+## 课程文件 HTTP 服务
+
+`ops` 节点上运行了一个 nginx 服务，将课程中所有 YAML 清单文件通过 HTTP 发布。
+
+### 服务参数
+
+- 服务地址：`http://ops:9000/`
+- 根目录：`/docker_k8s_2026/k8s/`
+- 每一章的 YAML 文件统一放在该章的 `manifests/` 目录下
+
+### 安装方式
+
+如果 `ops` 上还没有安装 nginx，执行以下命令：
+
+```bash
+apt-get update -y && apt-get install -y nginx
+```
+
+写入配置文件：
+
+```bash
+cat > /etc/nginx/sites-available/k8s-manifests <<'EOF'
+server {
+    listen 9000;
+    server_name _;
+
+    root /docker_k8s_2026/k8s;
+    autoindex on;
+    autoindex_exact_size off;
+    autoindex_localtime on;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+EOF
+```
+
+启用站点并重启 nginx：
+
+```bash
+ln -sf /etc/nginx/sites-available/k8s-manifests /etc/nginx/sites-enabled/k8s-manifests
+nginx -t && systemctl restart nginx && systemctl enable nginx
+```
+
+### 验证
+
+```bash
+curl -s http://ops:9000/01-k8s-architecture/manifests/kubeadm-init-cp01.yaml | head -5
+```
+
+预期：
+
+- 能看到 YAML 文件内容的前几行
+
+### 使用方式
+
+- 需要查看 YAML：浏览器访问 `http://ops:9000/` 或查看 `manifests/` 目录
+- 脚本中需要下载 YAML：使用 `curl -fsSL http://ops:9000/...`
+- 后续 `kubectl apply -f`：直接引用 HTTP 地址
+
 ## 版本冻结
 
 为了确保课程的可复现性和后续章节的兼容性，本课程统一冻结以下版本：

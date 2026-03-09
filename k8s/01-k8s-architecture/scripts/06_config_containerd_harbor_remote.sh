@@ -28,6 +28,7 @@ configure_remote() {
   ssh -o BatchMode=yes -o StrictHostKeyChecking=no "root@${node}" "bash -s" <<EOF
 set -euo pipefail
 
+echo "[1/4] 创建 hosts.toml 配置"
 mkdir -p /etc/containerd/certs.d/${HARBOR_DOMAIN}
 
 cat >/etc/containerd/certs.d/${HARBOR_DOMAIN}/hosts.toml <<INNER
@@ -38,9 +39,13 @@ server = "https://${HARBOR_DOMAIN}"
   ca = "/etc/containerd/certs.d/${HARBOR_DOMAIN}/ca.crt"
 INNER
 
+echo "[2/4] 修改 config_path 指向证书目录"
 sed -ri 's#config_path = ""#config_path = "/etc/containerd/certs.d"#' /etc/containerd/config.toml
+
+echo "[3/4] 修改 sandbox_image 为本地 Harbor pause 镜像"
 sed -ri 's#sandbox_image = ".*"#sandbox_image = "${PAUSE_IMAGE}"#' /etc/containerd/config.toml
 
+echo "[4/4] 重启 containerd"
 systemctl restart containerd
 
 grep -n 'config_path = "/etc/containerd/certs.d"' /etc/containerd/config.toml
@@ -61,7 +66,9 @@ main() {
     echo "========================================================="
     echo "节点：${node}"
     echo "========================================================="
+    echo "[CA] 分发 Harbor CA 证书"
     copy_ca "${node}"
+    echo "[配置] 写入 hosts.toml / config_path / sandbox_image"
     configure_remote "${node}"
     echo
   done

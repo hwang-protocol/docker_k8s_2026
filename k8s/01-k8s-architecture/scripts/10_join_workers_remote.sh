@@ -47,12 +47,21 @@ apply_labels() {
 main() {
   local node
 
+  echo "========================================================="
+  echo "开始加入 Worker 节点并打标签"
+  echo "========================================================="
+
+  echo "[1/3] 依次加入 Worker 节点"
   for node in "${WORKERS[@]}"; do
     run_join "${node}"
   done
 
+  echo "[2/3] 为 Worker 节点打角色标签"
   apply_labels
+
+  echo "[3/3] 查看当前节点列表与标签"
   kubectl get nodes --show-labels
+  echo "OK: Worker 加入与标签完成"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

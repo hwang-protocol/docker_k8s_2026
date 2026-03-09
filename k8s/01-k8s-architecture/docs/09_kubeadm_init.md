@@ -61,14 +61,18 @@
 
 - `k8s/01-k8s-architecture/scripts/08_kubeadm_init_remote.sh`
 
+配置文件位置：
+
+- `manifests/kubeadm-init-cp01.yaml`
+- HTTP 地址：`http://ops:9000/01-k8s-architecture/manifests/kubeadm-init-cp01.yaml`
+
 这个脚本会完成：
 
-1. 在 `ops` 上生成 `kubeadm-init-cp01.yaml`
-2. 把配置文件下发到 `cp01`
-3. 在 `cp01` 执行 `kubeadm init --config ... --upload-certs`
-4. 在 `cp01` 配置 `/root/.kube/config`
-5. 生成后续节点加入所需的 join 命令文件
-6. 把 `admin.conf` 拷回 `ops`，让 `ops` 也能直接使用 `kubectl`
+1. `cp01` 通过 HTTP 从 `ops` 下载 `kubeadm` 初始化配置文件
+2. 在 `cp01` 执行 `kubeadm init --config ... --upload-certs`
+3. 在 `cp01` 配置 `/root/.kube/config`
+4. 生成后续节点加入所需的 join 命令文件
+5. 把 `admin.conf` 拷回 `ops`，让 `ops` 也能直接使用 `kubectl`
 
 ## 执行命令
 

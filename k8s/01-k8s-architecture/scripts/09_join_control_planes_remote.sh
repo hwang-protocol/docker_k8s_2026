@@ -35,11 +35,18 @@ EOF
 main() {
   local node
 
+  echo "========================================================="
+  echo "开始加入额外控制平面节点"
+  echo "========================================================="
+
+  echo "[1/2] 依次加入 cp02、cp03"
   for node in "${CONTROL_PLANES[@]}"; do
     run_join "${node}"
   done
 
+  echo "[2/2] 查看当前节点列表"
   kubectl get nodes -o wide
+  echo "OK: 控制平面扩展完成"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

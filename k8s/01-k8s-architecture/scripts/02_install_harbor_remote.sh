@@ -90,20 +90,25 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
+echo "[harbor 1/7] 安装 Docker"
 apt-get update -y
 apt-get install -y docker.io docker-compose-v2
 systemctl enable --now docker
 
+echo "[harbor 2/7] 配置 Docker 信任 Harbor CA"
 mkdir -p /etc/docker/certs.d/${HARBOR_DOMAIN}
 cp /root/harbor-ca.crt /etc/docker/certs.d/${HARBOR_DOMAIN}/ca.crt
 
+echo "[harbor 3/7] 解压 Harbor 离线安装包"
 mkdir -p /opt/harbor-install
 tar -xf /root/harbor-offline-installer.tgz -C /opt/harbor-install --strip-components=1
 
+echo "[harbor 4/7] 分发证书到 Harbor 数据目录"
 mkdir -p /data /data/cert
 cp /root/harbor.qytk8s.com.crt /data/cert/
 cp /root/harbor.qytk8s.com.key /data/cert/
 
+echo "[harbor 5/7] 生成 harbor.yml 配置"
 cp /opt/harbor-install/harbor.yml.tmpl /opt/harbor-install/harbor.yml
 
 sed -i 's/^hostname: .*/hostname: ${HARBOR_DOMAIN}/' /opt/harbor-install/harbor.yml
@@ -111,9 +116,11 @@ sed -i 's|^  certificate: .*|  certificate: /data/cert/harbor.qytk8s.com.crt|' /
 sed -i 's|^  private_key: .*|  private_key: /data/cert/harbor.qytk8s.com.key|' /opt/harbor-install/harbor.yml
 sed -i 's/^harbor_admin_password: .*/harbor_admin_password: ${HARBOR_ADMIN_PASSWORD}/' /opt/harbor-install/harbor.yml
 
+echo "[harbor 6/7] 执行 Harbor 安装"
 cd /opt/harbor-install
 ./install.sh --with-trivy
 
+echo "[harbor 7/7] 查看 Harbor 容器列表"
 docker ps --format '{{.Names}}' | sort
 EOF
 }
