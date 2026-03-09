@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: other
+  namespace: net-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: other
+  template:
+    metadata:
+      labels:
+        app: other
+    spec:
+      containers:
+        - name: other
+          image: harbor.qytk8s.com/cilium/curl:8.12.1
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - sleep infinity

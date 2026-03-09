@@ -1,0 +1,96 @@
+# ==============================================================================
+# 文件名称：cilium-values.yaml
+# 适用场景：第二章使用 Helm 安装 Cilium 1.19.1
+# 设计原则：
+# 1. 与第一章 Kubernetes v1.33.9 保持兼容
+# 2. 使用 native routing + eBPF kube-proxy replacement
+# 3. 启用 Hubble、L7 policy、BGP Control Plane
+# 4. 所有镜像统一从 Harbor 拉取
+# ==============================================================================
+
+k8sServiceHost: "10.1.1.10"
+k8sServicePort: 6443
+
+routingMode: "native"
+autoDirectNodeRoutes: true
+ipv4NativeRoutingCIDR: "10.244.0.0/16"
+
+kubeProxyReplacement: true
+kubeProxyReplacementHealthzBindAddr: "0.0.0.0:10256"
+
+ipam:
+  mode: "cluster-pool"
+  operator:
+    clusterPoolIPv4PodCIDRList:
+      - "10.244.0.0/16"
+    clusterPoolIPv4MaskSize: 24
+
+bgpControlPlane:
+  enabled: true
+
+l2announcements:
+  enabled: false
+
+loadBalancer:
+  l7:
+    backend: envoy
+
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+    image:
+      repository: "harbor.qytk8s.com/cilium/hubble-relay"
+      tag: "v1.19.1"
+      useDigest: false
+  ui:
+    enabled: true
+    replicas: 1
+    backend:
+      image:
+        repository: "harbor.qytk8s.com/cilium/hubble-ui-backend"
+        tag: "v0.13.3"
+        useDigest: false
+    frontend:
+      image:
+        repository: "harbor.qytk8s.com/cilium/hubble-ui"
+        tag: "v0.13.3"
+        useDigest: false
+  tls:
+    auto:
+      enabled: true
+      method: cronJob
+      certValidityDuration: 1095
+  metrics:
+    enabled:
+      - dns:query;ignoreAAAA
+      - drop
+      - tcp
+      - flow
+      - icmp
+      - http
+
+image:
+  repository: "harbor.qytk8s.com/cilium/cilium"
+  tag: "v1.19.1"
+  useDigest: false
+
+operator:
+  replicas: 2
+  image:
+    repository: "harbor.qytk8s.com/cilium/operator"
+    tag: "v1.19.1"
+    useDigest: false
+
+envoy:
+  enabled: false
+  image:
+    repository: "harbor.qytk8s.com/cilium/cilium-envoy"
+    tag: "v1.35.9-1770979049-232ed4a26881e4ab4f766f251f258ed424fff663"
+    useDigest: false
+
+certgen:
+  image:
+    repository: "harbor.qytk8s.com/cilium/certgen"
+    tag: "v0.3.2"
+    useDigest: false

@@ -1200,3 +1200,288 @@ nameservers:
 #### 4. 结果
 
 nginx 已在 `ops` 上运行，`http://ops:9000/` 可访问所有章节目录和 YAML 文件。第一章 `kubeadm` 初始化配置已通过 HTTP 方式验证可用。
+
+### 阶段 16：第二章启动与主线冻结
+
+#### 1. 目标
+
+正式启动第二章“云原生网络与服务互联”，并在实施前冻结本章的技术边界、版本、主线路径与教学重点，避免后续边做边漂移。
+
+#### 2. 第二章定位
+
+第二章定位为整门课的核心章节之一，重点不是“装一个 CNI”，而是完整体现：
+
+- 东西向网络
+- `Cilium + eBPF`
+- `kube-proxy replacement`
+- `Hubble`
+- `L3/L4` 与 `L7` 策略
+- `Cilium BGP Control Plane`
+- `VyOS Route Reflector`
+
+同时明确与第三章的边界：
+
+- 第二章：东西向流量与 eBPF 高级能力
+- 第三章：南北向流量与 7 层入口控制
+
+#### 3. 版本与安装策略冻结
+
+本章统一冻结：
+
+- Kubernetes：`v1.33.9`
+- Cilium：`1.19.1`
+- Helm Chart：`1.19.1`
+
+安装策略冻结为：
+
+- 以 `Helm` 为主
+- 相关镜像尽量全走 `Harbor`
+- YAML / values / 演示清单全部放在本章 `manifests/`
+- 通过 `http://ops:9000/` 对外发布
+
+#### 4. 网络与 BGP 主线冻结
+
+本章继续沿用第一章地址设计：
+
+- 宿主机网络：`10.1.1.0/24`
+- Service CIDR：`10.96.0.0/12`
+- Pod CIDR：`10.244.0.0/16`
+
+`Cilium` 主线设计冻结为：
+
+- `native routing`
+- `eBPF kube-proxy replacement`
+- `Hubble`
+- `L7` policy
+
+BGP 主线冻结为：
+
+- `10.1.1.254` 为 `VyOS`
+- `VyOS` 作为 `Route Reflector`
+- 4 台 Worker 作为 `iBGP client`
+- 全部使用私有 ASN：`65001`
+
+#### 5. 风险点预先识别
+
+在开始实施前，已明确识别的关键风险点如下：
+
+- 第一章集群中已存在 `kube-proxy`，第二章必须先删除 `kube-proxy` 并清理 `iptables` 中的 `KUBE-*` 规则，再安装开启 `kubeProxyReplacement=true` 的 Cilium
+- `Cilium` 安装时必须显式指定 `k8sServiceHost` 与 `k8sServicePort`
+- `L7` policy 依赖 Envoy；在 `Cilium 1.19` 中默认采用 embedded 模式
+- 第二章的 BGP 主线必须避免和第三章的南北向入口发布内容混讲
+
+#### 6. 当前实施状态
+
+第二章目录已创建：
+
+- `k8s/02-cloud-native-networking/docs/`
+- `k8s/02-cloud-native-networking/scripts/`
+- `k8s/02-cloud-native-networking/manifests/`
+
+第二章总览已生成：
+
+- `k8s/02-cloud-native-networking/docs/01_chapter_guide.md`
+
+第二章开始前的运行环境已确认：
+
+- `helm` 已在 `ops` 上安装完成
+- `Harbor` 已恢复并验证为 `healthy`
+
+### 阶段 17：第二章第 1 步 - 预热 Cilium 制品
+
+#### 1. 目标
+
+将第二章安装 `Cilium` 所需的关键制品全部前置准备到本地环境中，降低课堂中对公网下载的依赖。
+
+#### 2. 交付物
+
+本阶段已生成：
+
+- 第二章第 1 步课件：`k8s/02-cloud-native-networking/docs/02_prepare_cilium_artifacts.md`
+- 第二章第 1 步脚本：`k8s/02-cloud-native-networking/scripts/01_prepare_cilium_artifacts.sh`
+- 第二章 Helm values：`k8s/02-cloud-native-networking/manifests/cilium-values.yaml`
+- 第二章本地 chart 包：`k8s/02-cloud-native-networking/artifacts/cilium-1.19.1.tgz`
+
+#### 3. 实施说明
+
+本阶段完成了以下动作：
+
+1. 在 `ops` 上安装 `helm`
+2. 从官方仓库下载 `cilium-1.19.1.tgz`
+3. 在 `ops` 上安装 `cilium CLI`
+4. 在 `ops` 上安装 `hubble CLI`
+5. 在 Harbor 中创建公共项目 `cilium`
+6. 将第二章所需主线镜像与 demo 镜像推送到 `harbor.qytk8s.com/cilium`
+
+#### 4. 已推送镜像
+
+已确认进入 Harbor 的镜像包括：
+
+- `cilium/cilium:v1.19.1`
+- `cilium/operator-generic:v1.19.1`
+- `cilium/hubble-relay:v1.19.1`
+- `cilium/hubble-ui:v0.13.3`
+- `cilium/hubble-ui-backend:v0.13.3`
+- `cilium/certgen:v0.3.2`
+- `cilium/whoami:v1.10.3`
+- `cilium/curl:8.12.1`
+
+#### 5. 验证结果
+
+本阶段已验证：
+
+- `helm version --short` 返回正常
+- Harbor 健康接口返回 `healthy`
+- Harbor API 可列出 `cilium` 项目中的镜像仓库
+- `cilium version --client` 返回 `v0.19.1`
+- `hubble version` 返回 `v1.18.6`
+
+#### 6. 当前结论
+
+第二章的本地化预热已经完成，可以进入 `Cilium` 正式安装与 `kube-proxy replacement` 切换阶段。
+
+### 阶段 18：第二章第 2-5 步 - Cilium 接管、网络恢复、服务发现与 Hubble
+
+#### 1. 目标
+
+完成第二章前半段主线，让集群从“已初始化但缺失 CNI”的状态，进入“东西向网络完全可用且可观测”的状态。
+
+#### 2. 交付物
+
+本阶段已生成：
+
+- 第二章第 2 步课件：`k8s/02-cloud-native-networking/docs/03_install_cilium.md`
+- 第二章第 2 步脚本：`k8s/02-cloud-native-networking/scripts/02_install_cilium.sh`
+- 第二章第 3 步课件：`k8s/02-cloud-native-networking/docs/04_verify_network_ready.md`
+- 第二章第 3 步脚本：`k8s/02-cloud-native-networking/scripts/03_verify_network_ready.sh`
+- 第二章第 4 步课件：`k8s/02-cloud-native-networking/docs/05_service_discovery.md`
+- 第二章第 4 步脚本：`k8s/02-cloud-native-networking/scripts/04_apply_service_discovery_demo.sh`
+- 第二章第 5 步课件：`k8s/02-cloud-native-networking/docs/06_enable_hubble.md`
+- 第二章第 5 步脚本：`k8s/02-cloud-native-networking/scripts/05_enable_hubble.sh`
+- 第二章演示清单：`k8s/02-cloud-native-networking/manifests/00_net-demo_namespace.yaml`
+- 第二章演示清单：`k8s/02-cloud-native-networking/manifests/10_whoami.yaml`
+- 第二章演示清单：`k8s/02-cloud-native-networking/manifests/20_client.yaml`
+
+#### 3. 实施说明
+
+本阶段完成了以下动作：
+
+1. 删除 `kube-proxy`，清理各节点 `KUBE-*` iptables 规则
+2. 使用本地 `cilium-1.19.1.tgz` 与本章 `values.yaml` 安装 `Cilium`
+3. 启用 `native routing`、`kube-proxy replacement`、`Hubble` 与 `BGP Control Plane`
+4. 验证 `CoreDNS`、`Cilium`、`Hubble Relay`、`Hubble UI` 恢复
+5. 部署 `net-demo` 命名空间中的 `whoami` 与 `client`
+6. 演示 `Service`、短名 DNS、FQDN 访问
+7. 通过 `hubble observe` 观察 `client -> whoami` 的东西向流量
+
+#### 4. 验证结果
+
+本阶段已验证：
+
+- 7 台 Kubernetes 节点全部恢复为 `Ready`
+- `coredns`、`cilium`、`cilium-operator`、`hubble-relay`、`hubble-ui` 全部正常
+- `kube-proxy` 已不再存在
+- `client -> whoami` 可通过 `Service` 名称和 `FQDN` 访问
+- `hubble observe` 能看到 `net-demo/client` 与 `net-demo/whoami` 的流量
+
+#### 5. 当前结论
+
+第二章前半段已经完成，后续可以继续进入“零信任策略 + BGP 控制面”主线。
+
+### 阶段 19：第二章第 6 步 - L3/L4 与 L7 零信任策略演示
+
+#### 1. 目标
+
+通过 `CiliumNetworkPolicy` 把第二章的安全能力讲透，明确体现“东西向零信任 + eBPF L7 感知”。
+
+#### 2. 交付物
+
+本阶段已生成：
+
+- 第二章第 6 步课件：`k8s/02-cloud-native-networking/docs/07_l7_policy.md`
+- 第二章第 6 步脚本：`k8s/02-cloud-native-networking/scripts/06_apply_l7_policy_demo.sh`
+- 第二章策略清单：`k8s/02-cloud-native-networking/manifests/21_other.yaml`
+- 第二章策略清单：`k8s/02-cloud-native-networking/manifests/30_cnp_l3l4_allow_client.yaml`
+- 第二章策略清单：`k8s/02-cloud-native-networking/manifests/31_cnp_l7_allow_get.yaml`
+
+#### 3. 实施说明
+
+本阶段完成了以下动作：
+
+1. 增加 `other` 作为第二个访问方
+2. 先验证 `client` 与 `other` 都可访问 `whoami`
+3. 应用 `L3/L4` 策略，只允许 `app=client` 访问 `whoami:80`
+4. 再切换到 `L7 GET-only` 策略，只允许 `GET /`
+5. 将脚本判定方式从“命令成功/失败”修正为“HTTP 状态码”
+
+#### 4. 验证结果
+
+本阶段已验证：
+
+- 基线阶段：`client` 与 `other` 的 `HTTP Code` 均为 `200`
+- `L3/L4` 阶段：`client` 为 `200`，`other` 为 `000`
+- `L7` 阶段：`client GET /` 为 `200`，`client POST /` 为 `403`
+- `kubectl get cnp -n net-demo` 可看到当前策略对象
+- `kubectl get cep -n net-demo` 可看到三个端点对象
+
+#### 5. 当前结论
+
+第二章中的“零信任 + L7 HTTP 感知”已经可以稳定演示。
+
+### 阶段 20：第二章第 7-8 步 - VyOS RR、Cilium BGP 与最终验收
+
+#### 1. 目标
+
+把第二章最后一段控制面能力补齐，让 4 台 Worker 通过 `iBGP` 接入 `VyOS Route Reflector`，并补全最终验收文档。
+
+#### 2. 交付物
+
+本阶段已生成：
+
+- 第二章第 7 步课件：`k8s/02-cloud-native-networking/docs/08_bgp_rr.md`
+- 第二章第 7 步脚本：`k8s/02-cloud-native-networking/scripts/07_configure_bgp_rr.sh`
+- 第二章第 8 步验收文档：`k8s/02-cloud-native-networking/docs/09_verify.md`
+- 第二章 BGP 清单：`k8s/02-cloud-native-networking/manifests/40_cilium_bgp_peer_config.yaml`
+- 第二章 BGP 清单：`k8s/02-cloud-native-networking/manifests/41_cilium_bgp_advertisement_podcidr.yaml`
+- 第二章 BGP 清单：`k8s/02-cloud-native-networking/manifests/42_cilium_bgp_cluster_config_rr.yaml`
+
+#### 3. 实施说明
+
+本阶段完成了以下动作：
+
+1. 将 `VyOS(10.1.1.254)` 配置为 `AS65001` 下的 `Route Reflector`
+2. 使用 `peer-group CILIUM` 绑定 4 个 Worker 邻居
+3. 通过 `CiliumBGPPeerConfig`、`CiliumBGPAdvertisement`、`CiliumBGPClusterConfig` 配置 `Cilium BGP`
+4. 让 4 台 Worker 向 `VyOS` 广告自己的 `PodCIDR`
+5. 生成第二章最终验收文档 `09_verify.md`
+
+#### 4. 关键实现细节
+
+本阶段确认了一个重要实现细节：
+
+- 在 `VyOS 1.4.3` 上，直接给单个 neighbor 配置 `route-reflector-client` 会触发配置脚本异常
+- 为了保证课程可复现性，最终采用了 `peer-group CILIUM + route-reflector-client` 的稳定写法
+
+#### 5. 验证结果
+
+本阶段已验证：
+
+- 4 台 Worker 与 `10.1.1.254` 的 `BGP Session State` 全部为 `established`
+- `kubectl get cbgpnode` 中出现 4 台 Worker
+- `VyOS show ip bgp summary` 中可看到 4 个 `Established` 邻居
+- `VyOS show ip route bgp` 中已学到：
+  - `10.244.0.0/24`
+  - `10.244.1.0/24`
+  - `10.244.2.0/24`
+  - `10.244.5.0/24`
+
+#### 6. 当前结论
+
+第二章主线已经完整闭环：
+
+- `Cilium` 接管了数据平面
+- `Hubble` 具备了东西向可观测能力
+- `L3/L4` 与 `L7` 策略具备了零信任演示能力
+- `VyOS RR + Cilium BGP Control Plane` 具备了控制面演示能力
+
+可以正式进入第三章：南北向流量与入口控制主线。

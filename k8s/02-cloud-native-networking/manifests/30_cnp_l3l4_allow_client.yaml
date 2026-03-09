@@ -1,0 +1,17 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: whoami-l3l4-allow-client
+  namespace: net-demo
+spec:
+  endpointSelector:
+    matchLabels:
+      app: whoami
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: client
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
