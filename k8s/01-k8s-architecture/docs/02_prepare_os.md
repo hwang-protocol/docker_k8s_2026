@@ -6,6 +6,7 @@
 
 这一步完成后，我们希望所有相关节点都具备下面这些条件：
 
+- 启动速度已优化（multi-user.target、禁用 snapd/e2scrub/apport 等拖慢启动的服务）
 - swap 已关闭
 - 内核模块 `overlay` 和 `br_netfilter` 已加载
 - `sysctl` 已具备 Kubernetes 网络基础参数
@@ -41,7 +42,18 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 因为第五章会用到 `Longhorn`。  
 我们现在先把基础依赖装好，后面就不用再回头补环境。
 
-### 6. 为什么要关闭自动更新
+### 6. 为什么要优化启动速度
+
+实验环境为纯 CLI，不需要图形界面。默认的 `graphical.target` 会等待 GDM、snapd.seeded、e2scrub_reap 等大量服务，导致到登录界面需 3 分钟以上。优化后通常可缩至 1 分钟内：
+
+- `multi-user.target`：CLI 服务器标准，不再等待图形栈
+- `mask e2scrub_reap`：ext4 后台校验可改为按需执行
+- `disable snapd`：课程环境未使用 snap
+- `disable update-notifier-download / apport`：减少不必要的后台服务
+
+上述优化不影响 Kubernetes、containerd、Harbor 等核心组件。
+
+### 7. 为什么要关闭自动更新
 
 `Ubuntu Server 24.04` 默认会运行 `unattended-upgrades`。  
 如果它正在后台更新软件包，就会占用 `apt/dpkg` 锁，从而影响初始化阶段的软件安装顺序。
@@ -60,8 +72,9 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 
 ## 本步涉及节点
 
-这一步会处理下面这些节点：
+这一步会处理下面这些节点（含 ops，实现所有 Linux 统一优化）：
 
+- `ops`
 - `lb01`
 - `lb02`
 - `cp01`
@@ -76,7 +89,6 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 
 说明：
 
-- `ops` 不在这个批量脚本里处理
 - `win2019` 不属于本步范围
 
 ## 先看脚本
@@ -122,18 +134,19 @@ bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/01_prepare_os_remote.sh wk
 =========================================================
 节点：cp01
 =========================================================
-[1/9] 关闭 swap
-[2/9] 加载内核模块
-[3/9] 配置 sysctl
-[4/9] 设置时区
-[5/9] 优化 SSH 登录
-[6/9] 关闭 UFW
-[7/9] 关闭自动更新，避免 apt 锁冲突
+[1/10] 优化启动速度
+[2/10] 关闭 swap
+[3/10] 加载内核模块
+[4/10] 配置 sysctl
+[5/10] 设置时区
+[6/10] 优化 SSH 登录
+[7/10] 关闭 UFW
+[8/10] 关闭自动更新，避免 apt 锁冲突
 [等待阶段可能会出现]
 等待 apt/dpkg 锁释放... (0s/180s)
 等待 apt/dpkg 锁释放... (3s/180s)
-[8/9] 安装基础工具
-[9/9] 启动 Longhorn 依赖服务
+[9/10] 安装基础工具
+[10/10] 启动 Longhorn 依赖服务
 hostname=cp01
 swap_status=0
 timezone=Asia/Shanghai
@@ -223,7 +236,8 @@ systemctl status iscsid --no-pager
 
 只要满足下面条件，就可以进入下一步：
 
-- 所有目标节点脚本执行完成
+- 所有目标节点（含 ops）脚本执行完成
+- 启动优化已生效（重启后到登录界面时间明显缩短）
 - 至少抽查 1 台控制平面节点和 1 台工作节点
 - swap 已关闭
 - `ip_forward=1`

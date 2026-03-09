@@ -13,8 +13,9 @@ set -euo pipefail
 
 # 说明：
 # - 本脚本故意把主机名直接写死，方便课堂演示和学员复现。
-# - 这些节点都是第一章当前需要初始化的 Ubuntu 节点。
+# - 这些节点都是第一章当前需要初始化的 Ubuntu 节点（含 ops）。
 ALL_NODES=(
+  "ops"
   "lb01" "lb02"
   "cp01" "cp02" "cp03"
   "wk-app01" "wk-app02" "wk-edge01" "wk-obs01"
@@ -103,11 +104,17 @@ run_apt_install() {
   return 1
 }
 
-echo "[1/9] 关闭 swap"
+echo "[1/10] 优化启动速度"
+systemctl set-default multi-user.target 2>/dev/null || true
+systemctl mask e2scrub_reap.service 2>/dev/null || true
+systemctl disable snapd.service snapd.socket snapd.seeded 2>/dev/null || true
+systemctl disable update-notifier-download.service apport.service 2>/dev/null || true
+
+echo "[2/10] 关闭 swap"
 swapoff -a || true
 sed -ri '/\sswap\s/s/^#?/#/' /etc/fstab
 
-echo "[2/9] 加载内核模块"
+echo "[3/10] 加载内核模块"
 cat >/etc/modules-load.d/k8s.conf <<'INNER'
 overlay
 br_netfilter
@@ -115,7 +122,7 @@ INNER
 modprobe overlay || true
 modprobe br_netfilter || true
 
-echo "[3/9] 配置 sysctl"
+echo "[4/10] 配置 sysctl"
 cat >/etc/sysctl.d/99-kubernetes.conf <<'INNER'
 net.bridge.bridge-nf-call-iptables  = 1
 net.bridge.bridge-nf-call-ip6tables = 1
@@ -123,10 +130,10 @@ net.ipv4.ip_forward                 = 1
 INNER
 sysctl --system >/dev/null
 
-echo "[4/9] 设置时区"
+echo "[5/10] 设置时区"
 timedatectl set-timezone Asia/Shanghai
 
-echo "[5/9] 优化 SSH 登录"
+echo "[6/10] 优化 SSH 登录"
 if grep -qE '^[#[:space:]]*UseDNS' /etc/ssh/sshd_config; then
   sed -ri 's/^[#[:space:]]*UseDNS.*/UseDNS no/' /etc/ssh/sshd_config
 else
@@ -134,21 +141,21 @@ else
 fi
 systemctl restart ssh
 
-echo "[6/9] 关闭 UFW"
+echo "[7/10] 关闭 UFW"
 systemctl disable --now ufw >/dev/null 2>&1 || true
 
-echo "[7/9] 关闭自动更新，避免 apt 锁冲突"
+echo "[8/10] 关闭自动更新，避免 apt 锁冲突"
 systemctl disable --now unattended-upgrades.service >/dev/null 2>&1 || true
 systemctl disable --now apt-daily.timer apt-daily-upgrade.timer >/dev/null 2>&1 || true
 systemctl stop unattended-upgrades.service apt-daily.service apt-daily-upgrade.service >/dev/null 2>&1 || true
 systemctl mask unattended-upgrades.service >/dev/null 2>&1 || true
 wait_for_apt_lock
 
-echo "[8/9] 安装基础工具"
+echo "[9/10] 安装基础工具"
 run_apt_update
 run_apt_install
 
-echo "[9/9] 启动 Longhorn 依赖服务"
+echo "[10/10] 启动 Longhorn 依赖服务"
 systemctl enable --now iscsid >/dev/null 2>&1 || true
 
 echo "hostname=$(hostname)"
@@ -162,15 +169,19 @@ EOF
 
 # 函数作用：
 # - 接收一个主机名
-# - 通过 ssh 登录远端
-# - 在远端执行上面的系统初始化脚本
+# - 若为 ops（当前机），则本地执行；否则通过 ssh 登录远端
+# - 在目标上执行系统初始化脚本
 run_remote() {
   local node="$1"
 
   echo "========================================================="
   echo "节点：${node}"
   echo "========================================================="
-  ssh -o BatchMode=yes -o StrictHostKeyChecking=no "root@${node}" "bash -s" <<<"${REMOTE_SCRIPT}"
+  if [[ "${node}" == "ops" ]] && [[ "$(hostname)" == "ops" ]]; then
+    bash -s <<<"${REMOTE_SCRIPT}"
+  else
+    ssh -o BatchMode=yes -o StrictHostKeyChecking=no "root@${node}" "bash -s" <<<"${REMOTE_SCRIPT}"
+  fi
   echo
 }
 
