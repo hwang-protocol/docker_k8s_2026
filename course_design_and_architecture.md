@@ -1340,7 +1340,7 @@ BGP 主线冻结为：
 
 第二章的本地化预热已经完成，可以进入 `Cilium` 正式安装与 `kube-proxy replacement` 切换阶段。
 
-### 阶段 18：第二章第 2-5 步 - Cilium 接管、网络恢复、服务发现与 Hubble
+### 阶段 18：第二章第 2-4 步 - Cilium 接管、服务发现与 Hubble
 
 #### 1. 目标
 
@@ -1352,12 +1352,10 @@ BGP 主线冻结为：
 
 - 第二章第 2 步课件：`k8s/02-cloud-native-networking/docs/03_install_cilium.md`
 - 第二章第 2 步脚本：`k8s/02-cloud-native-networking/scripts/02_install_cilium.sh`
-- 第二章第 3 步课件：`k8s/02-cloud-native-networking/docs/04_verify_network_ready.md`
-- 第二章第 3 步脚本：`k8s/02-cloud-native-networking/scripts/03_verify_network_ready.sh`
-- 第二章第 4 步课件：`k8s/02-cloud-native-networking/docs/05_service_discovery.md`
-- 第二章第 4 步脚本：`k8s/02-cloud-native-networking/scripts/04_apply_service_discovery_demo.sh`
-- 第二章第 5 步课件：`k8s/02-cloud-native-networking/docs/06_enable_hubble.md`
-- 第二章第 5 步脚本：`k8s/02-cloud-native-networking/scripts/05_enable_hubble.sh`
+- 第二章第 3 步课件：`k8s/02-cloud-native-networking/docs/04_service_discovery.md`
+- 第二章第 3 步脚本：`k8s/02-cloud-native-networking/scripts/03_apply_service_discovery_demo.sh`
+- 第二章第 4 步课件：`k8s/02-cloud-native-networking/docs/05_enable_hubble.md`
+- 第二章第 4 步脚本：`k8s/02-cloud-native-networking/scripts/04_enable_hubble.sh`
 - 第二章演示清单：`k8s/02-cloud-native-networking/manifests/00_net-demo_namespace.yaml`
 - 第二章演示清单：`k8s/02-cloud-native-networking/manifests/10_whoami.yaml`
 - 第二章演示清单：`k8s/02-cloud-native-networking/manifests/20_client.yaml`
@@ -1388,7 +1386,7 @@ BGP 主线冻结为：
 
 第二章前半段已经完成，后续可以继续进入“零信任策略 + BGP 控制面”主线。
 
-### 阶段 19：第二章第 6 步 - L3/L4 与 L7 零信任策略演示
+### 阶段 19：第二章第 5 步 - L3/L4 与 L7 零信任策略演示
 
 #### 1. 目标
 
@@ -1398,8 +1396,8 @@ BGP 主线冻结为：
 
 本阶段已生成：
 
-- 第二章第 6 步课件：`k8s/02-cloud-native-networking/docs/07_l7_policy.md`
-- 第二章第 6 步脚本：`k8s/02-cloud-native-networking/scripts/06_apply_l7_policy_demo.sh`
+- 第二章第 5 步课件：`k8s/02-cloud-native-networking/docs/06_l7_policy.md`
+- 第二章第 5 步脚本：`k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh`
 - 第二章策略清单：`k8s/02-cloud-native-networking/manifests/21_other.yaml`
 - 第二章策略清单：`k8s/02-cloud-native-networking/manifests/30_cnp_l3l4_allow_client.yaml`
 - 第二章策略清单：`k8s/02-cloud-native-networking/manifests/31_cnp_l7_allow_get.yaml`
@@ -1428,7 +1426,7 @@ BGP 主线冻结为：
 
 第二章中的“零信任 + L7 HTTP 感知”已经可以稳定演示。
 
-### 阶段 20：第二章第 7-8 步 - VyOS RR、Cilium BGP 与最终验收
+### 阶段 20：第二章第 6-7 步 - VyOS RR、Cilium BGP 与最终验收
 
 #### 1. 目标
 
@@ -1438,9 +1436,9 @@ BGP 主线冻结为：
 
 本阶段已生成：
 
-- 第二章第 7 步课件：`k8s/02-cloud-native-networking/docs/08_bgp_rr.md`
-- 第二章第 7 步脚本：`k8s/02-cloud-native-networking/scripts/07_configure_bgp_rr.sh`
-- 第二章第 8 步验收文档：`k8s/02-cloud-native-networking/docs/09_verify.md`
+- 第二章第 6 步课件：`k8s/02-cloud-native-networking/docs/07_bgp_rr.md`
+- 第二章第 6 步脚本：`k8s/02-cloud-native-networking/scripts/06_configure_bgp_rr.sh`
+- 第二章第 7 步验收文档：`k8s/02-cloud-native-networking/docs/08_verify.md`
 - 第二章 BGP 清单：`k8s/02-cloud-native-networking/manifests/40_cilium_bgp_peer_config.yaml`
 - 第二章 BGP 清单：`k8s/02-cloud-native-networking/manifests/41_cilium_bgp_advertisement_podcidr.yaml`
 - 第二章 BGP 清单：`k8s/02-cloud-native-networking/manifests/42_cilium_bgp_cluster_config_rr.yaml`
@@ -1453,7 +1451,7 @@ BGP 主线冻结为：
 2. 使用 `peer-group CILIUM` 绑定 4 个 Worker 邻居
 3. 通过 `CiliumBGPPeerConfig`、`CiliumBGPAdvertisement`、`CiliumBGPClusterConfig` 配置 `Cilium BGP`
 4. 让 4 台 Worker 向 `VyOS` 广告自己的 `PodCIDR`
-5. 生成第二章最终验收文档 `09_verify.md`
+5. 生成第二章最终验收文档 `08_verify.md`
 
 #### 4. 关键实现细节
 

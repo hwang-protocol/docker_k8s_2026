@@ -1,4 +1,4 @@
-# 第 2 步：安装 Cilium 并启用 eBPF kube-proxy replacement
+# 第 2 步：安装并验收 Cilium 网络平面
 
 ## 本步目标
 
@@ -13,8 +13,9 @@
 
 - `Cilium` 已在所有节点运行
 - `kube-proxy` 已退出集群
-- 节点开始从 `NotReady` 进入 `Ready`
-- `CoreDNS` 开始从 `Pending` 进入 `Running`
+- 全部节点为 `Ready`
+- `CoreDNS` 已从 `Pending` 进入 `Running`
+- `Hubble Relay` 与 `Hubble UI` 已运行
 
 ## 为什么这一步必须先清理 kube-proxy
 
@@ -69,7 +70,7 @@ routingMode: native
 2. 批量清理所有 Kubernetes 节点上的 `KUBE-*` iptables 规则
 3. 通过本地 Helm chart 与本地 values 文件安装 `Cilium`
 4. 等待 `Cilium`、`operator`、`hubble-relay`、`hubble-ui` 就绪
-5. 输出节点与 `kube-system` 状态
+5. 输出节点与 `kube-system` 状态，作为安装后的首轮验收
 
 ## 依赖文件
 
@@ -132,7 +133,8 @@ kubectl get nodes -o wide
 
 预期：
 
-- 节点开始从 `NotReady` 进入 `Ready`
+- `cp01`、`cp02`、`cp03` 为 `Ready`
+- `wk-app01`、`wk-app02`、`wk-edge01`、`wk-obs01` 为 `Ready`
 
 ### 验证 3：查看 kube-system Pod
 
@@ -149,17 +151,29 @@ kubectl get pods -n kube-system -o wide
 - `coredns` 已从 `Pending` 进入 `Running`
 - `kube-proxy` 已不再存在
 
+### 验证 4：查看 Hubble Service
+
+```bash
+kubectl get svc -n kube-system hubble-relay hubble-ui
+```
+
+预期：
+
+- 可以看到 `hubble-relay`
+- 可以看到 `hubble-ui`
+
 ## 本步完成标准
 
 只要满足下面条件，就可以进入下一步：
 
 - `Cilium` 已在所有节点成功运行
 - `kube-proxy` 已从集群移除
-- 节点开始进入 `Ready`
-- `CoreDNS` 开始进入 `Running`
+- 全部节点为 `Ready`
+- `CoreDNS` 已恢复为 `Running`
+- `Cilium` 与 `Hubble` 关键组件正常
 
 ## 下一步
 
-下一步进入网络平面恢复验证：
+下一步进入第一个应用层演示：
 
-- `docs/04_verify_network_ready.md`
+- `docs/04_service_discovery.md`

@@ -57,16 +57,19 @@ harbor.qytk8s.com/cilium
 本步对应脚本：
 
 - `k8s/02-cloud-native-networking/scripts/01_prepare_cilium_artifacts.sh`
+- 内嵌调用：`scripts/00_check_and_recover_cluster.sh`（快照恢复后集群检查与恢复）
 
 这个脚本会完成：
 
-1. 在 `ops` 上准备第二章 `artifacts/` 与 `tmp/` 目录
-2. 通过 Harbor API 创建公共项目 `cilium`
-3. 下载 `Cilium 1.19.1` Helm chart
-4. 安装 `cilium CLI`
-5. 安装 `hubble CLI`
-6. 在 `harbor` 节点拉取上游镜像并推送到 Harbor
-7. 在所有 Kubernetes 节点预拉第二章关键镜像
+0. **集群连通性检查与恢复**（快照恢复后 API 可能暂不可达，自动重启 lb/cp 服务）
+1. 在 `ops` 上准备第二章 `artifacts/` 目录
+2. 安装 Helm
+3. 通过 Harbor API 创建公共项目 `cilium`
+4. 下载 `Cilium 1.19.1` Helm chart
+5. 安装 `cilium CLI`
+6. 安装 `hubble CLI`
+7. 在 `harbor` 节点拉取上游镜像并推送到 Harbor
+8. 在所有 Kubernetes 节点预拉第二章关键镜像
 
 ## 执行命令
 
@@ -84,17 +87,21 @@ bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/01_prepare_cilium_a
 
 ## 你会看到什么
 
-脚本会分成 7 个阶段：
+脚本会分成 9 个阶段：
 
 ```text
-[1/7] 准备本地目录
-[2/7] 创建 Harbor 项目
-[3/7] 下载 Helm chart
-[4/7] 安装 cilium CLI
-[5/7] 安装 hubble CLI
-[6/7] 在 harbor 节点拉取并推送镜像
-[7/7] 在所有 Kubernetes 节点预拉镜像
+[0/9] 集群连通性检查与恢复（快照恢复后 API 可能暂不可达）
+[1/9] 准备本地目录
+[2/9] 安装 Helm
+[3/9] 创建 Harbor 项目
+[4/9] 下载 Helm chart
+[5/9] 安装 cilium CLI
+[6/9] 安装 hubble CLI
+[7/9] 在 harbor 节点拉取并推送镜像
+[8/9] 在所有 Kubernetes 节点预拉镜像
 ```
+
+若 API 已就绪，步骤 0 会秒过；若快照恢复后 API 不可达，会触发 lb01/lb02 的 haproxy、keepalived 与 cp01~03 的 kubelet 重启并等待就绪。
 
 随后会按镜像逐个输出：
 

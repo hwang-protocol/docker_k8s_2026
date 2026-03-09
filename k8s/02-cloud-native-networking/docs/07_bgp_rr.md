@@ -1,4 +1,4 @@
-# 第 7 步：接入 VyOS Route Reflector 与 Cilium BGP
+# 第 6 步：接入 VyOS Route Reflector 与 Cilium BGP
 
 ## 本步目标
 
@@ -25,16 +25,16 @@
 
 ## 对应脚本
 
-- `k8s/02-cloud-native-networking/scripts/07_configure_bgp_rr.sh`
+- `k8s/02-cloud-native-networking/scripts/06_configure_bgp_rr.sh`
 
 ## 执行命令
 
 ```bash
-chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/07_configure_bgp_rr.sh
+chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/06_configure_bgp_rr.sh
 ```
 
 ```bash
-bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/07_configure_bgp_rr.sh
+bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/06_configure_bgp_rr.sh
 ```
 
 ## 脚本做了什么
@@ -197,4 +197,4 @@ PY
 
 下一步进入第二章最终验收：
 
-- `docs/09_verify.md`
+- `docs/08_verify.md`

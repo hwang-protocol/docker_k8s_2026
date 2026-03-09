@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # ==============================================================================
-# 脚本名称：05_enable_hubble.sh
-# 适用场景：第二章第 5 步，使用 Hubble 观察东西向流量
+# 脚本名称：04_enable_hubble.sh
+# 适用场景：第二章第 4 步，使用 Hubble 观察东西向流量
 # 执行位置：ops 节点
 # ==============================================================================
 
@@ -17,6 +17,20 @@ cleanup() {
 
 trap cleanup EXIT
 
+wait_for_hubble_relay() {
+  local attempt
+
+  for attempt in $(seq 1 10); do
+    if hubble status --server localhost:4245 >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "等待 Hubble Relay 端口转发就绪超时"
+  return 1
+}
+
 main() {
   echo "========================================================="
   echo "[1/4] 检查 Hubble Relay"
@@ -29,7 +43,7 @@ main() {
   echo "========================================================="
   kubectl -n kube-system port-forward svc/hubble-relay 4245:80 >/tmp/hubble-port-forward.log 2>&1 &
   PORT_FORWARD_PID=$!
-  sleep 3
+  wait_for_hubble_relay
   hubble status --server localhost:4245
 
   echo

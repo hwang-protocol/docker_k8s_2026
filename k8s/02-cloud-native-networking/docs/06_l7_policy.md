@@ -1,4 +1,4 @@
-# 第 6 步：演示 L3/L4 与 L7 策略
+# 第 5 步：演示 L3/L4 与 L7 策略
 
 ## 本步目标
 
@@ -13,6 +13,73 @@
 - `L3/L4`：只允许 `client`
 - `L7`：只允许 `client` 发起 `GET /`
 
+## 教学提示：这里的 `L7` 和后面可能讲到的 `Istio` 有什么不同
+
+这是本步最值得提前解释清楚的困惑点。
+
+很多学员看到这里会自然问：
+
+> 既然 `Cilium` 已经能按 `GET / POST` 做控制，那后面为什么还要讲 `Istio`？
+
+建议你上课时直接这样回答：
+
+### 1. 这里演示的 `Cilium L7 Policy`，本质上是什么
+
+本质上它仍然是**网络侧的安全控制**，只是从：
+
+- 传统的 `IP / Port`
+
+往前走了一步，变成：
+
+- 能识别 `HTTP Method`
+- 能识别 `HTTP Path`
+- 能把“允许谁访问谁”细化到应用协议层
+
+所以它更像是：
+
+- 网络底座上的应用感知防火墙
+- 零信任网络准入的一部分
+
+### 2. `Istio` 更偏什么
+
+`Istio` 更偏：
+
+- 服务身份
+- `mTLS`
+- `JWT`
+- `AuthorizationPolicy`
+- 请求级认证与授权
+- 服务治理
+
+所以它通常不只是问：
+
+- `GET /` 能不能放
+
+而是继续问：
+
+- 调用方服务身份是谁
+- 是否带了合法证书
+- 是否带了合法 `JWT`
+- 这个租户或用户是否有权限访问
+
+### 3. 一句话帮助学员区分
+
+- `Cilium L7`：偏**网络准入控制**
+- `Istio`：偏**服务身份、安全与治理**
+
+### 4. 为什么第二章先讲 `Cilium L7`
+
+因为第二章的目标是先让学员建立这个认知：
+
+- Kubernetes 安全不只是开端口
+- 东西向零信任也可以做到协议感知
+- 网络层已经可以开始识别 HTTP 行为
+
+等这个认知建立后，后面再讲 `Istio`，学员就更容易明白：
+
+- `Istio` 不是替代 `Cilium`
+- 而是在更上层继续做服务间认证、授权与治理
+
 ## 对应清单
 
 - `manifests/21_other.yaml`
@@ -21,16 +88,16 @@
 
 ## 对应脚本
 
-- `k8s/02-cloud-native-networking/scripts/06_apply_l7_policy_demo.sh`
+- `k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh`
 
 ## 执行命令
 
 ```bash
-chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/06_apply_l7_policy_demo.sh
+chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh
 ```
 
 ```bash
-bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/06_apply_l7_policy_demo.sh
+bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh
 ```
 
 ## 脚本做了什么
@@ -116,4 +183,4 @@ kubectl exec -n net-demo deployment/client -- sh -c "curl -sS -o /dev/null -w '%
 
 下一步进入 `VyOS Route Reflector + Cilium BGP Control Plane`：
 
-- `docs/08_bgp_rr.md`
+- `docs/07_bgp_rr.md`

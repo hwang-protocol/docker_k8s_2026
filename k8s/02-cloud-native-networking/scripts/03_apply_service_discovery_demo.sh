@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # ==============================================================================
-# 脚本名称：04_apply_service_discovery_demo.sh
-# 适用场景：第二章第 4 步，演示 Pod / Service / DNS / Service Discovery
+# 脚本名称：03_apply_service_discovery_demo.sh
+# 适用场景：第二章第 3 步，演示 Pod / Service / DNS / Service Discovery
 # 执行位置：ops 节点
 # ==============================================================================
 

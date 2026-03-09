@@ -191,28 +191,31 @@ main() {
   echo "Harbor 项目：${HARBOR_DOMAIN}/${HARBOR_PROJECT}"
   echo "========================================================="
 
-  echo "[1/8] 准备本地目录"
+  echo "[0/9] 集群连通性检查与恢复（快照恢复后 API 可能暂不可达）"
+  bash "$(dirname "${BASH_SOURCE[0]}")/00_check_and_recover_cluster.sh"
+
+  echo "[1/9] 准备本地目录"
   prepare_local_dirs
 
-  echo "[2/8] 安装 Helm"
+  echo "[2/9] 安装 Helm"
   install_helm
 
-  echo "[3/8] 创建 Harbor 项目"
+  echo "[3/9] 创建 Harbor 项目"
   create_harbor_project
 
-  echo "[4/8] 下载 Helm chart"
+  echo "[4/9] 下载 Helm chart"
   download_helm_chart
 
-  echo "[5/8] 安装 cilium CLI"
+  echo "[5/9] 安装 cilium CLI"
   install_cilium_cli
 
-  echo "[6/8] 安装 hubble CLI"
+  echo "[6/9] 安装 hubble CLI"
   install_hubble_cli
 
-  echo "[7/8] 在 harbor 节点拉取并推送镜像"
+  echo "[7/9] 在 harbor 节点拉取并推送镜像"
   push_images_on_harbor
 
-  echo "[8/8] 在所有 Kubernetes 节点预拉镜像"
+  echo "[8/9] 在所有 Kubernetes 节点预拉镜像"
   pre_pull_images_on_nodes
 
   echo "========================================================="

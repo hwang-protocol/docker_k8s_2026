@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # ==============================================================================
-# 脚本名称：07_configure_bgp_rr.sh
-# 适用场景：第二章第 7 步，接入 VyOS Route Reflector 与 Cilium BGP
+# 脚本名称：06_configure_bgp_rr.sh
+# 适用场景：第二章第 6 步，接入 VyOS Route Reflector 与 Cilium BGP
 # 执行位置：ops 节点
 # ==============================================================================
 

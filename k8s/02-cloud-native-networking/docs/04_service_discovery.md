@@ -1,4 +1,4 @@
-# 第 4 步：演示 Pod、Service、DNS 与 Service Discovery
+# 第 3 步：演示 Pod、Service、DNS 与 Service Discovery
 
 ## 本步目标
 
@@ -28,16 +28,16 @@
 
 ## 对应脚本
 
-- `k8s/02-cloud-native-networking/scripts/04_apply_service_discovery_demo.sh`
+- `k8s/02-cloud-native-networking/scripts/03_apply_service_discovery_demo.sh`
 
 ## 执行命令
 
 ```bash
-chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/04_apply_service_discovery_demo.sh
+chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/03_apply_service_discovery_demo.sh
 ```
 
 ```bash
-bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/04_apply_service_discovery_demo.sh
+bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/03_apply_service_discovery_demo.sh
 ```
 
 ## 脚本做了什么
@@ -122,4 +122,4 @@ kubectl exec -n net-demo deployment/client -- curl -sS http://whoami.net-demo.sv
 
 下一步进入 Hubble 可观测性演示：
 
-- `docs/06_enable_hubble.md`
+- `docs/05_enable_hubble.md`
