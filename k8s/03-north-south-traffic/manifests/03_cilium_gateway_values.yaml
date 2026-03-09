@@ -1,0 +1,9 @@
+gatewayAPI:
+  enabled: true
+  externalTrafficPolicy: Cluster
+  gatewayClass:
+    create: "auto"
+  secretsNamespace:
+    create: true
+    name: cilium-secrets
+    sync: true

@@ -171,4 +171,4 @@ PY
 
 ## 下一步
 
-下一步进入第三章：南北向流量、`LoadBalancer VIP`、`Ingress` 与 `Gateway API`。
+下一步进入第三章：南北向流量、`LoadBalancer VIP`、`Gateway API`、域名与 `HTTPS`。

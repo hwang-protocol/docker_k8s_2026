@@ -52,7 +52,7 @@
   - Gateway API 的现代入口架构
   - 北向 L4 / L7 流量进入微服务系统的路径
 - **本章关键词**：Service Exposure, MetalLB, LoadBalancer VIP, Ingress, Gateway API, L4 / L7 Traffic
-- **本章实验目标**：通过 MetalLB 为集群提供 VIP，通过 Gateway API 完成前端服务北向暴露，打通业务访问路径。
+- **本章实验目标**：通过 MetalLB 为集群提供 VIP，通过 Gateway API 完成前端服务的域名化、HTTPS 化北向暴露，打通业务访问路径。
 
 ### 5. 存储与有状态服务
 - **本章定位**：让学生理解 Kubernetes 不只是无状态编排平台，而是具备持久化与有状态服务承载能力。
@@ -148,12 +148,12 @@
 
 | 域名 | 指向目标 | 用途 |
 | :--- | :--- | :--- |
-| `api.k8s.lab` | `10.1.1.10` | Kubernetes API Server 高可用入口 |
-| `harbor.k8s.lab` | `10.1.1.203` | Harbor 私有镜像仓库 |
-| `git.k8s.lab` | `10.1.1.202` | Git 服务入口 |
-| `grafana.k8s.lab` | MetalLB 分配的 VIP | Grafana 可视化入口 |
-| `argocd.k8s.lab` | MetalLB 分配的 VIP | Argo CD 控制台入口 |
-| `app.k8s.lab` | MetalLB 分配的 VIP | 微服务北向访问入口 |
+| `api.qytk8s.com` | `10.1.1.10` | Kubernetes API Server 高可用入口 |
+| `harbor.qytk8s.com` | `10.1.1.203` | Harbor 私有镜像仓库 |
+| `git.qytk8s.com` | `10.1.1.202` | Git 服务入口 |
+| `grafana.qytk8s.com` | MetalLB 分配的 VIP | Grafana 可视化入口 |
+| `argocd.qytk8s.com` | MetalLB 分配的 VIP | Argo CD 控制台入口 |
+| `app.qytk8s.com` | MetalLB 分配的 VIP | 微服务北向访问入口 |
 
 ### 3. Kubernetes 网络参数建议
 
@@ -243,7 +243,7 @@
 - MetalLB 地址池：`10.1.1.50-10.1.1.79`
 - Service CIDR：`10.96.0.0/12`
 - Pod CIDR：`10.244.0.0/16`
-- 实验域名后缀：`k8s.lab`
+- 实验域名后缀：`qytk8s.com`
 - `wk-edge01`、`wk-obs01`、`wk-app01`、`wk-app02` 的节点职责划分
 
 只要上述信息确认，本设计就可以正式进入实施阶段。
