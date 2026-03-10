@@ -1,0 +1,14 @@
+harbor.qytk8s.com/storage/busybox:1.36.1
+harbor.qytk8s.com/longhornio/backing-image-manager:v1.11.0
+harbor.qytk8s.com/longhornio/csi-attacher:v4.10.0-20251226
+harbor.qytk8s.com/longhornio/csi-node-driver-registrar:v2.15.0-20251226
+harbor.qytk8s.com/longhornio/csi-provisioner:v5.3.0-20251226
+harbor.qytk8s.com/longhornio/csi-resizer:v2.0.0-20251226
+harbor.qytk8s.com/longhornio/csi-snapshotter:v8.4.0-20251226
+harbor.qytk8s.com/longhornio/livenessprobe:v2.17.0-20251226
+harbor.qytk8s.com/longhornio/longhorn-engine:v1.11.0
+harbor.qytk8s.com/longhornio/longhorn-instance-manager:v1.11.0
+harbor.qytk8s.com/longhornio/longhorn-manager:v1.11.0
+harbor.qytk8s.com/longhornio/longhorn-share-manager:v1.11.0
+harbor.qytk8s.com/longhornio/longhorn-ui:v1.11.0
+harbor.qytk8s.com/longhornio/support-bundle-kit:v0.0.79

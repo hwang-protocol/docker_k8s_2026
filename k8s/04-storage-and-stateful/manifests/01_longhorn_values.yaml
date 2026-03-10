@@ -1,0 +1,28 @@
+global:
+  imageRegistry: harbor.qytk8s.com
+  cattle:
+    systemDefaultRegistry: harbor.qytk8s.com
+
+privateRegistry:
+  registryUrl: harbor.qytk8s.com
+
+defaultSettings:
+  createDefaultDiskLabeledNodes: true
+  defaultDataPath: /var/lib/longhorn
+  defaultReplicaCount: 3
+  replicaAutoBalance: least-effort
+  storageMinimalAvailablePercentage: 10
+  upgradeChecker: false
+
+persistence:
+  defaultClass: true
+  defaultClassReplicaCount: 3
+  defaultDataLocality: disabled
+  reclaimPolicy: Delete
+
+service:
+  ui:
+    type: ClusterIP
+
+preUpgradeChecker:
+  upgradeVersionCheck: false

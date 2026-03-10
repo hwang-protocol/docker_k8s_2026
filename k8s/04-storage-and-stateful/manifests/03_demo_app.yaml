@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: volume-demo
+  namespace: stateful-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: volume-demo
+  template:
+    metadata:
+      labels:
+        app: volume-demo
+    spec:
+      nodeSelector:
+        node-role: app
+      containers:
+        - name: busybox
+          image: harbor.qytk8s.com/storage/busybox:1.36.1
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "volume demo container started"
+              sleep infinity
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: demo-pvc

@@ -58,11 +58,13 @@
 - **本章定位**：让学生理解 Kubernetes 不只是无状态编排平台，而是具备持久化与有状态服务承载能力。
 - **核心内容**：
   - PV / PVC / StorageClass 的工作模型
+  - `Longhorn`、`Ceph`、传统 `iSCSI` 的定位对比
   - 动态卷分配机制
   - Longhorn 分布式存储架构
   - 持久卷挂载与生命周期
   - Stateful Workload 的落地方式
   - 数据持久化、卷故障与恢复基础
+  - 先 3 节点成组、后第 4 节点扩容加入的实施节奏
 - **本章关键词**：PV / PVC, StorageClass, Dynamic Provisioning, Longhorn, Stateful Workload, Persistent Data
 - **本章实验目标**：部署 Longhorn，为监控组件或数据库提供持久卷，验证 Pod 重建后数据仍然保留。
 
@@ -181,10 +183,10 @@
 
 ### 5. Longhorn 前置条件
 
-- `wk-app01` 和 `wk-app02` 建议至少各准备一块独立数据盘，不直接复用系统盘
+- `wk-app01`、`wk-app02`、`wk-obs01`、`wk-edge01` 建议至少各准备一块独立数据盘，不直接复用系统盘
 - 所有参与 Longhorn 的节点需提前安装 `open-iscsi`
-- 若课程需要更接近生产实践，可将 `wk-obs01` 也纳入 Longhorn 存储节点
-- 如果仅用于教学演示，最小可先使用 2 个存储节点，但需要明确说明这不是严格生产高可用推荐值
+- 第四章默认先由 `wk-app01`、`wk-app02`、`wk-obs01` 组成初始 Longhorn 存储集群
+- `wk-edge01` 先把数据盘准备好，后续再作为第 4 个 Longhorn 节点加入，单独演示存储扩容
 
 ### 6. 零信任与证书规划
 
