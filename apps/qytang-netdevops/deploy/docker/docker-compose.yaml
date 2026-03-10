@@ -1,0 +1,91 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: qytang-netdevops-postgres
+    environment:
+      POSTGRES_DB: netdevops
+      POSTGRES_USER: netdevops
+      POSTGRES_PASSWORD: NetDevOps12345
+    ports:
+      - "5432:5432"
+    volumes:
+      - qytang_netdevops_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U netdevops -d netdevops"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  device-service:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/device-service/Dockerfile
+    environment:
+      PYTHONPATH: /app
+      QYTANG_NETDEVOPS_DB_URL: postgresql+psycopg://netdevops:NetDevOps12345@postgres:5432/netdevops
+      QYTANG_RESOURCE_SERVICE_URL: http://resource-service:8002
+      QYTANG_AUDIT_SERVICE_URL: http://audit-service:8003
+      QYTANG_AUTO_SEED: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+
+  resource-service:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/resource-service/Dockerfile
+    environment:
+      PYTHONPATH: /app
+      QYTANG_NETDEVOPS_DB_URL: postgresql+psycopg://netdevops:NetDevOps12345@postgres:5432/netdevops
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8002:8002"
+
+  audit-service:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/audit-service/Dockerfile
+    environment:
+      PYTHONPATH: /app
+      QYTANG_NETDEVOPS_DB_URL: postgresql+psycopg://netdevops:NetDevOps12345@postgres:5432/netdevops
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8003:8003"
+
+  frontend:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/frontend/Dockerfile
+    environment:
+      QYTANG_DEVICE_PROXY_URL: http://device-service:8001/
+      QYTANG_RESOURCE_PROXY_URL: http://resource-service:8002/
+      QYTANG_AUDIT_PROXY_URL: http://audit-service:8003/
+      QYTANG_FRONTEND_HOST: 0.0.0.0
+      QYTANG_FRONTEND_PORT: "8080"
+    depends_on:
+      - device-service
+      - resource-service
+      - audit-service
+    ports:
+      - "8080:8080"
+
+  seed-data:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/device-service/Dockerfile
+    environment:
+      PYTHONPATH: /app
+      QYTANG_NETDEVOPS_DB_URL: postgresql+psycopg://netdevops:NetDevOps12345@postgres:5432/netdevops
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["python", "scripts/seed_demo_data.py"]
+
+volumes:
+  qytang_netdevops_pgdata:

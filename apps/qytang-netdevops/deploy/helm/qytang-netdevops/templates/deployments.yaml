@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy | default "IfNotPresent" }}
+          env:
+            - name: QYTANG_DEVICE_PROXY_URL
+              value: http://device-service:8001/
+            - name: QYTANG_RESOURCE_PROXY_URL
+              value: http://resource-service:8002/
+            - name: QYTANG_AUDIT_PROXY_URL
+              value: http://audit-service:8003/
+            - name: QYTANG_FRONTEND_HOST
+              value: "0.0.0.0"
+            - name: QYTANG_FRONTEND_PORT
+              value: "8080"
+          ports:
+            - containerPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: device-service
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.deviceService.replicaCount }}
+  selector:
+    matchLabels:
+      app: device-service
+  template:
+    metadata:
+      labels:
+        app: device-service
+    spec:
+      containers:
+        - name: device-service
+          image: "{{ .Values.deviceService.image.repository }}:{{ .Values.deviceService.image.tag }}"
+          imagePullPolicy: {{ .Values.deviceService.image.pullPolicy | default "IfNotPresent" }}
+          env:
+            - name: PYTHONPATH
+              value: /app
+            - name: QYTANG_NETDEVOPS_DB_URL
+              value: postgresql+psycopg://{{ .Values.postgres.username }}:{{ .Values.postgres.password }}@postgres:5432/{{ .Values.postgres.database }}
+            - name: QYTANG_RESOURCE_SERVICE_URL
+              value: http://resource-service:8002
+            - name: QYTANG_AUDIT_SERVICE_URL
+              value: http://audit-service:8003
+            - name: QYTANG_AUTO_SEED
+              value: "true"
+          ports:
+            - containerPort: 8001
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resource-service
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.resourceService.replicaCount }}
+  selector:
+    matchLabels:
+      app: resource-service
+  template:
+    metadata:
+      labels:
+        app: resource-service
+    spec:
+      containers:
+        - name: resource-service
+          image: "{{ .Values.resourceService.image.repository }}:{{ .Values.resourceService.image.tag }}"
+          imagePullPolicy: {{ .Values.resourceService.image.pullPolicy | default "IfNotPresent" }}
+          env:
+            - name: PYTHONPATH
+              value: /app
+            - name: QYTANG_NETDEVOPS_DB_URL
+              value: postgresql+psycopg://{{ .Values.postgres.username }}:{{ .Values.postgres.password }}@postgres:5432/{{ .Values.postgres.database }}
+          ports:
+            - containerPort: 8002
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-service
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.auditService.replicaCount }}
+  selector:
+    matchLabels:
+      app: audit-service
+  template:
+    metadata:
+      labels:
+        app: audit-service
+    spec:
+      containers:
+        - name: audit-service
+          image: "{{ .Values.auditService.image.repository }}:{{ .Values.auditService.image.tag }}"
+          imagePullPolicy: {{ .Values.auditService.image.pullPolicy | default "IfNotPresent" }}
+          env:
+            - name: PYTHONPATH
+              value: /app
+            - name: QYTANG_NETDEVOPS_DB_URL
+              value: postgresql+psycopg://{{ .Values.postgres.username }}:{{ .Values.postgres.password }}@postgres:5432/{{ .Values.postgres.database }}
+          ports:
+            - containerPort: 8003

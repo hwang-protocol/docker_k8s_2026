@@ -1,0 +1,33 @@
+namespace: qytang-netdevops
+
+frontend:
+  # 可以改：前端是无状态服务，课堂上最推荐先改这里。
+  replicaCount: 1
+  image:
+    repository: harbor.qytk8s.com/qytang-netdevops/frontend
+    tag: v0.1.6
+
+deviceService:
+  # 可以改：设备服务是无状态服务。
+  replicaCount: 1
+  image:
+    repository: harbor.qytk8s.com/qytang-netdevops/device-service
+    tag: v0.1.0
+
+resourceService:
+  # 可以改：资源服务是无状态服务。
+  replicaCount: 1
+  image:
+    repository: harbor.qytk8s.com/qytang-netdevops/resource-service
+    tag: v0.1.0
+
+auditService:
+  # 可以改：审计服务是无状态服务。
+  replicaCount: 1
+  image:
+    repository: harbor.qytk8s.com/qytang-netdevops/audit-service
+    tag: v0.1.0
+
+postgres:
+  # 不建议改副本数：当前 PostgreSQL 为单实例有状态服务，课堂上保持 1 即可。
+  enabled: true

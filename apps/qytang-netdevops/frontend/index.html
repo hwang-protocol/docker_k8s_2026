@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QYT NetDevOps</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-badge">QN</div>
+          <div>
+            <h1>QYT NetDevOps</h1>
+            <p>Network Resource Control Center</p>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <button class="nav-item active" data-view="dashboard">Dashboard</button>
+          <button class="nav-item" data-view="devices">Devices</button>
+          <button class="nav-item" data-view="audits">Audit Center</button>
+        </nav>
+
+        <section class="sidebar-card">
+          <span class="sidebar-card-tag">本地预览</span>
+          <strong id="sidebar-health">Healthy</strong>
+          <p>一屏演示版</p>
+        </section>
+      </aside>
+
+      <main class="main">
+        <header class="page-header">
+          <div>
+            <h2 id="page-title">Dashboard</h2>
+            <p id="page-subtitle">设备资产、接口状态与最近变更的实时视图</p>
+          </div>
+          <div class="header-actions">
+            <button id="refresh-button" class="ghost-button">刷新数据</button>
+            <button id="open-device-modal" class="primary-button">新增设备</button>
+          </div>
+        </header>
+
+        <section id="view-dashboard" class="view active">
+          <div class="dashboard-grid">
+            <article class="hero-card">
+              <span class="card-tag">OPS PULSE</span>
+              <h3>QYTANG NetDevOps 正在模拟一套可观测、可演示的企业网络资源平台。</h3>
+              <p>这一版重点展示设备资产、接口状态、变更审计以及后续 GitOps / Observability 可直接复用的业务入口。</p>
+              <div class="hero-pills" id="hero-pills"></div>
+            </article>
+
+            <article class="service-card">
+              <h3>服务矩阵</h3>
+              <div id="service-matrix" class="service-matrix"></div>
+            </article>
+          </div>
+
+          <section class="kpi-grid" id="kpi-grid"></section>
+
+          <div class="charts-grid">
+            <article class="panel-card">
+              <h3>厂商分布</h3>
+              <div id="vendor-distribution" class="distribution-list"></div>
+            </article>
+            <article class="panel-card">
+              <h3>站点分布</h3>
+              <div id="site-distribution" class="distribution-list"></div>
+            </article>
+            <article class="panel-card">
+              <h3>状态分布</h3>
+              <div id="status-distribution" class="distribution-list"></div>
+            </article>
+            <article class="panel-card">
+              <h3>最近变更</h3>
+              <div id="recent-changes" class="timeline-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="view-devices" class="view">
+          <div class="panel-toolbar">
+            <input id="device-search" type="search" placeholder="搜索 hostname / IP / site / role" />
+            <select id="device-status-filter">
+              <option value="">全部状态</option>
+              <option value="online">online</option>
+              <option value="degraded">degraded</option>
+              <option value="offline">offline</option>
+            </select>
+            <select id="device-vendor-filter">
+              <option value="">全部厂商</option>
+            </select>
+            <select id="device-site-filter">
+              <option value="">全部站点</option>
+            </select>
+          </div>
+
+          <div class="devices-layout">
+            <article class="panel-card">
+              <h3>设备列表</h3>
+              <table class="device-table">
+                <thead>
+                  <tr>
+                    <th>Hostname</th>
+                    <th>Mgmt IP</th>
+                    <th>Vendor</th>
+                    <th>Site</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="device-table-body"></tbody>
+              </table>
+            </article>
+
+            <article class="panel-card">
+              <div class="detail-header">
+                <h3>Device Detail</h3>
+                <div class="detail-actions">
+                  <button id="edit-device-button" class="ghost-button">编辑</button>
+                  <button id="delete-device-button" class="danger-button">删除</button>
+                </div>
+              </div>
+              <div id="device-detail" class="detail-block empty-state">请选择左侧设备。</div>
+            </article>
+          </div>
+        </section>
+
+        <section id="view-audits" class="view">
+          <article class="panel-card">
+            <h3>Audit Center</h3>
+            <div id="audit-timeline" class="timeline-list"></div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="device-dialog" class="device-dialog">
+      <form id="device-form" method="dialog">
+        <h3 id="device-dialog-title">新增设备</h3>
+        <div class="form-grid">
+          <label>Hostname<input name="hostname" required /></label>
+          <label>Mgmt IP<input name="mgmt_ip" required /></label>
+          <label>Vendor<input name="vendor" required /></label>
+          <label>Model<input name="model" required /></label>
+          <label>Version<input name="version" required /></label>
+          <label>Site<input name="site" required /></label>
+          <label>Role<input name="role" required /></label>
+          <label>
+            Status
+            <select name="status">
+              <option value="online">online</option>
+              <option value="degraded">degraded</option>
+              <option value="offline">offline</option>
+            </select>
+          </label>
+        </div>
+        <menu class="dialog-actions">
+          <button type="button" id="cancel-device-dialog" class="ghost-button">取消</button>
+          <button type="submit" class="primary-button">保存</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

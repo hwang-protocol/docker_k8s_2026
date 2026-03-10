@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: qytang-netdevops
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://git.qytk8s.com/gitadmin/qytang-netdevops.git
+    targetRevision: main
+    path: deploy/helm/qytang-netdevops
+    helm:
+      valueFiles:
+        - values-lab.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: qytang-netdevops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
