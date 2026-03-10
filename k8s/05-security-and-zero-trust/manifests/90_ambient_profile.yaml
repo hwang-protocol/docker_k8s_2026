@@ -1,0 +1,8 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  namespace: istio-system
+spec:
+  profile: ambient
+  hub: harbor.qytk8s.com/istio
+  tag: 1.29.0

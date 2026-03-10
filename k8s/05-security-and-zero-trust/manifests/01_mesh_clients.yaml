@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: trusted-client
+  namespace: mesh-demo
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: untrusted-client
+  namespace: mesh-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: curl-trusted
+  namespace: mesh-demo
+  labels:
+    app: curl-trusted
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: curl-trusted
+  template:
+    metadata:
+      labels:
+        app: curl-trusted
+    spec:
+      serviceAccountName: trusted-client
+      containers:
+        - name: curl
+          image: harbor.qytk8s.com/istio/curl:8.12.1
+          command: ["/bin/sh", "-c", "sleep 3650d"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: curl-untrusted
+  namespace: mesh-demo
+  labels:
+    app: curl-untrusted
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: curl-untrusted
+  template:
+    metadata:
+      labels:
+        app: curl-untrusted
+    spec:
+      serviceAccountName: untrusted-client
+      containers:
+        - name: curl
+          image: harbor.qytk8s.com/istio/curl:8.12.1
+          command: ["/bin/sh", "-c", "sleep 3650d"]

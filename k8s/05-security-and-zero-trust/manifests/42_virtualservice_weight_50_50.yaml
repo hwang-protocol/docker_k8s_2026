@@ -1,0 +1,54 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: secure-app
+  namespace: mesh-demo
+spec:
+  hosts:
+    - secure-app.qytk8s.com
+  gateways:
+    - secure-app-gateway
+  http:
+    - name: public
+      match:
+        - uri:
+            prefix: /public
+      route:
+        - destination:
+            host: public-whoami.mesh-demo.svc.cluster.local
+            port:
+              number: 80
+    - name: hello
+      match:
+        - uri:
+            prefix: /hello
+      route:
+        - destination:
+            host: helloworld.mesh-demo.svc.cluster.local
+            subset: v1
+            port:
+              number: 5000
+          weight: 50
+        - destination:
+            host: helloworld.mesh-demo.svc.cluster.local
+            subset: v2
+            port:
+              number: 5000
+          weight: 50
+    - name: httpbin
+      match:
+        - uri:
+            prefix: /get
+        - uri:
+            prefix: /post
+        - uri:
+            prefix: /headers
+        - uri:
+            prefix: /delay
+        - uri:
+            prefix: /status
+      route:
+        - destination:
+            host: httpbin.mesh-demo.svc.cluster.local
+            port:
+              number: 8000

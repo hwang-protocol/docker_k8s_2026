@@ -1,0 +1,11 @@
+# 第五章运行生成物与下载物
+k8s/05-security-and-zero-trust/artifacts/
+k8s/05-security-and-zero-trust/tmp/
+k8s/05-security-and-zero-trust/pki/
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 证书序列号文件
+*.srl

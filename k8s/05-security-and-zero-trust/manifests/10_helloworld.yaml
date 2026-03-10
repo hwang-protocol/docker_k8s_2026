@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: helloworld
+  namespace: mesh-demo
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: helloworld
+  namespace: mesh-demo
+  labels:
+    app: helloworld
+    service: helloworld
+spec:
+  ports:
+    - port: 5000
+      name: http
+      targetPort: 5000
+  selector:
+    app: helloworld
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helloworld-v1
+  namespace: mesh-demo
+  labels:
+    app: helloworld
+    version: v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helloworld
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: helloworld
+        version: v1
+    spec:
+      serviceAccountName: helloworld
+      containers:
+        - name: helloworld
+          image: harbor.qytk8s.com/istio/helloworld-v1:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: helloworld-v2
+  namespace: mesh-demo
+  labels:
+    app: helloworld
+    version: v2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: helloworld
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: helloworld
+        version: v2
+    spec:
+      serviceAccountName: helloworld
+      containers:
+        - name: helloworld
+          image: harbor.qytk8s.com/istio/helloworld-v2:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000

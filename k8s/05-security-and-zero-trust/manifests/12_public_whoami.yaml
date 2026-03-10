@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: public-whoami
+  namespace: mesh-demo
+  labels:
+    app: public-whoami
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  selector:
+    app: public-whoami
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: public-whoami
+  namespace: mesh-demo
+  labels:
+    app: public-whoami
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: public-whoami
+  template:
+    metadata:
+      labels:
+        app: public-whoami
+    spec:
+      containers:
+        - name: whoami
+          image: harbor.qytk8s.com/northsouth/whoami:v1.10.3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80

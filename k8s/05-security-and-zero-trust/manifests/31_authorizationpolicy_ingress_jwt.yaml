@@ -1,0 +1,25 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ingress-require-jwt
+  namespace: istio-ingress
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  action: ALLOW
+  rules:
+    - to:
+        - operation:
+            hosts:
+              - secure-app.qytk8s.com
+            paths:
+              - /public
+    - from:
+        - source:
+            requestPrincipals:
+              - "https://secure-app.qytk8s.com/auth/*"
+      to:
+        - operation:
+            hosts:
+              - secure-app.qytk8s.com
