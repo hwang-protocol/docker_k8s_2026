@@ -1,0 +1,4 @@
+harbor.qytk8s.com/qytang-netdevops/frontend:future
+harbor.qytk8s.com/qytang-netdevops/device-service:future
+harbor.qytk8s.com/qytang-netdevops/resource-service:future
+harbor.qytk8s.com/qytang-netdevops/audit-service:future

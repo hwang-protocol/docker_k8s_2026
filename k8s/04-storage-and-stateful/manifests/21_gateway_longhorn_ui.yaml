@@ -48,6 +48,25 @@ spec:
       allowedRoutes:
         namespaces:
           from: Same
+    - name: netdevops-http
+      hostname: netdevops.qytk8s.com
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: netdevops-https
+      hostname: netdevops.qytk8s.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: netdevops-qytk8s-com-tls
+      allowedRoutes:
+        namespaces:
+          from: Same
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -88,6 +107,45 @@ spec:
           namespace: longhorn-system
           port: 80
 ---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: netdevops-http-redirect
+  namespace: gateway-demo
+spec:
+  hostnames:
+    - netdevops.qytk8s.com
+  parentRefs:
+    - name: app-gateway
+      sectionName: netdevops-http
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: netdevops-https-backend
+  namespace: gateway-demo
+spec:
+  hostnames:
+    - netdevops.qytk8s.com
+  parentRefs:
+    - name: app-gateway
+      sectionName: netdevops-https
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: frontend
+          namespace: qytang-netdevops
+          port: 8080
+---
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant
 metadata:
@@ -102,3 +160,18 @@ spec:
     - group: ""
       kind: Service
       name: longhorn-frontend
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-gateway-demo-to-netdevops-frontend
+  namespace: qytang-netdevops
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: gateway-demo
+  to:
+    - group: ""
+      kind: Service
+      name: frontend

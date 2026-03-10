@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: qytang-netdevops
+  labels:
+    app.kubernetes.io/name: qytang-netdevops
+    app.kubernetes.io/part-of: chapter6-gitops
