@@ -1,5 +1,7 @@
 # 第 17 步：发布 QYT NetDevOps 正式域名
 
+> 历史说明：本页属于旧版细分页。当前主线教材中，正式业务入口与域名账户已收口到 `docs/07_domains_accounts_and_classroom_demo.md`，课堂测试与演示已独立到 `docs/08_gitops_demo_and_testing.md`。
+
 ## 本步目标
 
 将业务入口从临时 `LoadBalancer VIP` 收口为正式域名：

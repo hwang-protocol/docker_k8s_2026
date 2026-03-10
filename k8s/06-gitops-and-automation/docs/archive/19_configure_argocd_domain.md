@@ -1,5 +1,7 @@
 # 第 18 步：配置 Argo CD 正式域名与证书
 
+> 历史说明：本页属于旧版细分页。当前主线教材中，`argocd.qytk8s.com` 的正式证书已经并入 `scripts/12_install_argocd_and_sync.sh` 处理，请优先以 `docs/01_chapter_guide.md` 和 `docs/06_harbor_argocd_and_e2e_verification.md` 为准。
+
 ## 本步目标
 
 把 Argo CD 的访问方式从：

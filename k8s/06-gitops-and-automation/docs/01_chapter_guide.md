@@ -1,278 +1,260 @@
-# 第六章总览：微服务发布、自动化与 GitOps
+# 第六章导读：GitOps 与自动化主线
 
-## 本章目标
+## 本章定位
 
-第六章的目标，是把前五章已经具备网络、安全、入口与存储能力的集群，推进到 **具备现代应用交付能力** 的状态。
+第六章的目标不是单独安装某一个工具，而是把一条完整交付链路讲清楚：
 
-本章结束后，应达到下面状态：
-
-- 已拥有一个可讲、可演示、可继续扩展的样板应用 `QYT NetDevOps`
-- 学员能够本地运行并理解它的前后端、服务拆分与数据模型
-- 样板应用已经预留 Docker、Helm 与 GitOps 所需目录
-- 样板应用已经完成 `git.qytk8s.com`、`Harbor` 与 `Argo CD` 真实串联
-- 学员能够区分“当前已落地的拆解版 GitOps”和“后续推荐的单次 push 顺滑流程”
-- 第七章可继续复用该应用做观测、指标、日志和 Trace 展示
-
-## 本章学习方式
-
-这一章继续采用“文档主导 + 脚本辅助 + 课堂讲解”的方式：
-
-1. 登录 `ops`
-2. 先看理论和系统设计文档
-3. 再运行本地预览与验证脚本
-4. 先把应用本体讲清楚，再接容器化、镜像推送与 GitOps
-5. 课堂上保留完整的命令块和源码块，方便学员贴贴贴
-
-## 课前理论导读
-
-正式操作前，建议先阅读：
-
-- `docs/00_gitops_theory.md`
-
-它负责把本章主线讲清楚：
-
-- 什么是 GitOps
-- 为什么第六章不能只讲 Argo CD
-- 为什么要先做 `QYTANG NetDevOps`
-- 代码、镜像、Git、集群之间是什么关系
-
-## 本章重点边界
-
-第六章聚焦：
-
-- `QYT NetDevOps` 样板应用
+- 应用设计
 - 本地联调
-- 应用目录结构
-- 服务拆分
-- Docker / Helm / Harbor / Argo CD 落位
+- 容器化
+- Git 事实源
+- 镜像仓库
+- Argo CD 同步
+- 正式业务入口
+- 课堂现场演示
 
-第六章当前不展开：
+这一章现在已经重构为少量主线文档，避免在课堂上来回切换 20 多页碎片说明。
 
-- CI 系统自动构建流水线
-- 多环境 Promotion 策略
-- Argo Rollouts 渐进式发布
+## 教材使用方法
 
-这些内容可以在后续章节继续扩展。
+这一章建议始终按下面节奏学习：
 
-## 当前落地与推荐流程
+1. 先看理论与流程图
+2. 再执行 `!!! 必刷脚本`
+3. 再做测试与校验
+4. 最后用“完成标准”判断这一节是否真正刷通
 
-第六章当前已经真实跑通的是：
-
-- 手工拆解版 GitOps
-- 也就是老师手工演示改代码、构建镜像、改 values、再观察 Argo CD 同步
-
-第六章后续更推荐的工程化表达是：
-
-- 人只 `push` 一次
-- `Git` 触发 `CI`
-- `CI` 自动构建镜像并回写 `values`
-- `Argo CD` 按 Git 最终状态发布
-
-所以你在上课时要明确区分：
-
-- 当前教材已经落地的内容
-- 后续推荐但尚未在本章实现的顺滑版流程
-
-## 本章与前章的关系
-
-- **第一章**：继续复用 `ops`、`Harbor` 与后续的 `git.qytk8s.com`
-- **第三章**：继续复用北向访问和 `HTTPS` 基础思路
-- **第五章**：后续可继续复用 `Istio` 安全与流量治理为新应用提供发布能力
-- **第七章**：直接复用本章应用做可观测性展示
-
-## 第六章总关系图
+## 第六章主线图
 
 ```mermaid
 flowchart LR
-    subgraph dev [LocalDevelopment]
-        frontend[frontend]
-        deviceService[device_service]
-        resourceService[resource_service]
-        auditService[audit_service]
-        db[(sqlite_or_postgres)]
-        frontend --> deviceService
-        frontend --> auditService
-        deviceService --> resourceService
-        deviceService --> auditService
-        deviceService --> db
-        resourceService --> db
-        auditService --> db
-    end
+  overview[总览与GitOps主线]
+  preview[应用设计与本地联调]
+  assets[容器化与GitOps资产]
+  gitea[Gitea与仓库初始化]
+  release[Harbor与ArgoCD发布]
+  entry[域名账户与正式入口]
+  demo[课堂测试与演示]
 
-    subgraph delivery [FutureGitOpsFlow]
-        repo[git_qytk8s_com]
-        harbor[harbor_qytk8s_com]
-        argocd[argocd]
-        k8s[kubernetes]
-        repo --> argocd
-        harbor --> k8s
-        argocd --> k8s
-    end
+  overview --> preview
+  preview --> assets
+  assets --> gitea
+  gitea --> release
+  release --> entry
+  entry --> demo
 ```
 
-## 本章脚本执行矩阵
+## 第六章主线目录
 
-| 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
-| :--- | :--- | :--- | :--- | :--- |
-| 0 | `00_gitops_theory.md` | 无 | 建议先读 | 先建立 GitOps 与样板工程整体认知 |
-| 1 | `02_design_qytang_netdevops.md` | 无 | 必须阅读 | 先讲系统设计、页面、服务和数据模型 |
-| 2 | `03_local_preview_and_debug.md` | `scripts/01_run_local_preview.sh` | 必须执行 | 启动本地预览与 API |
-| 3 | `04_git_repo_and_delivery_plan.md` | 无 | 必须阅读 | 讲清主仓、Gitea 与 GitOps 的交付关系 |
-| 4 | `05_next_phase_gitops_plan.md` | 无 | 讲解为主 | 作为转场页，说明接下来如何进入 Docker / Gitea / Helm / Argo CD |
-| 5 | `06_verify.md` | `scripts/03_verify_chapter6.sh` | 只读验收 | 作为第一阶段唯一正式验收页，验证本地联调已完成 |
-| 6 | `07_containerize_qytang_netdevops.md` | `scripts/04_verify_docker_assets.sh` | 必须阅读 | 补齐 Dockerfile 与 docker compose，建立镜像化认知 |
-| 7 | `08_git_service_and_gitea_plan.md` | 无 | 必须阅读 | 讲清楚 `git.qytk8s.com`、单仓与后续 Git 仓库布局 |
-| 8 | `09_helm_and_argocd_layout.md` | `scripts/05_verify_gitops_assets.sh` | 必须阅读 | 讲 Helm、values、Argo CD Application 的目录关系 |
-| 9 | `10_verify_phase2.md` | `scripts/06_verify_phase2_assets.sh` | 只读验收 | 验证第六章第二阶段素材已就绪 |
-| 10 | `11_install_gitea.md` | `scripts/07_install_gitea_remote.sh` | 必须执行 | 在 `git` 节点落地 Gitea |
-| 11 | `12_prepare_gitea_repo_and_push.md` | `scripts/08_create_gitea_repo.sh` | 必须执行 | 创建 `qytang-netdevops.git` |
-| 12 | `13_verify_gitea.md` | `scripts/09_verify_gitea.sh` | 只读验收 | 验证 Git 服务与仓库环境 |
-| 13 | `14_push_qytang_netdevops_to_gitea.md` | `scripts/10_push_qytang_netdevops_repo.sh` | 必须执行 | 把应用目录独立初始化并首推到 Gitea |
-| 14 | `15_build_and_push_images.md` | `scripts/11_build_and_push_images_remote.sh` | 必须执行 | 在 `git` 节点构建并推送四个镜像到 Harbor |
-| 15 | `16_install_argocd_and_sync.md` | `scripts/12_install_argocd_and_sync.sh` | 必须执行 | 安装 Argo CD、信任 Gitea CA 并同步应用 |
-| 16 | `17_verify_gitops_e2e.md` | `scripts/13_verify_gitops_e2e.sh` | 只读验收 | 验证 Git -> Harbor -> Argo CD -> K8s 全链路 |
-| 17 | `18_publish_netdevops_domain.md` | `scripts/14_publish_netdevops_https_domain.sh` | 必须执行 | 将业务入口收口为 `https://netdevops.qytk8s.com` |
-| 18 | `19_configure_argocd_domain.md` | `scripts/15_configure_argocd_domain.sh` | 必须执行 | 将 Argo CD 收口为 `https://argocd.qytk8s.com` |
-| 19 | `20_domains_and_accounts.md` | 无 | 建议收尾阅读 | 汇总域名、IP、账户和名称映射 |
-| 20 | `21_gitops_demo_playbook.md` | `scripts/16_release_frontend_gitops.sh`<br>`scripts/17_scale_frontend_gitops.sh` | 强烈建议收尾阅读 | 课堂现场演示改代码发布与改 yaml 扩缩容 |
+请按下面顺序阅读与执行：
 
-## 本章执行顺序
+1. `docs/02_overview_and_gitops_flow.md`
+2. `docs/03_app_design_and_local_preview.md`
+3. `docs/04_containerize_and_gitops_assets.md`
+4. `docs/05_gitea_setup_and_repo_bootstrap.md`
+5. `docs/06_harbor_argocd_and_e2e_verification.md`
+6. `docs/07_domains_accounts_and_classroom_demo.md`
+7. `docs/08_gitops_demo_and_testing.md`
 
-请严格按下面顺序执行：
+## !!! 刷课顺序总览
 
-0. `00_gitops_theory.md`
-1. `02_design_qytang_netdevops.md`
-2. `03_local_preview_and_debug.md`
-3. `04_git_repo_and_delivery_plan.md`
-4. `05_next_phase_gitops_plan.md`
-5. `06_verify.md`
-6. `07_containerize_qytang_netdevops.md`
-7. `08_git_service_and_gitea_plan.md`
-8. `09_helm_and_argocd_layout.md`
-9. `10_verify_phase2.md`
-10. `11_install_gitea.md`
-11. `12_prepare_gitea_repo_and_push.md`
-12. `13_verify_gitea.md`
-13. `14_push_qytang_netdevops_to_gitea.md`
-14. `15_build_and_push_images.md`
-15. `16_install_argocd_and_sync.md`
-16. `17_verify_gitops_e2e.md`
-17. `18_publish_netdevops_domain.md`
-18. `19_configure_argocd_domain.md`
-19. `20_domains_and_accounts.md`
-20. `21_gitops_demo_playbook.md`
+如果你要从头到尾顺刷，第六章的最短主线就是：
 
-## 贴贴贴顺序
+```text
+理论总览 -> 本地联调 -> 工程化资产 -> Gitea -> Harbor/Argo CD -> 正式入口 -> 课堂演示
+```
 
-在 `ops` 上按下面顺序执行即可：
+## 主线说明
+
+### 1. 总览与 GitOps 主线
+
+这一节讲：
+
+- 第六章到底解决什么问题
+- GitOps 的核心概念
+- 主仓、`Gitea`、`Harbor`、`Argo CD` 的角色边界
+
+### 2. 应用设计与本地联调
+
+这一节讲：
+
+- `QYT NetDevOps` 为什么这样设计
+- 微服务职责边界
+- 本地联调与第一阶段验收
+
+### 3. 容器化与 GitOps 资产准备
+
+这一节讲：
+
+- `Dockerfile`
+- `docker compose`
+- `Helm Chart`
+- `values`
+- `Argo CD Application`
+
+### 4. Gitea 落地与仓库初始化
+
+这一节讲：
+
+- `git.qytk8s.com` 的安装与信任链
+- 应用仓库创建
+- 首次把应用目录同步到 `Gitea`
+
+### 5. Harbor、Argo CD 与发布闭环
+
+这一节讲：
+
+- 远程构建镜像
+- 推送到 `Harbor`
+- 安装 `Argo CD`
+- 同步应用
+- 端到端验收
+
+### 6. 域名、账户与正式入口
+
+这一节讲：
+
+- 正式业务入口
+- 域名与账户速查
+- Git 边界
+
+### 7. GitOps 课堂测试与演示
+
+这一节讲：
+
+- 改代码发布
+- 改 YAML 扩缩容
+- 课堂现场观察点
+
+这一节开始前要记住：
+
+- `16_release_frontend_gitops.sh` 之前必须先手工改代码，再改 `VERSION`
+- `17_scale_frontend_gitops.sh` 之前必须先手工改 `values-lab.yaml` 里的副本数
+
+## !!! 主线必刷脚本
+
+下面这组脚本就是当前第六章主线：
+
+### 标记说明
+
+- `P0`：必须执行，直接决定是否能继续往下刷
+- `P1`：建议执行，用于补强验证或课堂演示
+
+### 环境检查
 
 ```bash
+# P0
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/00_check_and_recover_cluster.sh
 ```
 
+### 本地联调与第一阶段验收
+
 ```bash
+# P0
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/01_run_local_preview.sh
-```
-
-```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/02_verify_local_preview.sh
-```
-
-```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/03_verify_chapter6.sh
 ```
 
+### 工程化资产准备
+
 ```bash
+# P0
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/04_verify_docker_assets.sh
-```
-
-```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/05_verify_gitops_assets.sh
-```
-
-```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/06_verify_phase2_assets.sh
 ```
 
+### Gitea 与应用仓初始化
+
 ```bash
+# P0
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/07_install_gitea_remote.sh
-```
-
-```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/08_create_gitea_repo.sh
-```
-
-```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/09_verify_gitea.sh
-```
-
-```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/10_push_qytang_netdevops_repo.sh
 ```
 
+### 发布闭环
+
 ```bash
+# P0
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/11_build_and_push_images_remote.sh
-```
-
-```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/12_install_argocd_and_sync.sh
-```
-
-```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/13_verify_gitops_e2e.sh
 ```
 
+### 正式入口与课堂演示
+
 ```bash
+# P0/P1
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/14_publish_netdevops_https_domain.sh
-```
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/15_configure_argocd_domain.sh
-```
-
-课堂演示“改代码发布”时执行：
-
-```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/16_release_frontend_gitops.sh
-```
-
-课堂演示“改 yaml 扩缩容”时执行：
-
-```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/17_scale_frontend_gitops.sh
 ```
 
-如果希望一次性把当前第六章阶段环境铺好，可直接执行：
+说明：
+
+- `14_publish_netdevops_https_domain.sh` 属于主线 `P0`
+- `16_release_frontend_gitops.sh`、`17_scale_frontend_gitops.sh` 属于课堂演示 `P1`
+- `scripts/15_configure_argocd_domain.sh` 现在是遗留补救脚本，不再作为当前主线步骤单独执行
+
+## 当前教学事实
+
+### 已经解决的事实
+
+- `12_install_argocd_and_sync.sh` 已经直接处理 `argocd.qytk8s.com` 正式证书
+- `13_verify_gitops_e2e.sh` 当前验证的是前端 Service，不提前验证正式业务域名
+- `16_release_frontend_gitops.sh` 的课堂动作已收成：改代码、改 `VERSION`、执行脚本
+
+### 必须讲清楚的边界
+
+- 主仓才是真实源码维护与备份边界
+- `Gitea` 仓库是第六章 GitOps 发布目标
+- 当前是“脚本化拆解版 GitOps”
+- 还不是“人只 push 一次 + CI 全自动”
+
+## 历史细分页说明
+
+旧的编号页仍然保留在 `docs/` 中，方便回溯历史内容，但它们不再是当前主线教材。
+
+当前主线以本页列出的 7 篇大文档为准。
+
+其中下面这页已经退出主线：
+
+- `docs/archive/19_configure_argocd_domain.md`
+
+原因是：
+
+- 其核心内容已经并入 `scripts/12_install_argocd_and_sync.sh`
+
+## 一把梭脚本说明
+
+仓库里仍保留：
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/99_bootstrap_chapter6.sh
 ```
 
+但这属于“快速铺环境”入口，不是当前主线教材推荐的授课方式。
+
+正式教学建议仍按 7 篇主线文档顺刷，这样每一段的理论、图、脚本、测试和完成标准都更完整。
+
 ## 第六章起点状态
 
-第六章开始前，默认你已经满足下面条件：
+进入第六章前，默认满足下面条件：
 
-- 所有节点均为 `Ready`
 - 第五章最终验收已通过
+- 所有节点为 `Ready`
 - `ops` 已具备 `kubectl`
-- `ops` 可以访问当前工作目录
+- 当前工作目录可正常访问
 - `apps/qytang-netdevops` 已存在
-
-## 当前阶段设计冻结
-
-- 应用名固定为：`QYT NetDevOps`
-- 当前先使用本地预览与轻量服务联调方式
-- 当前样板应用已经补齐 Docker、Helm 与 GitOps 骨架
-- 当前章节按“本地联调 -> 容器化 -> Git 仓库 -> 镜像仓库 -> Argo CD”递进展开
-- 最终业务入口为：`https://netdevops.qytk8s.com`
-- 最终控制面入口为：`https://argocd.qytk8s.com`
-- 当前前端显示名为：`QYT NetDevOps`
-- 当前仓库目录与镜像仓库仍保持：`qytang-netdevops`
-- 当前已落地的是手工拆解版 GitOps
-- 当前未落地但推荐的是单次 push 触发 CI 的顺滑版 GitOps
+- 统一 CA 文件存在
+- `root@git` 可 SSH
+- 课堂域名解析或 `hosts` 已提前准备
 
 ## 下一步
 
-先进入系统设计文档：
+从总览与 GitOps 主线开始：
 
-- `docs/02_design_qytang_netdevops.md`
+- `docs/02_overview_and_gitops_flow.md`
