@@ -134,7 +134,7 @@ flowchart LR
 | 17 | `18_publish_netdevops_domain.md` | `scripts/14_publish_netdevops_https_domain.sh` | 必须执行 | 将业务入口收口为 `https://netdevops.qytk8s.com` |
 | 18 | `19_configure_argocd_domain.md` | `scripts/15_configure_argocd_domain.sh` | 必须执行 | 将 Argo CD 收口为 `https://argocd.qytk8s.com` |
 | 19 | `20_domains_and_accounts.md` | 无 | 建议收尾阅读 | 汇总域名、IP、账户和名称映射 |
-| 20 | `21_gitops_demo_playbook.md` | 无 | 强烈建议收尾阅读 | 课堂现场演示在哪改、怎么 push、如何区分拆解版与顺滑版 GitOps |
+| 20 | `21_gitops_demo_playbook.md` | `scripts/16_release_frontend_gitops.sh`<br>`scripts/17_scale_frontend_gitops.sh` | 强烈建议收尾阅读 | 课堂现场演示改代码发布与改 yaml 扩缩容 |
 
 ## 本章执行顺序
 
@@ -230,6 +230,18 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/14_publish_netdevops_
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/15_configure_argocd_domain.sh
 ```
 
+课堂演示“改代码发布”时执行：
+
+```bash
+bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/16_release_frontend_gitops.sh
+```
+
+课堂演示“改 yaml 扩缩容”时执行：
+
+```bash
+bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/17_scale_frontend_gitops.sh
+```
+
 如果希望一次性把当前第六章阶段环境铺好，可直接执行：
 
 ```bash
@@ -248,7 +260,7 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/99_bootstrap_chapter6
 
 ## 当前阶段设计冻结
 
-- 应用名固定为：`QYTANG NetDevOps`
+- 应用名固定为：`QYT NetDevOps`
 - 当前先使用本地预览与轻量服务联调方式
 - 当前样板应用已经补齐 Docker、Helm 与 GitOps 骨架
 - 当前章节按“本地联调 -> 容器化 -> Git 仓库 -> 镜像仓库 -> Argo CD”递进展开
