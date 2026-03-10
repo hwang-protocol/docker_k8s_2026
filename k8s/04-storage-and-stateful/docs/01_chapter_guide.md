@@ -12,6 +12,7 @@
 - 应用可以通过 `PVC` 动态申请卷
 - Pod 删除重建后，卷内数据仍保留
 - `wk-edge01` 可以在后续步骤中作为第 4 个 Longhorn 节点加入
+- `Longhorn UI` 可以通过 `win2019 + HTTPS + 域名` 访问
 
 ## 本章学习方式
 
@@ -67,7 +68,8 @@
 | 4 | `05_install_longhorn.md` | `scripts/03_install_longhorn.sh` | 必须执行 | 安装 Longhorn，初始化首批 3 个存储节点 |
 | 5 | `06_default_storageclass_and_test_pvc.md` | `scripts/04_deploy_stateful_demo.sh` | 必须执行 | 验证 PVC 动态供给与数据保留 |
 | 6 | `07_expand_longhorn_node.md` | `scripts/05_expand_longhorn_node.sh` | 必须执行 | 将 `wk-edge01` 作为第 4 个 Longhorn 节点加入 |
-| 7 | `08_verify.md` | `scripts/06_verify_storage.sh` | 只读验收 | 第四章最终验收 |
+| 7 | `07a_publish_longhorn_ui.md` | `scripts/07_publish_longhorn_ui.sh` | 必须执行 | 把 Longhorn UI 正式发布为 `https://longhorn.qytk8s.com` |
+| 8 | `08_verify.md` | `scripts/06_verify_storage.sh` | 只读验收 | 第四章最终验收 |
 
 ## 本章执行顺序
 
@@ -80,7 +82,51 @@
 4. `05_install_longhorn.md`
 5. `06_default_storageclass_and_test_pvc.md`
 6. `07_expand_longhorn_node.md`
-7. `08_verify.md`
+7. `07a_publish_longhorn_ui.md`
+8. `08_verify.md`
+
+## 从第三章快照恢复后的贴贴贴顺序
+
+如果你是从“第三章结束”快照重新开始第四章，并且已经满足：
+
+- `ops` 不恢复
+- `harbor` 不恢复
+- 4 个工作节点新增数据盘仍然保留为 `/dev/sdb`
+
+那么在 `ops` 上按下面顺序直接执行即可：
+
+```bash
+bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/01_prepare_longhorn_disks.sh
+```
+
+```bash
+bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/02_prepare_longhorn_artifacts.sh
+```
+
+```bash
+bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/03_install_longhorn.sh
+```
+
+```bash
+bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/04_deploy_stateful_demo.sh
+```
+
+```bash
+bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/05_expand_longhorn_node.sh
+```
+
+```bash
+bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/07_publish_longhorn_ui.sh
+```
+
+```bash
+bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/06_verify_storage.sh
+```
+
+说明：
+
+- 第 4 步 `04_deploy_stateful_demo.sh` 第一次跑时，`CSI` 相关 Pod 可能需要几十秒到几分钟收敛，这是正常现象，只要脚本还在执行就不要手工打断
+- 如果 Longhorn UI 里看到 `nfs-common` 相关告警，这不影响本章 `RWO` 的 PVC、数据保留、GUI 发布和最终验收
 
 ## 第四章起点状态
 
@@ -92,6 +138,7 @@
 - `ops` 已提供 `http://ops:9000/`
 - `Harbor` 仍然保留，不做快照恢复
 - 你已经在 `VMware` 中给 4 个工作节点都加好了独立数据盘
+- `win2019 DNS` 后续可为 `longhorn.qytk8s.com` 指向 `10.1.1.60`
 
 ## 快照恢复说明
 
@@ -118,6 +165,7 @@
 - `wk-edge01` 不在安装时直接纳入，而是单独作为扩容演示节点
 - 新增数据盘统一固定为 `/dev/sdb`
 - Longhorn 数据路径统一固定为 `/var/lib/longhorn`
+- Longhorn UI 统一通过第三章已经建立的 `Gateway API + HTTPS + Harbor CA` 方式向 `win2019` 发布
 
 ## 下一步
 

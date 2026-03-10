@@ -1,0 +1,104 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: app-gateway
+  namespace: gateway-demo
+spec:
+  gatewayClassName: cilium
+  infrastructure:
+    annotations:
+      metallb.io/address-pool: edge-pool
+      metallb.io/loadBalancerIPs: 10.1.1.60
+  listeners:
+    - name: http
+      hostname: app.qytk8s.com
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: https
+      hostname: app.qytk8s.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: app-qytk8s-com-tls
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: longhorn-http
+      hostname: longhorn.qytk8s.com
+      port: 80
+      protocol: HTTP
+      allowedRoutes:
+        namespaces:
+          from: Same
+    - name: longhorn-https
+      hostname: longhorn.qytk8s.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: longhorn-qytk8s-com-tls
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: longhorn-http-redirect
+  namespace: gateway-demo
+spec:
+  hostnames:
+    - longhorn.qytk8s.com
+  parentRefs:
+    - name: app-gateway
+      sectionName: longhorn-http
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: longhorn-https-backend
+  namespace: gateway-demo
+spec:
+  hostnames:
+    - longhorn.qytk8s.com
+  parentRefs:
+    - name: app-gateway
+      sectionName: longhorn-https
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: longhorn-frontend
+          namespace: longhorn-system
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-gateway-demo-to-longhorn-frontend
+  namespace: longhorn-system
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: gateway-demo
+  to:
+    - group: ""
+      kind: Service
+      name: longhorn-frontend

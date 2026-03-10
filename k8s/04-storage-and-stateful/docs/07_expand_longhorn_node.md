@@ -77,6 +77,6 @@ kubectl -n longhorn-system get nodes.longhorn.io wk-edge01 -o yaml
 
 ## 下一步
 
-进入第 7 步，做第四章最终验收：
+进入第 7 步，把 Longhorn UI 正式发布为 `win2019 + HTTPS + 域名` 访问方式：
 
-- `docs/08_verify.md`
+- `docs/07a_publish_longhorn_ui.md`

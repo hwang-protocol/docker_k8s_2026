@@ -9,6 +9,7 @@
 - `PVC` 动态供给正常
 - Pod 重建后数据仍保留
 - 第 4 个 Longhorn 节点已加入
+- `Longhorn UI` 已能通过 `HTTPS` 域名访问
 
 ## 验收顺序
 
@@ -18,6 +19,7 @@
 4. `StorageClass / PVC / PV`
 5. Longhorn 卷
 6. 有状态数据
+7. Longhorn UI HTTPS 访问
 
 ## 本步脚本
 
@@ -107,6 +109,17 @@ kubectl -n stateful-demo exec deploy/volume-demo -- sh -c 'cat /data/hello.txt'
 
 - 仍能读到之前写入的测试内容
 
+## 验证 7：Longhorn UI HTTPS 访问
+
+```bash
+curl -I --resolve longhorn.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt https://longhorn.qytk8s.com/
+```
+
+预期：
+
+- 返回 `200 OK`
+- 已能通过 `HTTPS` 正常访问 Longhorn UI
+
 ## 第四章通过标准
 
 满足下面条件后，第四章即可视为完成：
@@ -116,3 +129,4 @@ kubectl -n stateful-demo exec deploy/volume-demo -- sh -c 'cat /data/hello.txt'
 - `PVC` 动态供给已成功
 - Pod 删除重建后数据仍保留
 - 第 4 个 Longhorn 节点已成功加入
+- `longhorn.qytk8s.com` 已能从 `win2019` 通过 `HTTPS` 打开
