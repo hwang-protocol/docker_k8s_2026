@@ -7,8 +7,8 @@ set -euo pipefail
 # 执行位置：ops 节点
 # 说明：
 # 1. 先手工修改 apps/qytang-netdevops 下的前端代码
-# 2. 再修改下面 VERSION 变量
-# 3. 执行本脚本即可完成源码提交、镜像构建推送、values 回写、Argo CD 观察
+# 2. 只修改下面 VERSION 变量
+# 3. 执行本脚本即可完成源码同步、镜像构建推送、values 回写、Argo CD 观察
 # ==============================================================================
 
 APP_DIR="/docker_k8s_2026/apps/qytang-netdevops"
@@ -22,10 +22,12 @@ SITE_IP="10.1.1.60"
 source "/docker_k8s_2026/k8s/06-gitops-and-automation/scripts/lib_sync_qytang_netdevops_to_gitea.sh"
 
 # 课堂上只需要改这里
-VERSION="${VERSION:-v0.1.6}"
-SOURCE_COMMIT_SUBJECT="${SOURCE_COMMIT_SUBJECT:-feat(ui): 发布课堂演示代码}"
-SOURCE_COMMIT_BODY="${SOURCE_COMMIT_BODY:-更新前端页面内容，用于验证 GitOps 自动发布效果。}"
-VERIFY_TEXT="${VERIFY_TEXT:-}"
+VERSION="${VERSION:-v0.1.3}"
+
+# 下面这些是脚本内部默认值，课堂上不用改
+SOURCE_COMMIT_SUBJECT="feat(ui): 发布课堂演示代码 ${VERSION}"
+SOURCE_COMMIT_BODY="更新前端页面内容，并发布 frontend:${VERSION}，用于验证 GitOps 自动发布效果。"
+VERIFY_TEXT=""
 
 require_changes() {
   if [[ -z "$(git -C "${ROOT_DIR}" status --porcelain -- "apps/qytang-netdevops")" ]]; then

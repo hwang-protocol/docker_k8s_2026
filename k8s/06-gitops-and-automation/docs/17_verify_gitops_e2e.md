@@ -8,7 +8,7 @@
 - `Harbor` 有镜像
 - `Argo CD` 能同步
 - `Kubernetes` 里 Pod 正常
-- 浏览器能打开 `QYT NetDevOps`
+- 前端 Service 已能正确返回业务数据
 
 ## 端到端关系图
 
@@ -41,9 +41,8 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/13_verify_gitops_e2e.
 当前已经验证通过：
 
 - `Application` 状态为 `Synced Healthy`
-- `https://netdevops.qytk8s.com` 可访问业务页面
 - `https://argocd.qytk8s.com` 可访问 Argo CD
-- GitOps 演示版本已经升级到 `frontend:v0.1.2`
+- 前端 Service 可返回 dashboard 数据
 
 ## Argo CD 当前登录信息
 
@@ -53,19 +52,7 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/13_verify_gitops_e2e.
 ## 当前域名与映射
 
 - `git.qytk8s.com -> 10.1.1.202`
-- `netdevops.qytk8s.com -> 10.1.1.60`
 - `argocd.qytk8s.com -> 10.1.1.50`
-
-## GitOps 变更演示结果
-
-当前已经完成一次真实验证：
-
-- 修改了前端页面文案
-- 构建并推送了 `frontend:v0.1.2`
-- 更新 Git 仓库中的 Helm values
-- `Argo CD` 自动同步到最新 revision
-- 页面显示名已经变为 `QYT NetDevOps`
-- 页面已出现 `GitOps 验证版 v0.1.1`
 
 ## 当前闭环与后续推荐流程
 
@@ -75,6 +62,7 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/13_verify_gitops_e2e.
 - 手工构建镜像
 - 手工改 Git 中的镜像 tag
 - `Argo CD` 自动同步
+- 通过前端 Service 验证应用已经真正可用
 
 这说明当前环境已经具备完整 GitOps 教学基础。
 
@@ -98,8 +86,6 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/13_verify_gitops_e2e.
 
 ## 下一步
 
-第六章已经形成完整闭环，后续可以继续把它作为第七章可观测性的业务载体。
+下一步再把业务入口正式发布为 `https://netdevops.qytk8s.com`。
 
-如果要做课堂现场改字、推镜像、观察 Argo 自动同步，请直接看：
-
-- `docs/21_gitops_demo_playbook.md`
+- `docs/18_publish_netdevops_domain.md`

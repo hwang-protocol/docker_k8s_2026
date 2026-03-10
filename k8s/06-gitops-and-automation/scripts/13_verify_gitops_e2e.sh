@@ -12,12 +12,33 @@ GITEA_URL="https://git.qytk8s.com"
 HARBOR_URL="https://harbor.qytk8s.com"
 ARGOCD_NS="argocd"
 APP_NS="qytang-netdevops"
-NETDEVOPS_DOMAIN="netdevops.qytk8s.com"
-NETDEVOPS_IP="10.1.1.60"
 ARGOCD_DOMAIN="argocd.qytk8s.com"
 ARGOCD_IP="10.1.1.50"
+LOCAL_FRONTEND_PORT="18080"
+PORT_FORWARD_PID=""
+
+cleanup() {
+  if [[ -n "${PORT_FORWARD_PID}" ]]; then
+    kill "${PORT_FORWARD_PID}" >/dev/null 2>&1 || true
+    wait "${PORT_FORWARD_PID}" 2>/dev/null || true
+  fi
+}
+
+start_port_forward() {
+  kubectl -n "${APP_NS}" port-forward svc/frontend "${LOCAL_FRONTEND_PORT}:8080" >/tmp/qytang_netdevops_frontend_pf.log 2>&1 &
+  PORT_FORWARD_PID=$!
+  for _ in $(seq 1 20); do
+    if curl -s "http://127.0.0.1:${LOCAL_FRONTEND_PORT}/healthz" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "ERROR: 前端 Service 端口转发未就绪"
+  return 1
+}
 
 main() {
+  trap cleanup EXIT
   echo "========================================================="
   echo "验证第六章 GitOps 端到端链路"
   echo "========================================================="
@@ -38,11 +59,9 @@ main() {
   echo "[4/6] 查看业务命名空间资源"
   kubectl -n "${APP_NS}" get pods,svc -o wide
 
-  echo "[5/6] 访问正式业务入口"
-  echo "业务域名: ${NETDEVOPS_DOMAIN} -> ${NETDEVOPS_IP}"
-  curl --resolve "${NETDEVOPS_DOMAIN}:443:${NETDEVOPS_IP}" \
-    --cacert "${CA_CERT}" \
-    -s "https://${NETDEVOPS_DOMAIN}/api/device/api/v1/dashboard/summary"
+  echo "[5/6] 访问前端 Service（正式域名发布前验证）"
+  start_port_forward
+  curl -s "http://127.0.0.1:${LOCAL_FRONTEND_PORT}/api/device/api/v1/dashboard/summary"
   echo
 
   echo "[6/6] 输出 Argo CD 登录信息"

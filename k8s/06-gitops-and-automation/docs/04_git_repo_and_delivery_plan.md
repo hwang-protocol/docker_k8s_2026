@@ -151,14 +151,6 @@ flowchart LR
 - 第六章的重点是把这两个层次串起来
 - 当前课堂先用拆解版跑通，再介绍顺滑版更接近生产
 
-## 当前阶段可执行验证
-
-当前可以先验证本地预览链路：
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/02_verify_local_preview.sh
-```
-
 ## 下一步
 
 继续看本章下一阶段规划：

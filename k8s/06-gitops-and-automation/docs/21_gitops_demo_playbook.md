@@ -18,10 +18,10 @@
 3. 我希望只改一个版本变量
 4. 我执行一个脚本后，Git、Harbor、Argo CD、页面结果都串起来
 
-所以现在第六章已经补成下面这个操作方式：
+所以现在第六章这一段，课堂上就按下面这个操作方式：
 
 - 你改应用代码
-- 你改脚本里的版本变量
+- 你只改脚本里的 `VERSION`
 - 你执行脚本
 - 脚本自动把主仓中的应用目录同步到 Gitea，再完成构建镜像、推镜像、回写 tag、再次同步、等待 Argo CD 同步
 
@@ -44,7 +44,7 @@
 - 页面副标题
 - 某一段中文提示语
 
-### 改哪个版本变量
+### 只改哪个变量
 
 不要再手工改：
 
@@ -58,23 +58,17 @@
 
 - `k8s/06-gitops-and-automation/scripts/16_release_frontend_gitops.sh`
 
-然后只改这几个变量：
+然后只改这一个变量：
 
 ```bash
-VERSION="${VERSION:-v0.1.3}"
-SOURCE_COMMIT_SUBJECT="${SOURCE_COMMIT_SUBJECT:-feat(ui): 发布课堂演示代码}"
-VERIFY_TEXT="${VERIFY_TEXT:-}"
+VERSION="${VERSION:-v0.1.1}"
 ```
-
-课堂上最常改的是：
-
-- `VERSION`
-- `VERIFY_TEXT`
 
 说明如下：
 
-- `VERSION`：新镜像版本，例如 `v0.1.3`
-- `VERIFY_TEXT`：你刚刚在页面里改的新文字，用来让脚本最后自动校验页面是否已更新
+- `VERSION`：新镜像版本，例如 `v0.1.2`
+
+其他提交说明、校验文字这些内容都已经写死在脚本内部，课堂上不用改。
 
 ### 一次执行的命令
 
@@ -86,13 +80,13 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/16_release_frontend_g
 
 脚本会自动完成下面 7 步：
 
-1. 把你当前改过的应用代码提交到 `Gitea`
-2. 把主仓中的应用目录同步到 `git.qytk8s.com`
-3. 到 `git` 节点拉最新代码并构建 `frontend:${VERSION}`
-4. 把新镜像 push 到 `Harbor`
-5. 自动把 3 个 `values` 文件中的前端 tag 改成 `${VERSION}`
-6. 自动把新的 values 内容再次同步到 Gitea
-7. 等待 `Argo CD` 同步，并检查前端 Deployment 是否已经切到新镜像
+1. 把你当前改过的应用代码同步到 `git.qytk8s.com`
+2. 到 `git` 节点拉最新代码并构建 `frontend:${VERSION}`
+3. 把新镜像 push 到 `Harbor`
+4. 自动把 3 个 `values` 文件中的前端 tag 改成 `${VERSION}`
+5. 自动把新的 values 内容再次同步到 Gitea
+6. 等待 `Argo CD` 同步
+7. 输出 Argo CD 与页面观察结果
 
 ### 当前脚本化流程图
 
@@ -161,22 +155,15 @@ flowchart LR
 
 - `https://netdevops.qytk8s.com`
 
-如果你设置了：
-
-```bash
-VERIFY_TEXT="${VERIFY_TEXT:-QYT NetDevOps}"
-```
-
-那脚本会自动检查这个文字是否已经出现在页面里。
+脚本会自动输出页面访问结果，你直接刷新浏览器页面确认变化即可。
 
 ### 老师上课时最短动作
 
 1. 改 `apps/qytang-netdevops/frontend/index.html`
 2. 改 `scripts/16_release_frontend_gitops.sh` 里的 `VERSION`
-3. 如果希望自动验页面，再改 `VERIFY_TEXT`
-4. 执行脚本
-5. 打开 `https://argocd.qytk8s.com`
-6. 打开 `https://netdevops.qytk8s.com`
+3. 执行脚本
+4. 打开 `https://argocd.qytk8s.com`
+5. 打开 `https://netdevops.qytk8s.com`
 
 ### 这里为什么不会再把源码弄丢
 
@@ -299,7 +286,7 @@ PostgreSQL 不参与这里的扩缩容演示，不需要一起检查副本数。
 因为你只需要：
 
 1. 改代码
-2. 改脚本里的变量
+2. 改脚本里的 `VERSION`
 3. 执行一次脚本
 
 ### 但对 Git 历史来说

@@ -2,11 +2,12 @@
 
 ## 本步目标
 
-完成三件事：
+完成四件事：
 
 1. 在集群中安装 `Argo CD`
 2. 让 `Argo CD` 信任 `git.qytk8s.com` 的证书
-3. 创建 `qytang-netdevops` Application 并自动同步
+3. 直接把 `Argo CD` 收口为 `https://argocd.qytk8s.com`
+4. 创建 `qytang-netdevops` Application 并自动同步
 
 ## 为什么一定要补“证书信任”
 
@@ -23,6 +24,13 @@
 > repo-server 不信任 Git 服务器证书链
 
 所以这一步不仅是安装 Argo CD，更是在补齐“企业内网 GitOps 常见障碍”。
+
+另外，本步现在已经直接包含：
+
+- `argocd.qytk8s.com` 的正式证书
+- `argocd-server` 固定 VIP `10.1.1.50`
+
+也就是说，刷完这一步，`Argo CD` 控制面就应该已经是正式入口状态。
 
 ## 课堂图示
 
@@ -51,6 +59,7 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/12_install_argocd_and
 ## 课堂要讲的观察点
 
 - `argocd-server` 是否获得了 `LoadBalancer VIP`
+- `https://argocd.qytk8s.com` 是否已经可以作为正式入口
 - `Application` 的 `sync.status` 是否为 `Synced`
 - `Application` 的 `health.status` 是否为 `Healthy`
 - `frontend` 是否获得了独立 VIP
@@ -62,6 +71,12 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/12_install_argocd_and
 - `argocd-server` VIP：`10.1.1.50`
 - `Argo CD` 正式域名：`https://argocd.qytk8s.com`
 - `QYTANG NetDevOps` 最终业务入口会继续收口到 `https://netdevops.qytk8s.com`
+
+## 本步结束后的验证命令
+
+```bash
+curl --resolve argocd.qytk8s.com:443:10.1.1.50 --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt https://argocd.qytk8s.com/healthz
+```
 
 ## 下一步
 

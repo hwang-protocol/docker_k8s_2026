@@ -117,9 +117,9 @@ flowchart LR
 | 0 | `00_gitops_theory.md` | 无 | 建议先读 | 先建立 GitOps 与样板工程整体认知 |
 | 1 | `02_design_qytang_netdevops.md` | 无 | 必须阅读 | 先讲系统设计、页面、服务和数据模型 |
 | 2 | `03_local_preview_and_debug.md` | `scripts/01_run_local_preview.sh` | 必须执行 | 启动本地预览与 API |
-| 3 | `04_git_repo_and_delivery_plan.md` | `scripts/02_verify_local_preview.sh` | 建议执行 | 确认本地链路闭环，并讲后续仓库规划 |
-| 4 | `05_next_phase_gitops_plan.md` | 无 | 讲解为主 | 说明接下来如何引入 Docker / Gitea / Argo CD |
-| 5 | `06_verify.md` | `scripts/03_verify_chapter6.sh` | 只读验收 | 验证第六章第一阶段完成情况 |
+| 3 | `04_git_repo_and_delivery_plan.md` | 无 | 必须阅读 | 讲清主仓、Gitea 与 GitOps 的交付关系 |
+| 4 | `05_next_phase_gitops_plan.md` | 无 | 讲解为主 | 作为转场页，说明接下来如何进入 Docker / Gitea / Helm / Argo CD |
+| 5 | `06_verify.md` | `scripts/03_verify_chapter6.sh` | 只读验收 | 作为第一阶段唯一正式验收页，验证本地联调已完成 |
 | 6 | `07_containerize_qytang_netdevops.md` | `scripts/04_verify_docker_assets.sh` | 必须阅读 | 补齐 Dockerfile 与 docker compose，建立镜像化认知 |
 | 7 | `08_git_service_and_gitea_plan.md` | 无 | 必须阅读 | 讲清楚 `git.qytk8s.com`、单仓与后续 Git 仓库布局 |
 | 8 | `09_helm_and_argocd_layout.md` | `scripts/05_verify_gitops_assets.sh` | 必须阅读 | 讲 Helm、values、Argo CD Application 的目录关系 |
