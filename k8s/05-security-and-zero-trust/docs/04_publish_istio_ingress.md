@@ -26,6 +26,25 @@
 - `Cilium Gateway API`：基础发布
 - `Istio Ingress Gateway`：安全与治理增强
 
+## 北向入口流量图
+
+```mermaid
+flowchart LR
+    user[ExternalClient] --> dns[secure_app_qytk8s_com]
+    dns --> vip[VIP_10_1_1_61]
+    vip --> ingress[IstioIngressGateway]
+    ingress --> publicSvc[public_whoami]
+    ingress --> helloSvc[helloworld]
+    ingress --> httpbinSvc[httpbin]
+```
+
+这张图建议配合下面 4 句话：
+
+- 用户不是直接访问 Pod，而是先访问域名
+- 域名解析到 `10.1.1.61`
+- `MetalLB` 把 VIP 绑定给 `Istio Ingress Gateway`
+- 真正转发到哪个后端，由后面的 `Gateway` 和 `VirtualService` 决定
+
 ## 本步脚本
 
 - `k8s/05-security-and-zero-trust/scripts/03_publish_istio_ingress_demo.sh`
@@ -95,6 +114,23 @@ secure-app.qytk8s.com  ->  10.1.1.61
 - 为什么第五章新增独立入口，而不是接管第三章入口
 - `Gateway` 和 `VirtualService` 在 Istio 里的角色
 - 为什么要单独保留一个 `public` 路径作为 JWT 前后的对照组
+
+### Gateway 和 VirtualService 分工图
+
+```mermaid
+flowchart LR
+    client[Client] --> gateway[Gateway]
+    gateway --> hostCheck[HostAndPortMatch]
+    hostCheck --> virtualService[VirtualService]
+    virtualService --> publicRoute[RouteTo_public_whoami]
+    virtualService --> helloRoute[RouteTo_helloworld]
+    virtualService --> httpbinRoute[RouteTo_httpbin]
+```
+
+讲这张图时可以直接说：
+
+- `Gateway` 更像“入口监听器”
+- `VirtualService` 更像“入口后的转发规则表”
 
 ## 下一步
 

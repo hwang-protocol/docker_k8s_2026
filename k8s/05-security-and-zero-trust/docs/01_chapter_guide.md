@@ -69,6 +69,42 @@
 - **第三章**：`app.qytk8s.com` 和 `longhorn.qytk8s.com` 保持原状，继续作为上一章成果保留
 - **第五章**：新增 `secure-app.qytk8s.com` 和 `Istio Ingress Gateway`，专门承载安全与流量治理
 
+## 第五章总关系图
+
+这一章最适合先看全景图，再进入每一步细节：
+
+```mermaid
+flowchart LR
+    user[UserBrowserOrClient] --> dns[DNS]
+    dns --> vip[MetalLBVIP_10_1_1_61]
+    vip --> ingress[IstioIngressGateway]
+
+    ingress --> publicSvc[public_whoami]
+    ingress --> helloSvc[helloworld]
+    ingress --> httpbinSvc[httpbin]
+
+    istiod[istiod] --> ingress
+    istiod --> ztunnel[ztunnel_on_each_node]
+    istiod --> waypoint[waypoint_in_mesh_demo]
+
+    ztunnel --> helloSvc
+    ztunnel --> httpbinSvc
+    waypoint --> httpbinSvc
+
+    cilium[Cilium] --> ingress
+    cilium --> publicSvc
+    cilium --> helloSvc
+    cilium --> httpbinSvc
+```
+
+你讲课时可以按这个图先讲 5 句话：
+
+- `MetalLB` 负责把 `10.1.1.61` 这个 VIP 发布出来
+- `Cilium` 继续负责底层网络联通，不被 `Istio` 替换
+- `Istio Ingress Gateway` 是第五章新增的北向增强入口
+- `istiod` 是控制面，负责把配置和策略下发出去
+- `ztunnel` 管 L4，`waypoint` 管后续要讲的 L7 治理能力
+
 ## 本章脚本执行矩阵
 
 | 步骤 | 文档 | 脚本 | 执行标记 | 说明 |

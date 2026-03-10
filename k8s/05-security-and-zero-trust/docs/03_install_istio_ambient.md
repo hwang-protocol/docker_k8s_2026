@@ -10,6 +10,26 @@
 
 本步完成后，集群具备第五章后续所需的服务身份与 `mTLS` 运行基础。
 
+## Ambient 基础能力关系图
+
+```mermaid
+flowchart LR
+    istiod[istiod] --> ztunnel[ztunnel_on_each_node]
+    istiod --> istioCni[istio_cni]
+
+    workloadA[WorkloadA] --> ztunnel
+    workloadB[WorkloadB] --> ztunnel
+
+    cilium[Cilium] --> workloadA
+    cilium --> workloadB
+    istioCni --> cilium
+```
+
+这一步讲课时最重要的是让大家先接受两个事实：
+
+- `Cilium` 还在，底层网络并没有被拔掉
+- `Istio` 是以 `istiod + ztunnel + istio-cni` 的组合方式叠加进来
+
 ## 本步脚本
 
 - `k8s/05-security-and-zero-trust/scripts/02_install_istio_ambient.sh`
@@ -60,6 +80,27 @@ istioctl version
 - `Ambient` 和 sidecar 模式的差异
 - `ztunnel` 为什么只负责 L4，而不是全部 L7
 - 为什么第五章能在保留 `Cilium` 的前提下继续叠加 `Istio`
+
+### Sidecar 和 Ambient 对比图
+
+```mermaid
+flowchart TD
+    subgraph sidecarMode [SidecarMode]
+        app1[AppPod] --> sidecar1[EnvoySidecar]
+        app2[AppPod] --> sidecar2[EnvoySidecar]
+    end
+
+    subgraph ambientMode [AmbientMode]
+        app3[AppPod] --> ztunnel3[ztunnel]
+        app4[AppPod] --> ztunnel4[ztunnel]
+        waypoint[waypoint_optional_for_L7]
+    end
+```
+
+你可以直接用这张图解释：
+
+- sidecar 模式是“每个 Pod 自带代理”
+- Ambient 模式是“节点有 `ztunnel`，需要 L7 时再引入 `waypoint`”
 
 ## 下一步
 

@@ -38,6 +38,28 @@
 - **第三章**：先把门开出来
 - **第五章**：再给门口加门禁、给楼内加安保、给车流加调度规则
 
+### 边界关系图
+
+```mermaid
+flowchart LR
+    cilium[Cilium] --> network[PodNetworkAndServiceForward]
+    cilium --> lb[LoadBalancerAndNorthSouthBase]
+
+    istio[Istio] --> identity[ServiceIdentity]
+    istio --> security[JWT_mTLS_AuthorizationPolicy]
+    istio --> governance[VirtualService_DestinationRule]
+
+    network --> ingress[IstioIngressGateway]
+    identity --> ztunnel[ztunnel]
+    governance --> waypoint[waypoint]
+```
+
+这张图建议你这样讲：
+
+- `Cilium` 不是被替换，而是继续做网络底座
+- `Istio` 是在这个底座之上补“身份、安全、治理”
+- 所以第五章不是重做第三章，而是在第三章之上加能力
+
 ## 四层安全模型
 
 | 层次 | 关注点 | 本章落点 |
@@ -60,6 +82,26 @@
 - `TLS` 解决“我连的是不是你”
 - `mTLS` 解决“服务之间是否相互可信”
 - `JWT` 解决“发请求的主体是谁”
+
+### 认证与加密分工图
+
+```mermaid
+flowchart TD
+    client[ExternalClient] --> tls[TLS_at_IngressGateway]
+    tls --> jwt[JWT_at_RequestAuthentication]
+    jwt --> authz[AuthorizationPolicy]
+    authz --> service[BackendService]
+
+    serviceA[ServiceA] --> mtls[mTLS_via_ztunnel]
+    mtls --> serviceB[ServiceB]
+```
+
+这张图要强调的是：
+
+- `TLS` 是客户端到入口
+- `JWT` 是入口识别“调用者是谁”
+- `mTLS` 是服务到服务
+- 这三者不是互斥关系，而是分布在不同链路位置
 
 ## Ambient 模式为什么适合这门课
 
@@ -88,6 +130,24 @@
 
 - 不是一装 `Ambient` 就自动拥有全部 L7 能力
 - 真正的 L7 策略和治理，要通过 `waypoint` 来体现
+
+### Ambient 数据面关系图
+
+```mermaid
+flowchart LR
+    src[ClientWorkload] --> ztunnelSrc[ztunnel_on_source_node]
+    ztunnelSrc --> ztunnelDst[ztunnel_on_target_node]
+    ztunnelDst --> target[TargetWorkload]
+
+    src --> waypoint[waypoint]
+    waypoint --> target
+```
+
+推荐讲法：
+
+- 只看 `ztunnel`，你可以把它理解成 Ambient 的 L4 安全通道
+- 需要 HTTP 级授权、灰度、超时、重试时，就要把流量交给 `waypoint`
+- 所以 `Ambient` 是“分层数据面”，不是“单一代理做完全部事情”
 
 ## 为什么还要保留手动测试脚本
 
