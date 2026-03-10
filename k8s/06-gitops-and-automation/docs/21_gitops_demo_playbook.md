@@ -23,7 +23,7 @@
 - 你改应用代码
 - 你改脚本里的版本变量
 - 你执行脚本
-- 脚本自动完成提交、push、构建镜像、推镜像、回写 tag、再次 push、等待 Argo CD 同步
+- 脚本自动把主仓中的应用目录同步到 Gitea，再完成构建镜像、推镜像、回写 tag、再次同步、等待 Argo CD 同步
 
 也就是说，老师上课时不需要再手打一长串命令。
 
@@ -87,11 +87,11 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/16_release_frontend_g
 脚本会自动完成下面 7 步：
 
 1. 把你当前改过的应用代码提交到 `Gitea`
-2. 把源码 push 到 `git.qytk8s.com`
+2. 把主仓中的应用目录同步到 `git.qytk8s.com`
 3. 到 `git` 节点拉最新代码并构建 `frontend:${VERSION}`
 4. 把新镜像 push 到 `Harbor`
 5. 自动把 3 个 `values` 文件中的前端 tag 改成 `${VERSION}`
-6. 自动提交并 push 这个 tag 变更
+6. 自动把新的 values 内容再次同步到 Gitea
 7. 等待 `Argo CD` 同步，并检查前端 Deployment 是否已经切到新镜像
 
 ### 当前脚本化流程图
@@ -177,6 +177,19 @@ VERIFY_TEXT="${VERIFY_TEXT:-QYT NetDevOps}"
 4. 执行脚本
 5. 打开 `https://argocd.qytk8s.com`
 6. 打开 `https://netdevops.qytk8s.com`
+
+### 这里为什么不会再把源码弄丢
+
+这一版脚本要强调一个关键边界：
+
+- `apps/qytang-netdevops` 现在是主仓普通目录
+- 主仓负责真正备份源码
+- Gitea 只负责第六章 GitOps 演示发布
+
+所以：
+
+- 主仓 `git push` 成功，源码就一定被备份
+- `16` 和 `17` 脚本只是把这个目录同步到 Gitea，不再要求应用目录自己带独立 `.git`
 
 ## 演示 B：改 yaml 扩缩容
 

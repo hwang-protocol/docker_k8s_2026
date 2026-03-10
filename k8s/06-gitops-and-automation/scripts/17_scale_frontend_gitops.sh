@@ -11,17 +11,18 @@ set -euo pipefail
 # ==============================================================================
 
 APP_DIR="/docker_k8s_2026/apps/qytang-netdevops"
+ROOT_DIR="/docker_k8s_2026"
 CA_CERT="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt"
-PUSH_URL="https://gitadmin:Gitea12345@git.qytk8s.com/gitadmin/qytang-netdevops.git"
 ARGOCD_NS="argocd"
 APP_NS="qytang-netdevops"
 APP_NAME="qytang-netdevops"
+source "/docker_k8s_2026/k8s/06-gitops-and-automation/scripts/lib_sync_qytang_netdevops_to_gitea.sh"
 
 require_changes() {
   local status
-  status="$(git -C "${APP_DIR}" status --porcelain -- \
-    deploy/helm/qytang-netdevops/values.yaml \
-    deploy/helm/qytang-netdevops/values-lab.yaml)"
+  status="$(git -C "${ROOT_DIR}" status --porcelain -- \
+    apps/qytang-netdevops/deploy/helm/qytang-netdevops/values.yaml \
+    apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml)"
   if [[ -z "${status}" ]]; then
     echo "ERROR: 没有检测到 values 变更。请先手工修改 replicaCount，再执行脚本。"
     exit 1
@@ -30,16 +31,9 @@ require_changes() {
 
 commit_and_push() {
   echo "[1/3] 提交并 push values 变更"
-  git -C "${APP_DIR}" add \
-    deploy/helm/qytang-netdevops/values.yaml \
-    deploy/helm/qytang-netdevops/values-lab.yaml
-  git -C "${APP_DIR}" commit -m "$(cat <<EOF
-feat(gitops): 调整业务服务副本数
-
-提交手工修改后的 values 文件，用于验证声明式扩缩容的 GitOps 同步效果。
-EOF
-)"
-  git -C "${APP_DIR}" -c http.sslCAInfo="${CA_CERT}" push "${PUSH_URL}" main
+  sync_app_repo_to_gitea \
+    "feat(gitops): 调整业务服务副本数" \
+    "提交手工修改后的 values 文件，用于验证声明式扩缩容的 GitOps 同步效果。"
 }
 
 wait_for_argocd() {

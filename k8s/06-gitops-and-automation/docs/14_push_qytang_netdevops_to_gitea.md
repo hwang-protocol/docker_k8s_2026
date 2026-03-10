@@ -2,7 +2,7 @@
 
 ## 本步目标
 
-把 `apps/qytang-netdevops` 初始化为独立仓库，并首推到：
+把主仓中的 `apps/qytang-netdevops` 目录导出并同步到：
 
 - `https://git.qytk8s.com/gitadmin/qytang-netdevops.git`
 
@@ -16,15 +16,16 @@
 
 真正要讲透的是：
 
-- 本地应用目录可以继续留在总工程里维护
-- 但它必须具备独立 `.git` 历史
-- 这样它才能成为一个真正的“交付事实源”
+- 主仓必须保留应用目录的完整真实源码
+- 这样主仓 `git push` 才能真正完成备份
+- 第六章脚本再把这个目录同步到 Gitea，作为 Argo CD 的拉取目标
 
 ## 课堂图示
 
 ```mermaid
 flowchart LR
-    localRepo[apps_qytang_netdevops] --> giteaRepo[git_qytk8s_com_repo]
+    mainRepo[main_repo_apps_qytang_netdevops] --> exportSync[export_and_sync]
+    exportSync --> giteaRepo[git_qytk8s_com_repo]
     giteaRepo --> argocdPull[ArgoCDPull]
 ```
 
@@ -44,9 +45,9 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/10_push_qytang_netdev
 
 ## 讲课要点
 
-- 总工程负责统一维护课程素材
-- 子目录仓库负责独立交付与独立 push
-- 这是很多企业单仓/多仓混合模式的真实缩影
+- 总工程负责统一维护和真正备份课程素材
+- Gitea 负责作为 GitOps 交付目标
+- 这里采用“主仓真实保存 + 脚本同步到 Gitea”的方式，避免子模块或嵌套仓库带来的恢复风险
 
 ## 下一步
 

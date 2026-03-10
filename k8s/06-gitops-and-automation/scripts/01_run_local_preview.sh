@@ -24,8 +24,15 @@ main() {
 
   echo "[2/4] 检查虚拟环境"
   if [[ ! -x "${APP_DIR}/.venv/bin/python" ]]; then
-    echo "失败: 未找到虚拟环境，请先在 ${APP_DIR} 下准备 .venv"
-    return 1
+    echo "未找到 .venv，正在创建并安装依赖..."
+    if ! python3 -m venv "${APP_DIR}/.venv" 2>/dev/null; then
+      echo "需要安装 python3-venv，执行: apt install -y python3-venv"
+      apt install -y python3-venv
+      rm -rf "${APP_DIR}/.venv"
+      python3 -m venv "${APP_DIR}/.venv"
+    fi
+    "${APP_DIR}/.venv/bin/pip" install -q -r "${APP_DIR}/requirements.txt"
+    echo "虚拟环境已就绪"
   fi
 
   echo "[3/4] 检查已有进程"

@@ -8,45 +8,21 @@ set -euo pipefail
 # ==============================================================================
 
 APP_DIR="/docker_k8s_2026/apps/qytang-netdevops"
-CA_CERT="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt"
-REPO_URL="https://git.qytk8s.com/gitadmin/qytang-netdevops.git"
-PUSH_URL="https://gitadmin:Gitea12345@git.qytk8s.com/gitadmin/qytang-netdevops.git"
+source "/docker_k8s_2026/k8s/06-gitops-and-automation/scripts/lib_sync_qytang_netdevops_to_gitea.sh"
 
 main() {
   echo "========================================================="
   echo "首推 QYTANG NetDevOps 到 Gitea"
   echo "========================================================="
 
-  if [[ ! -d "${APP_DIR}/.git" ]]; then
-    echo "[1/5] 初始化独立 Git 仓库"
-    git -C "${APP_DIR}" init -b main
-  else
-    echo "[1/5] 独立 Git 仓库已存在"
+  if [[ ! -d "${APP_DIR}" ]]; then
+    echo "ERROR: 应用目录不存在: ${APP_DIR}"
+    exit 1
   fi
-
-  echo "[2/5] 配置 origin"
-  git -C "${APP_DIR}" remote remove origin 2>/dev/null || true
-  git -C "${APP_DIR}" remote add origin "${REPO_URL}"
-
-  echo "[3/5] 加入版本控制"
-  git -C "${APP_DIR}" add .
-
-  echo "[4/5] 提交变更"
-  if [[ -n "$(git -C "${APP_DIR}" status --porcelain)" ]]; then
-    git -C "${APP_DIR}" commit -m "$(cat <<'EOF'
-feat(gitops): 推送QYTANG NetDevOps教学仓库
-
-补齐第六章样板工程源码、部署清单和 GitOps 素材，作为后续 Argo CD 同步事实源。
-EOF
-)"
-  else
-    echo "没有新的本地变更，跳过 commit"
-  fi
-
-  echo "[5/5] 推送到 Gitea"
-  git -C "${APP_DIR}" -c http.sslCAInfo="${CA_CERT}" push -u "${PUSH_URL}" main
-
-  echo "OK: 应用仓库已推送到 ${REPO_URL}"
+  echo "[1/1] 从主仓目录导出并同步到 Gitea"
+  sync_app_repo_to_gitea \
+    "feat(gitops): 推送QYTANG NetDevOps教学仓库" \
+    "从主仓 apps/qytang-netdevops 导出完整源码、部署清单和 GitOps 素材，作为后续 Argo CD 同步事实源。"
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

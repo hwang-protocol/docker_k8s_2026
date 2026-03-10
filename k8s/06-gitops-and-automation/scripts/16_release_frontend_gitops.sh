@@ -12,13 +12,14 @@ set -euo pipefail
 # ==============================================================================
 
 APP_DIR="/docker_k8s_2026/apps/qytang-netdevops"
+ROOT_DIR="/docker_k8s_2026"
 CA_CERT="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt"
-PUSH_URL="https://gitadmin:Gitea12345@git.qytk8s.com/gitadmin/qytang-netdevops.git"
 ARGOCD_NS="argocd"
 APP_NS="qytang-netdevops"
 APP_NAME="qytang-netdevops"
 SITE_DOMAIN="netdevops.qytk8s.com"
 SITE_IP="10.1.1.60"
+source "/docker_k8s_2026/k8s/06-gitops-and-automation/scripts/lib_sync_qytang_netdevops_to_gitea.sh"
 
 # 课堂上只需要改这里
 VERSION="${VERSION:-v0.1.6}"
@@ -27,7 +28,7 @@ SOURCE_COMMIT_BODY="${SOURCE_COMMIT_BODY:-更新前端页面内容，用于验�
 VERIFY_TEXT="${VERIFY_TEXT:-}"
 
 require_changes() {
-  if [[ -z "$(git -C "${APP_DIR}" status --porcelain)" ]]; then
+  if [[ -z "$(git -C "${ROOT_DIR}" status --porcelain -- "apps/qytang-netdevops")" ]]; then
     echo "ERROR: 当前没有检测到代码变更。请先修改应用代码，再执行脚本。"
     exit 1
   fi
@@ -35,14 +36,7 @@ require_changes() {
 
 commit_source_changes() {
   echo "[1/7] 提交源码变更到 Gitea"
-  git -C "${APP_DIR}" add .
-  git -C "${APP_DIR}" commit -m "$(cat <<EOF
-${SOURCE_COMMIT_SUBJECT}
-
-${SOURCE_COMMIT_BODY}
-EOF
-)"
-  git -C "${APP_DIR}" -c http.sslCAInfo="${CA_CERT}" push "${PUSH_URL}" main
+  sync_app_repo_to_gitea "${SOURCE_COMMIT_SUBJECT}" "${SOURCE_COMMIT_BODY}"
 }
 
 build_and_push_image() {
@@ -91,17 +85,9 @@ PY
 
 commit_values_changes() {
   echo "[4/7] 提交新的 GitOps tag"
-  git -C "${APP_DIR}" add \
-    deploy/helm/qytang-netdevops/values.yaml \
-    deploy/helm/qytang-netdevops/values-lab.yaml \
-    deploy/gitops/lab/values-lab.yaml
-  git -C "${APP_DIR}" commit -m "$(cat <<EOF
-feat(gitops): 发布前端镜像${VERSION}
-
-将前端镜像标签切换到 ${VERSION}，用于验证课堂演示改动的自动发布效果。
-EOF
-)"
-  git -C "${APP_DIR}" -c http.sslCAInfo="${CA_CERT}" push "${PUSH_URL}" main
+  sync_app_repo_to_gitea \
+    "feat(gitops): 发布前端镜像${VERSION}" \
+    "将前端镜像标签切换到 ${VERSION}，用于验证课堂演示改动的自动发布效果。"
 }
 
 wait_for_argocd() {
