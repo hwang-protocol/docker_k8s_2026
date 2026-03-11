@@ -119,7 +119,7 @@ flowchart LR
 4. `06_publish_grafana_and_verify.md`
 5. `07_trace_demo_and_fault_location.md`
 
-## 从第六章快照恢复后的贴贴贴顺序
+## 一把过执行顺序
 
 在 `ops` 上按下面顺序执行即可：
 
@@ -146,15 +146,23 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observa
 - `Harbor`、`Gitea`、`Argo CD` 仍然保留
 - `https://netdevops.qytk8s.com` 可访问
 
-## 快照恢复说明
+## 正式入口设计
 
-| 节点 | 是否恢复快照 | 说明 |
-| :--- | :--- | :--- |
-| `ops` | **不恢复** | 保留文档、脚本、制品与 dashboard 资产 |
-| `cp01` / `cp02` / `cp03` | 恢复 | 恢复到第六章结束状态 |
-| `wk-app01` / `wk-app02` / `wk-edge01` / `wk-obs01` | 恢复 | 恢复到第六章结束状态 |
-| `harbor` | **不恢复** | Harbor 数据与镜像保留 |
-| `git` | **不恢复** | Gitea 仓库与发布资产保留 |
+第七章沿用前面章节已经建立好的 `app-gateway`，但这一章的入口对象必须由第七章自己管理：
+
+- `grafana.qytk8s.com`
+- `jaeger.qytk8s.com`
+
+这一章的脚本不会再复用第四章或第六章的 Gateway 清单，而是采用和前两章一致的做法：
+
+- 用 `20_gateway_observability_listeners.json` 增量补 `listener`
+- 用 `21_gateway_observability_https.yaml` 单独管理 `HTTPRoute` 与 `ReferenceGrant`
+
+这样做的意义是：
+
+- 第七章只修改第七章自己的域名入口
+- 不覆盖 `longhorn.qytk8s.com` 与 `netdevops.qytk8s.com`
+- 后续重刷时不会因为整份替换 `Gateway` 而误伤前面章节
 
 ## 版本冻结
 

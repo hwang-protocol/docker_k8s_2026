@@ -35,7 +35,7 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/01_prepare_observ
 
 ## 重要说明
 
-如果你是从第六章结束快照开始重刷，那么执行完这一步后看到业务应用仍然是第六章版本，这是正常现象。
+执行完这一步后，如果你看到业务应用仍然是第六章版本，这是正常现象。
 
 原因很简单：
 
@@ -56,6 +56,13 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/01_prepare_observ
 ### `manifests/`
 
 用于存放第七章安装与发布相关的 YAML。
+
+这里特别要注意：
+
+- 第七章自己的 `Gateway listener` 在 `20_gateway_observability_listeners.json`
+- 第七章自己的 `HTTPRoute / ReferenceGrant` 在 `21_gateway_observability_https.yaml`
+
+这一步虽然还不安装观测栈，但要先明确第七章入口对象由本章自管，不复用前面章节的入口清单。
 
 ### `artifacts/`
 

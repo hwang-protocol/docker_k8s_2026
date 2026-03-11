@@ -22,10 +22,10 @@
 - 学员不用现场手工改一堆 SDK 代码
 - 但必须理解这些指标和 Trace 是从哪里来的
 
-如果你是从第六章结束快照开始重刷，这里还要额外记住一件事：
+这里还要额外记住一件事：
 
 - 现在看到的是“第七章目标代码形态”
-- 此时集群里运行的应用仍可能是第六章版本
+- 此时集群里运行的应用仍可能还是前一章版本
 - 下一步安装脚本会先同步代码、构建新镜像、触发业务滚动，再安装观测栈
 
 ## 这一节的改动点
@@ -81,6 +81,6 @@ flowchart LR
 
 ## 下一步
 
-进入第 4 步，从第六章结束快照直接安装 `Prometheus`、`Grafana`、`Jaeger` 和 `OpenTelemetry Collector`：
+进入第 4 步，安装 `Prometheus`、`Grafana`、`Jaeger` 和 `OpenTelemetry Collector`：
 
 - `docs/05_install_prometheus_grafana_jaeger.md`

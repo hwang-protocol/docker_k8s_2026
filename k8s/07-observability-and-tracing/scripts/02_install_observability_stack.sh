@@ -25,7 +25,8 @@ PROM_VALUES="${MANIFESTS_DIR}/01_kube_prometheus_stack_values.yaml"
 JAEGER_VALUES="${MANIFESTS_DIR}/02_jaeger_values.yaml"
 OTEL_VALUES="${MANIFESTS_DIR}/03_otel_collector_values.yaml"
 SERVICE_MONITOR_FILE="${MANIFESTS_DIR}/10_qytang_netdevops_servicemonitor.yaml"
-GATEWAY_FILE="/docker_k8s_2026/k8s/04-storage-and-stateful/manifests/21_gateway_longhorn_ui.yaml"
+LISTENERS_FILE="${MANIFESTS_DIR}/20_gateway_observability_listeners.json"
+GATEWAY_FILE="${MANIFESTS_DIR}/21_gateway_observability_https.yaml"
 
 GRAFANA_DOMAIN="grafana.qytk8s.com"
 GRAFANA_VIP="10.1.1.60"
@@ -34,6 +35,7 @@ JAEGER_DOMAIN="jaeger.qytk8s.com"
 JAEGER_VIP="10.1.1.60"
 JAEGER_TLS_SECRET_NAME="jaeger-qytk8s-com-tls"
 APP_IMAGE_TAG="v0.2.3"
+GATEWAY_SERVICE="cilium-gateway-app-gateway"
 
 CA_CERT="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt"
 CA_KEY="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.key"
@@ -147,8 +149,82 @@ apply_service_monitor() {
 }
 
 apply_gateway() {
+  upsert_gateway_listeners
   kubectl apply -f "${GATEWAY_FILE}"
-  kubectl -n "${GATEWAY_NS}" delete gateway obs-gateway --ignore-not-found >/dev/null 2>&1 || true
+}
+
+label_gateway_endpointslice() {
+  local attempts=30
+  local slice_name=""
+  local i
+
+  for i in $(seq 1 "${attempts}"); do
+    slice_name=$(kubectl -n "${GATEWAY_NS}" get endpointslice -l io.cilium.gateway/owning-gateway=app-gateway -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    if [[ -n "${slice_name}" ]]; then
+      kubectl -n "${GATEWAY_NS}" label endpointslice "${slice_name}" \
+        kubernetes.io/service-name="${GATEWAY_SERVICE}" --overwrite
+      echo "已为 EndpointSlice ${slice_name} 补充 kubernetes.io/service-name label"
+      return 0
+    fi
+    echo "等待 Gateway EndpointSlice 生成（第 ${i}/${attempts} 次）…"
+    sleep 3
+  done
+
+  echo "失败: 未找到 Gateway 对应的 EndpointSlice"
+  kubectl get endpointslice -n "${GATEWAY_NS}" || true
+  return 1
+}
+
+upsert_gateway_listeners() {
+  python3 - "${LISTENERS_FILE}" <<'PY'
+import json
+import subprocess
+import sys
+
+listeners_path = sys.argv[1]
+with open(listeners_path, "r", encoding="utf-8") as fh:
+    desired = json.load(fh)
+desired_by_name = {item["name"]: item for item in desired}
+
+raw = subprocess.check_output(
+    ["kubectl", "get", "gateway", "-n", "gateway-demo", "app-gateway", "-o", "json"],
+    text=True,
+)
+obj = json.loads(raw)
+listeners = obj["spec"].get("listeners", [])
+new_listeners = []
+seen = set()
+
+for item in listeners:
+    name = item.get("name")
+    if name in desired_by_name:
+        new_listeners.append(desired_by_name[name])
+        seen.add(name)
+    else:
+        new_listeners.append(item)
+
+for item in desired:
+    if item["name"] not in seen:
+        new_listeners.append(item)
+
+if listeners == new_listeners:
+    print("Observability listeners 已存在，无需更新 app-gateway")
+    sys.exit(0)
+
+obj["spec"]["listeners"] = new_listeners
+meta = obj["metadata"]
+for key in ["creationTimestamp", "generation", "resourceVersion", "uid", "managedFields"]:
+    meta.pop(key, None)
+obj.pop("status", None)
+
+subprocess.run(
+    ["kubectl", "replace", "-f", "-"],
+    input=json.dumps(obj),
+    text=True,
+    check=True,
+)
+print("已将 Observability listeners 增量注入 app-gateway，现有其他 listeners 保持不变")
+PY
 }
 
 apply_dashboard_configmap() {
@@ -250,6 +326,9 @@ main() {
   echo "[9/11] 应用 ServiceMonitor 与 Grafana Gateway"
   apply_service_monitor
   apply_gateway
+
+  echo "[9.5/11] 处理 Cilium Gateway 与 MetalLB 的 EndpointSlice 兼容标签"
+  label_gateway_endpointslice
 
   echo "[10/11] 下发 Grafana 自定义大盘"
   apply_dashboards

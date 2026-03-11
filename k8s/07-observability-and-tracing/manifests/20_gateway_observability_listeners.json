@@ -1,0 +1,64 @@
+[
+  {
+    "name": "grafana-http",
+    "hostname": "grafana.qytk8s.com",
+    "port": 80,
+    "protocol": "HTTP",
+    "allowedRoutes": {
+      "namespaces": {
+        "from": "Same"
+      }
+    }
+  },
+  {
+    "name": "grafana-https",
+    "hostname": "grafana.qytk8s.com",
+    "port": 443,
+    "protocol": "HTTPS",
+    "tls": {
+      "mode": "Terminate",
+      "certificateRefs": [
+        {
+          "kind": "Secret",
+          "name": "grafana-qytk8s-com-tls"
+        }
+      ]
+    },
+    "allowedRoutes": {
+      "namespaces": {
+        "from": "Same"
+      }
+    }
+  },
+  {
+    "name": "jaeger-http",
+    "hostname": "jaeger.qytk8s.com",
+    "port": 80,
+    "protocol": "HTTP",
+    "allowedRoutes": {
+      "namespaces": {
+        "from": "Same"
+      }
+    }
+  },
+  {
+    "name": "jaeger-https",
+    "hostname": "jaeger.qytk8s.com",
+    "port": 443,
+    "protocol": "HTTPS",
+    "tls": {
+      "mode": "Terminate",
+      "certificateRefs": [
+        {
+          "kind": "Secret",
+          "name": "jaeger-qytk8s-com-tls"
+        }
+      ]
+    },
+    "allowedRoutes": {
+      "namespaces": {
+        "from": "Same"
+      }
+    }
+  }
+]
