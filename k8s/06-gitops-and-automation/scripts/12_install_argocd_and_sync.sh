@@ -13,7 +13,7 @@ CHAPTER_DIR="/docker_k8s_2026/k8s/06-gitops-and-automation"
 CA_CERT="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt"
 CA_KEY="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.key"
 APP_FILE="/docker_k8s_2026/apps/qytang-netdevops/deploy/gitops/lab/application.yaml"
-INSTALL_URL="https://raw.githubusercontent.com/argoproj/argo-cd/v3.3.3/manifests/install.yaml"
+INSTALL_FILE="${CHAPTER_DIR}/manifests/30_argocd_install_v3.3.3_harbor.yaml"
 ARGOCD_ADMIN_PASSWORD="${ARGOCD_ADMIN_PASSWORD:-Cisc0123}"
 ARGOCD_DOMAIN="argocd.qytk8s.com"
 ARGOCD_VIP="10.1.1.50"
@@ -24,6 +24,36 @@ SERVER_KEY="${PKI_DIR}/${ARGOCD_DOMAIN}.key"
 SERVER_CSR="${PKI_DIR}/${ARGOCD_DOMAIN}.csr"
 SERVER_CERT="${PKI_DIR}/${ARGOCD_DOMAIN}.crt"
 SERVER_EXT="${PKI_DIR}/${ARGOCD_DOMAIN}.ext"
+
+ensure_install_manifest() {
+  if [[ ! -f "${INSTALL_FILE}" ]]; then
+    echo "ERROR: 未找到本地 Argo CD 安装清单 ${INSTALL_FILE}"
+    exit 1
+  fi
+}
+
+prepull_images_on_nodes() {
+  echo "[2/10] 预拉 Argo CD Harbor 镜像"
+  local nodes
+  nodes="$(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')"
+  while IFS= read -r node; do
+    [[ -n "${node}" ]] || continue
+    echo "  -> ${node}"
+    ssh -o BatchMode=yes -o StrictHostKeyChecking=no "root@${node}" "bash -s" <<'EOF'
+set -euo pipefail
+for image in \
+  harbor.qytk8s.com/library/argocd:v3.3.3 \
+  harbor.qytk8s.com/library/dex:v2.43.0 \
+  harbor.qytk8s.com/library/redis:8.2.3-alpine; do
+  for i in $(seq 1 5); do
+    ctr -n k8s.io images pull --hosts-dir /etc/containerd/certs.d "${image}" && break
+    [[ "${i}" -lt 5 ]] || exit 1
+    sleep 3
+  done
+done
+EOF
+  done <<< "${nodes}"
+}
 
 prepare_local_dirs() {
   mkdir -p "${PKI_DIR}"
@@ -142,37 +172,39 @@ main() {
   echo "安装 Argo CD、配置正式域名并同步 QYTANG NetDevOps"
   echo "========================================================="
 
-  echo "[1/9] 安装 Argo CD"
+  echo "[1/10] 安装 Argo CD"
+  ensure_install_manifest
   kubectl create namespace "${ARGOCD_NS}" --dry-run=client -o yaml | kubectl apply -f -
-  kubectl apply -n "${ARGOCD_NS}" --server-side --force-conflicts -f "${INSTALL_URL}"
+  prepull_images_on_nodes
+  kubectl apply -n "${ARGOCD_NS}" --server-side --force-conflicts -f "${INSTALL_FILE}"
 
-  echo "[2/9] 配置 Gitea CA 信任"
+  echo "[3/10] 配置 Gitea CA 信任"
   kubectl -n "${ARGOCD_NS}" create configmap argocd-tls-certs-cm \
     --from-file=git.qytk8s.com="${CA_CERT}" \
     --dry-run=client -o yaml | kubectl apply -f -
 
-  echo "[3/9] 等待 Argo CD 控制面 ready"
+  echo "[4/10] 等待 Argo CD 控制面 ready"
   kubectl rollout status deployment/argocd-server -n "${ARGOCD_NS}" --timeout=300s
   kubectl rollout status deployment/argocd-repo-server -n "${ARGOCD_NS}" --timeout=300s
   kubectl rollout status statefulset/argocd-application-controller -n "${ARGOCD_NS}" --timeout=300s
 
-  echo "[4/9] 生成 Argo CD 正式域名证书"
+  echo "[5/10] 生成 Argo CD 正式域名证书"
   prepare_local_dirs
   generate_server_cert
 
-  echo "[5/9] 配置 argocd-server 正式证书"
+  echo "[6/10] 配置 argocd-server 正式证书"
   create_tls_secret
 
-  echo "[6/9] 固定 argocd-server VIP"
+  echo "[7/10] 固定 argocd-server VIP"
   configure_service
 
-  echo "[7/9] 设置固定管理员密码并重启服务"
+  echo "[8/10] 设置固定管理员密码并重启服务"
   set_admin_password
 
-  echo "[8/9] 创建 Application"
+  echo "[9/10] 创建 Application"
   kubectl apply -f "${APP_FILE}"
 
-  echo "[9/9] 等待应用同步完成"
+  echo "[10/10] 等待应用同步完成"
   wait_for_app
 
   echo

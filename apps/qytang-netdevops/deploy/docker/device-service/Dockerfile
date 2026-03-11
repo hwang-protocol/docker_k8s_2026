@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM harbor.qytk8s.com/library/python:3.12-slim
 
 WORKDIR /app
 

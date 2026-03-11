@@ -4,6 +4,10 @@
 
 这一节要完成的是 GitOps 的“事实源准备”。
 
+## 执行标记
+
+- **执行标记：必须执行**
+
 完成后应具备下面能力：
 
 - `git.qytk8s.com` 可访问
@@ -48,12 +52,12 @@
 
 ```mermaid
 flowchart LR
-  mainRepo[MainRepo]
-  appDir[AppDirectory]
-  tempRepo[TempExportRepo]
-  giteaRepo[GiteaRepo]
-  buildNode[BuildNode]
-  argocd[ArgoCD]
+  mainRepo[主仓]
+  appDir[应用目录]
+  tempRepo[临时导出仓]
+  giteaRepo[Gitea 发布仓]
+  buildNode[构建节点]
+  argocd[Argo CD]
 
   mainRepo --> appDir
   appDir --> tempRepo
@@ -96,7 +100,7 @@ flowchart LR
 
 这样更容易理解“GitOps 并不是只维护几份 YAML”，而是要依托一套完整工程化仓库。
 
-## !!! 本节必刷脚本
+## 本节必刷脚本
 
 ### 安装 Gitea
 
@@ -237,4 +241,4 @@ curl --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt 
 
 进入镜像构建、`Argo CD` 同步与端到端验收阶段：
 
-- `docs/06_harbor_argocd_and_e2e_verification.md`
+- `docs/05_harbor_argocd_and_e2e_verification.md`

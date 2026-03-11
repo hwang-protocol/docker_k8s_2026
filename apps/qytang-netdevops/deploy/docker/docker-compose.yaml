@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17
+    image: harbor.qytk8s.com/library/postgres:17
     container_name: qytang-netdevops-postgres
     environment:
       POSTGRES_DB: netdevops

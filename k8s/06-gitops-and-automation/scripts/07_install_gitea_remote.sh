@@ -15,6 +15,8 @@ GITEA_ADMIN_USER="gitadmin"
 GITEA_ADMIN_PASSWORD="Gitea12345"
 GITEA_ADMIN_EMAIL="gitadmin@qytk8s.com"
 POSTGRES_PASSWORD="GiteaPg12345"
+POSTGRES_IMAGE="harbor.qytk8s.com/library/postgres:17"
+GITEA_IMAGE="harbor.qytk8s.com/library/gitea:${GITEA_VERSION}"
 
 CHAPTER_DIR="/docker_k8s_2026/k8s/06-gitops-and-automation"
 PKI_DIR="${CHAPTER_DIR}/pki/git"
@@ -76,7 +78,7 @@ write_local_compose_file() {
   cat >"${TMP_DIR}/docker-compose-gitea.yaml" <<EOF
 services:
   postgres:
-    image: postgres:17
+    image: ${POSTGRES_IMAGE}
     container_name: gitea-postgres
     restart: unless-stopped
     environment:
@@ -92,7 +94,7 @@ services:
       retries: 20
 
   gitea:
-    image: gitea/gitea:${GITEA_VERSION}
+    image: ${GITEA_IMAGE}
     container_name: gitea
     restart: unless-stopped
     depends_on:
@@ -143,13 +145,19 @@ apt-get update -y
 apt-get install -y docker.io docker-compose-v2
 systemctl enable --now docker
 
-echo "[git 2/6] 准备数据目录与证书目录"
+echo "[git 2/6] 准备 Docker Harbor 信任、数据目录与证书目录"
+mkdir -p /etc/docker/certs.d/harbor.qytk8s.com
+cp /root/harbor-ca.crt /etc/docker/certs.d/harbor.qytk8s.com/ca.crt
+systemctl restart docker
+docker login harbor.qytk8s.com -u admin -p Harbor12345 >/dev/null 2>&1
 mkdir -p /data/gitea/postgres /data/gitea/data /data/gitea/cert
 cp /root/${GIT_DOMAIN}.crt /data/gitea/cert/${GIT_DOMAIN}.crt
 cp /root/${GIT_DOMAIN}.key /data/gitea/cert/${GIT_DOMAIN}.key
 
 echo "[git 3/6] 启动 Gitea 与 Postgres"
 cd /root
+docker pull ${POSTGRES_IMAGE}
+docker pull ${GITEA_IMAGE}
 docker compose -f ${REMOTE_COMPOSE} up -d
 
 echo "[git 4/6] 等待 Gitea 就绪"
@@ -162,7 +170,7 @@ for i in \$(seq 1 60); do
 done
 
 echo "[git 5/6] 创建管理员用户"
-docker exec -u git gitea sh -c "gitea admin user list | grep -q '^${GITEA_ADMIN_USER} ' || gitea admin user create --admin --username ${GITEA_ADMIN_USER} --password ${GITEA_ADMIN_PASSWORD} --email ${GITEA_ADMIN_EMAIL} --must-change-password=false"
+docker exec -u git gitea sh -c "gitea admin user list | awk '{print \\\$2}' | grep -qx '${GITEA_ADMIN_USER}' || gitea admin user create --admin --username ${GITEA_ADMIN_USER} --password ${GITEA_ADMIN_PASSWORD} --email ${GITEA_ADMIN_EMAIL} --must-change-password=false"
 
 echo "[git 6/6] 查看容器状态"
 docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'

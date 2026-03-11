@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:17
+    image: harbor.qytk8s.com/library/postgres:17
     container_name: gitea-postgres
     restart: unless-stopped
     environment:
@@ -16,7 +16,7 @@ services:
       retries: 20
 
   gitea:
-    image: gitea/gitea:1.25.4
+    image: harbor.qytk8s.com/library/gitea:1.25.4
     container_name: gitea
     restart: unless-stopped
     depends_on:

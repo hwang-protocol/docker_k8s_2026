@@ -24,6 +24,11 @@
 - 固定映射：`10.1.1.60`
 - 复用第三章已经准备好的 `Gateway API + HTTPS`
 
+这一节当前也有一个明确边界：
+
+- `netdevops.qytk8s.com` 的 listener、`HTTPRoute`、`ReferenceGrant` 只来自第六章自己的 manifests
+- 不再跨章节复用第四章 Longhorn 的发布清单
+
 ## 当前域名与账户速查
 
 ### 域名与 IP
@@ -150,4 +155,4 @@ curl --resolve netdevops.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8s/
 
 进入单独的课堂测试与演示页：
 
-- `docs/08_gitops_demo_and_testing.md`
+- `docs/07_gitops_demo_and_testing.md`

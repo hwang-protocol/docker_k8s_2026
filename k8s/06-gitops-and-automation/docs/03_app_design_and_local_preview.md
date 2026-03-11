@@ -1,8 +1,22 @@
-# QYT NetDevOps：应用设计、本地联调与阶段验收
+# QYT NetDevOps：应用设计、本地联调与工程化资产
 
 ## 本节目标
 
-这一节的目标不是直接讲 `Docker` 或 `Argo CD`，而是先把样板应用本身讲透，并确认它在本地联调阶段已经跑通。
+这一节的目标不是直接讲 `Gitea` 或 `Argo CD`，而是先把样板应用本身讲透，并确认它已经同时具备：
+
+- 本地联调能力
+- Docker 工程化骨架
+- Helm 与 GitOps 资产骨架
+
+这里要补一句教学事实：
+
+- 第六章当前构建链已经收成 `Harbor-first`
+- 业务镜像构建默认使用 `harbor.qytk8s.com/library/python:3.12-slim` 作为基础镜像
+- 本地 `docker-compose` 示例中的 `Postgres` 也已切到 `harbor.qytk8s.com/library/postgres:17`
+
+## 执行标记
+
+- **执行标记：必须执行**
 
 完成这一节后，应能回答：
 
@@ -10,6 +24,7 @@
 - 它拆成了哪些服务
 - 页面上能看到什么
 - 本地联调为什么是第六章的必要起点
+- 为什么这一节之后就已经具备进入 GitOps 的工程化基础
 
 ## 样板应用定位
 
@@ -67,6 +82,14 @@
 - 负责页面展示
 - 负责把浏览器请求统一代理到后端服务
 
+## 工程化资产的稳定化约束
+
+这一节后半段不只是“有没有 `Dockerfile` 和 `Chart`”，还要说明为什么这些资产现在更稳：
+
+- 四个 `Dockerfile` 统一使用 `Harbor` 中的 Python 基础镜像
+- 本地 compose 与集群发布都统一使用 `Postgres`
+- 后续 `Gitea -> Harbor -> Argo CD` 的交付链会继续沿用统一镜像源
+
 ### `device-service`
 
 - 负责设备 CRUD
@@ -88,12 +111,12 @@
 
 ```mermaid
 flowchart LR
-  browser[Browser]
-  frontend[Frontend]
-  deviceService[DeviceService]
-  resourceService[ResourceService]
-  auditService[AuditService]
-  db[Database]
+  browser[浏览器]
+  frontend[前端]
+  deviceService[device-service]
+  resourceService[resource-service]
+  auditService[audit-service]
+  db[数据库]
 
   browser --> frontend
   frontend --> deviceService
@@ -154,11 +177,11 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  browser[Browser]
-  frontend[Frontend8080]
-  deviceApi[DeviceAPI8001]
-  resourceApi[ResourceAPI8002]
-  auditApi[AuditAPI8003]
+  browser[浏览器]
+  frontend[前端入口 8080]
+  deviceApi[device-service 8001]
+  resourceApi[resource-service 8002]
+  auditApi[audit-service 8003]
 
   browser --> frontend
   frontend --> deviceApi
@@ -271,9 +294,9 @@ ls -la /docker_k8s_2026/apps/qytang-netdevops
   - `operator`
   - `created_at`
 
-## 本节完成标准
+## 本节第一阶段完成标准
 
-满足下面条件即可进入容器化阶段：
+满足下面条件即可继续进入本节后半段的工程化资产部分：
 
 - 本地页面可正常访问
 - 三个后端服务健康检查正常
@@ -301,8 +324,182 @@ ls -la /docker_k8s_2026/apps/qytang-netdevops
 
 不是。这一步是在为后面的容器化与 GitOps 切断干扰项。
 
+## 工程化资产为什么要紧跟在本地联调后面
+
+如果应用本地已经能跑，但还没有：
+
+- `Dockerfile`
+- `docker-compose.yaml`
+- `Helm Chart`
+- `values`
+- `Argo CD Application`
+
+那它仍然只是“一个能演示的应用”，还不是“一个能进入 GitOps 的交付对象”。
+
+所以这一节后半段要继续回答：
+
+- 应用如何被拆成多个镜像
+- 本地多服务编排怎样映射到后续 Kubernetes
+- `Chart -> values -> Application` 之间是什么关系
+
+## 为什么要把应用拆成多个镜像
+
+把 `frontend`、`device-service`、`resource-service`、`audit-service` 分成独立镜像，教学意义在于：
+
+- 职责边界清楚
+- 可以独立构建
+- 可以独立发布
+- 后续容易映射到 Kubernetes 的 `Deployment` 与 `Service`
+
+## `docker compose` 在这一节里的角色
+
+这里的 `docker compose` 不是最终部署手段，而是教学过渡层。
+
+它帮助学员建立下面这些认知：
+
+- 多服务编排
+- 服务名互访
+- 环境变量注入
+- 数据库依赖
+- 数据持久化
+
+## `Chart`、`values`、`Application` 的关系
+
+这一层必须先讲透：
+
+```mermaid
+flowchart LR
+  chart[Helm Chart]
+  values[values 文件]
+  app[Argo CD Application]
+  cluster[Kubernetes]
+
+  chart --> values
+  values --> app
+  app --> cluster
+```
+
+可以这样理解：
+
+- `Chart`：资源模板
+- `values`：参数
+- `Application`：从哪个仓库、哪个目录、用哪组参数同步到哪个集群
+
+## 当前关键目录
+
+### Docker 资产
+
+- `apps/qytang-netdevops/deploy/docker/`
+
+这里应包含：
+
+- 前端 Dockerfile
+- 三个后端服务 Dockerfile
+- `docker-compose.yaml`
+
+### Helm 资产
+
+- `apps/qytang-netdevops/deploy/helm/qytang-netdevops/`
+
+这里应包含：
+
+- `Chart.yaml`
+- `values.yaml`
+- `values-lab.yaml`
+- `templates/`
+
+### GitOps 资产
+
+- `apps/qytang-netdevops/deploy/gitops/lab/`
+
+这里应包含：
+
+- `application.yaml`
+- `values-lab.yaml`
+
+## 本节第二阶段必刷脚本
+
+### Docker 资产验证
+
+```bash
+bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/04_verify_docker_assets.sh
+```
+
+### Helm 与 GitOps 资产验证
+
+```bash
+bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/05_verify_gitops_assets.sh
+```
+
+### 第二阶段统一验收
+
+```bash
+bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/06_verify_phase2_assets.sh
+```
+
+## 本节第二阶段测试与校验
+
+### Docker 目录检查
+
+```bash
+ls -la /docker_k8s_2026/apps/qytang-netdevops/deploy/docker
+```
+
+### Helm 目录检查
+
+```bash
+ls -la /docker_k8s_2026/apps/qytang-netdevops/deploy/helm/qytang-netdevops
+```
+
+### GitOps 目录检查
+
+```bash
+ls -la /docker_k8s_2026/apps/qytang-netdevops/deploy/gitops/lab
+```
+
+### 重点观察点
+
+建议至少看清楚下面几类文件：
+
+- 4 个业务镜像 Dockerfile
+- `docker-compose.yaml`
+- `Chart.yaml`
+- `values.yaml`
+- `values-lab.yaml`
+- `templates/`
+- `application.yaml`
+
+## 从应用到 GitOps 资产的过渡图
+
+```mermaid
+flowchart TD
+  appCode[应用代码]
+  dockerAssets[Docker 资产]
+  helmAssets[Helm 资产]
+  gitopsAssets[GitOps 资产]
+  releaseReady[具备发布条件]
+
+  appCode --> dockerAssets
+  dockerAssets --> helmAssets
+  helmAssets --> gitopsAssets
+  gitopsAssets --> releaseReady
+```
+
+## 本节整体完成标准
+
+满足下面条件即可进入 Git 服务与发布仓初始化阶段：
+
+- 本地页面可正常访问
+- 三个后端服务健康检查正常
+- Dashboard 汇总接口可用
+- Docker 目录存在且结构齐全
+- Helm Chart 目录存在且结构齐全
+- GitOps 目录存在且结构齐全
+- 第二阶段验收脚本通过
+- 已理解 `Chart -> values -> Application` 的关系
+
 ## 下一步
 
-进入工程化阶段，把这套应用的 Docker、Helm、GitOps 骨架准备完整：
+进入 Git 事实源准备阶段，在 `git` 节点落地 `Gitea`，创建仓库并把应用目录同步进去：
 
-- `docs/04_containerize_and_gitops_assets.md`
+- `docs/04_gitea_setup_and_repo_bootstrap.md`

@@ -1,6 +1,6 @@
 # 第六章导读：GitOps 与自动化主线
 
-## 本章定位
+## 本章目标
 
 第六章的目标不是单独安装某一个工具，而是把一条完整交付链路讲清楚：
 
@@ -15,7 +15,7 @@
 
 这一章现在已经重构为少量主线文档，避免在课堂上来回切换 20 多页碎片说明。
 
-## 教材使用方法
+## 学习方式
 
 这一章建议始终按下面节奏学习：
 
@@ -24,21 +24,30 @@
 3. 再做测试与校验
 4. 最后用“完成标准”判断这一节是否真正刷通
 
+## 本章稳定原则
+
+第六章和前几章不同，天然更容易被外部仓库、构建节点和发布链路影响。
+
+这一章当前已经按下面原则收口：
+
+- 业务镜像构建优先使用 `Harbor` 里的基础镜像
+- `Gitea` 与 `Postgres` 的运行镜像优先使用 `Harbor`
+- `Argo CD` 安装清单已经本地化，不再在主线里临时拉取远端 raw YAML
+- 正式域名发布只使用第六章自己的 manifests，不跨章节复用旧清单
+
 ## 第六章主线图
 
 ```mermaid
 flowchart LR
-  overview[总览与GitOps主线]
-  preview[应用设计与本地联调]
-  assets[容器化与GitOps资产]
+  overview[总览与 GitOps 主线]
+  preview[应用设计 本地联调 工程化资产]
   gitea[Gitea与仓库初始化]
-  release[Harbor与ArgoCD发布]
+  release[Harbor 与 Argo CD 发布]
   entry[域名账户与正式入口]
   demo[课堂测试与演示]
 
   overview --> preview
-  preview --> assets
-  assets --> gitea
+  preview --> gitea
   gitea --> release
   release --> entry
   entry --> demo
@@ -50,18 +59,17 @@ flowchart LR
 
 1. `docs/02_overview_and_gitops_flow.md`
 2. `docs/03_app_design_and_local_preview.md`
-3. `docs/04_containerize_and_gitops_assets.md`
-4. `docs/05_gitea_setup_and_repo_bootstrap.md`
-5. `docs/06_harbor_argocd_and_e2e_verification.md`
-6. `docs/07_domains_accounts_and_classroom_demo.md`
-7. `docs/08_gitops_demo_and_testing.md`
+3. `docs/04_gitea_setup_and_repo_bootstrap.md`
+4. `docs/05_harbor_argocd_and_e2e_verification.md`
+5. `docs/06_domains_accounts_and_classroom_demo.md`
+6. `docs/07_gitops_demo_and_testing.md`
 
-## !!! 刷课顺序总览
+## 刷课顺序总览
 
 如果你要从头到尾顺刷，第六章的最短主线就是：
 
 ```text
-理论总览 -> 本地联调 -> 工程化资产 -> Gitea -> Harbor/Argo CD -> 正式入口 -> 课堂演示
+理论总览 -> 应用与工程化资产 -> Gitea -> Harbor/Argo CD -> 正式入口 -> 课堂演示
 ```
 
 ## 主线说明
@@ -74,25 +82,20 @@ flowchart LR
 - GitOps 的核心概念
 - 主仓、`Gitea`、`Harbor`、`Argo CD` 的角色边界
 
-### 2. 应用设计与本地联调
+### 2. 应用设计、本地联调与工程化资产
 
 这一节讲：
 
 - `QYT NetDevOps` 为什么这样设计
 - 微服务职责边界
 - 本地联调与第一阶段验收
-
-### 3. 容器化与 GitOps 资产准备
-
-这一节讲：
-
 - `Dockerfile`
 - `docker compose`
 - `Helm Chart`
 - `values`
 - `Argo CD Application`
 
-### 4. Gitea 落地与仓库初始化
+### 3. Gitea 落地与仓库初始化
 
 这一节讲：
 
@@ -100,17 +103,18 @@ flowchart LR
 - 应用仓库创建
 - 首次把应用目录同步到 `Gitea`
 
-### 5. Harbor、Argo CD 与发布闭环
+### 4. Harbor、Argo CD 与发布闭环
 
 这一节讲：
 
 - 远程构建镜像
 - 推送到 `Harbor`
+- 预拉 `Argo CD` Harbor 镜像
 - 安装 `Argo CD`
 - 同步应用
 - 端到端验收
 
-### 6. 域名、账户与正式入口
+### 5. 域名、账户与正式入口
 
 这一节讲：
 
@@ -118,7 +122,7 @@ flowchart LR
 - 域名与账户速查
 - Git 边界
 
-### 7. GitOps 课堂测试与演示
+### 6. GitOps 课堂测试与演示
 
 这一节讲：
 
@@ -131,7 +135,7 @@ flowchart LR
 - `16_release_frontend_gitops.sh` 之前必须先手工改代码，再改 `VERSION`
 - `17_scale_frontend_gitops.sh` 之前必须先手工改 `values-lab.yaml` 里的副本数
 
-## !!! 主线必刷脚本
+## 主线必刷脚本
 
 下面这组脚本就是当前第六章主线：
 
@@ -139,13 +143,6 @@ flowchart LR
 
 - `P0`：必须执行，直接决定是否能继续往下刷
 - `P1`：建议执行，用于补强验证或课堂演示
-
-### 环境检查
-
-```bash
-# P0
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/00_check_and_recover_cluster.sh
-```
 
 ### 本地联调与第一阶段验收
 
@@ -218,7 +215,7 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/17_scale_frontend_git
 
 旧的编号页仍然保留在 `docs/` 中，方便回溯历史内容，但它们不再是当前主线教材。
 
-当前主线以本页列出的 7 篇大文档为准。
+当前主线以本页列出的 6 篇大文档为准。
 
 其中下面这页已经退出主线：
 

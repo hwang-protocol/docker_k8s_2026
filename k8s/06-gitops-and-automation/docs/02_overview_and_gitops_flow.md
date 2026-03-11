@@ -9,6 +9,10 @@
 3. 当前第六章已经真实落地的 GitOps 流程是什么。
 4. 主仓、`Gitea`、`Harbor`、`Argo CD` 分别扮演什么角色。
 
+## 执行标记
+
+- **执行标记：建议先读**
+
 ## 为什么第六章要这样讲
 
 前五章的重点是平台能力：
@@ -29,15 +33,15 @@
 
 ```mermaid
 flowchart LR
-  sourceCode[SourceCode]
-  mainRepo[MainRepo]
-  giteaRepo[GiteaRepo]
-  buildNode[BuildNode]
+  sourceCode[业务源码]
+  mainRepo[主仓]
+  giteaRepo[Gitea 发布仓]
+  buildNode[构建节点]
   harbor[Harbor]
-  values[HelmValues]
-  argocd[ArgoCD]
+  values[Helm values 与 Application]
+  argocd[Argo CD]
   cluster[Kubernetes]
-  browser[Browser]
+  browser[浏览器]
 
   sourceCode --> mainRepo
   mainRepo --> giteaRepo
@@ -145,26 +149,25 @@ flowchart LR
 
 ## 第六章主线结构
 
-重构后的第六章主线收口为 6 个大文档：
+当前第六章主线收口为 5 个大文档：
 
 1. 本页：总览、理论、边界、执行主线
-2. 应用设计与本地联调
-3. 容器化与 GitOps 素材准备
-4. Gitea 落地与仓库初始化
-5. Harbor、Argo CD 与端到端发布验证
-6. 域名、账户与课堂现场演示
+2. 应用设计、本地联调与工程化资产
+3. Gitea 落地与仓库初始化
+4. Harbor、Argo CD 与端到端发布验证
+5. 域名、账户与课堂现场演示
 
 ## 课堂统一关系图
 
 ```mermaid
 flowchart TD
-  chapter[Chapter6]
-  app[QYTNetDevOps]
-  docker[DockerAndCompose]
-  gitRepo[GiteaRepo]
-  helm[HelmAndValues]
-  argocd[ArgoCD]
-  release[GitOpsRelease]
+  chapter[第六章]
+  app[QYT NetDevOps]
+  docker[Docker 与 Compose]
+  gitRepo[Gitea 发布仓]
+  helm[Helm 与 values]
+  argocd[Argo CD]
+  release[GitOps 发布结果]
 
   chapter --> app
   app --> docker
@@ -172,14 +175,6 @@ flowchart TD
   gitRepo --> helm
   helm --> argocd
   argocd --> release
-```
-
-## !!! 本节必刷脚本
-
-这一节只保留一个入口脚本，先确认环境仍然处于第六章可继续推进的状态：
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/00_check_and_recover_cluster.sh
 ```
 
 ## 本节测试与观察
@@ -212,7 +207,7 @@ ls -la /docker_k8s_2026/apps/qytang-netdevops
 - 已理解第六章不是“装工具”，而是“打通交付链路”
 - 已理解主仓、`Gitea`、`Harbor`、`Argo CD` 的角色分工
 - 已理解当前真实落地的是“脚本化拆解版 GitOps”
-- 环境检查脚本执行正常
+- 当前环境与应用目录已处于可继续推进状态
 
 ## 常见误区
 
@@ -230,6 +225,6 @@ ls -la /docker_k8s_2026/apps/qytang-netdevops
 
 ## 下一步
 
-进入样板应用本身，先把应用设计、本地联调、第一阶段验收彻底讲清楚：
+进入样板应用本身，先把应用设计、本地联调与工程化资产彻底讲清楚：
 
 - `docs/03_app_design_and_local_preview.md`

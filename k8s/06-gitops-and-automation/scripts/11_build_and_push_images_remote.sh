@@ -12,6 +12,7 @@ CA_CERT="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt"
 HARBOR_URL="https://harbor.qytk8s.com"
 HARBOR_PROJECT="qytang-netdevops"
 GITEA_REPO_URL="https://git.qytk8s.com/gitadmin/qytang-netdevops.git"
+PYTHON_BASE_IMAGE="harbor.qytk8s.com/library/python:3.12-slim"
 
 
 wait_for_gitea_on_git_node() {
@@ -44,6 +45,18 @@ clone_latest_repo_on_git_node() {
      exit 1"
 }
 
+prepare_base_image_on_git_node() {
+  echo "[5/6] 预拉 Harbor 基础镜像 ${PYTHON_BASE_IMAGE}"
+  ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@git \
+    "for i in \$(seq 1 5); do \
+       docker pull ${PYTHON_BASE_IMAGE} && exit 0; \
+       echo '  基础镜像拉取失败，等待 5 秒后重试'; \
+       sleep 5; \
+     done; \
+     echo 'ERROR: 多次重试后仍无法拉取 Harbor 基础镜像'; \
+     exit 1"
+}
+
 main() {
   echo "========================================================="
   echo "构建并推送 QYTANG NetDevOps 镜像"
@@ -72,8 +85,9 @@ main() {
 
   wait_for_gitea_on_git_node
   clone_latest_repo_on_git_node
+  prepare_base_image_on_git_node
 
-  echo "[5/5] 构建并推送四个镜像"
+  echo "[6/6] 构建并推送四个镜像"
   ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@git \
     "cd /opt/qytang-netdevops-src && \
      docker build -f deploy/docker/frontend/Dockerfile -t harbor.qytk8s.com/qytang-netdevops/frontend:${IMAGE_TAG} . && \

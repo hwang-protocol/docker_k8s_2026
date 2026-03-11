@@ -1,0 +1,33 @@
+[
+  {
+    "name": "netdevops-http",
+    "hostname": "netdevops.qytk8s.com",
+    "port": 80,
+    "protocol": "HTTP",
+    "allowedRoutes": {
+      "namespaces": {
+        "from": "Same"
+      }
+    }
+  },
+  {
+    "name": "netdevops-https",
+    "hostname": "netdevops.qytk8s.com",
+    "port": 443,
+    "protocol": "HTTPS",
+    "tls": {
+      "mode": "Terminate",
+      "certificateRefs": [
+        {
+          "kind": "Secret",
+          "name": "netdevops-qytk8s-com-tls"
+        }
+      ]
+    },
+    "allowedRoutes": {
+      "namespaces": {
+        "from": "Same"
+      }
+    }
+  }
+]

@@ -4,6 +4,10 @@
 
 这一节要把发布闭环真正打通：
 
+## 执行标记
+
+- **执行标记：必须执行**
+
 - `Gitea` 里有仓库
 - `Harbor` 里有镜像
 - `Argo CD` 能同步应用
@@ -31,11 +35,11 @@
 ```mermaid
 flowchart LR
   gitea[Gitea]
-  buildNode[GitNodeBuild]
+  buildNode[git 节点构建]
   harbor[Harbor]
-  argocd[ArgoCD]
+  argocd[Argo CD]
   cluster[Kubernetes]
-  verify[Verification]
+  verify[验收]
 
   gitea --> buildNode
   buildNode --> harbor
@@ -66,6 +70,19 @@ flowchart LR
 - 学员更容易理解“源码位置”和“构建位置”可以分离
 - 后续更容易过渡到 CI/CD 概念
 
+## 为什么这一节现在要坚持 Harbor-first
+
+这一节如果大量依赖外部仓库，课堂上最容易出现两类问题：
+
+- 构建节点临时拉不到基础镜像
+- Kubernetes 节点第一次启动 `Argo CD` 时外部镜像拉取很慢
+
+所以当前主线已经收成：
+
+- `11_build_and_push_images_remote.sh` 优先使用 `Harbor` 中的 Python 基础镜像
+- `12_install_argocd_and_sync.sh` 使用本地安装清单 `30_argocd_install_v3.3.3_harbor.yaml`
+- `12_install_argocd_and_sync.sh` 会先在各节点预拉 `argocd/dex/redis` 的 Harbor 镜像，再安装控制面
+
 ## 为什么安装 `Argo CD` 不能只看官方 YAML
 
 这一节最容易被忽略的问题是：
@@ -93,7 +110,7 @@ flowchart LR
 - `argocd.qytk8s.com` 的证书问题，已经在 `12` 解决
 - `netdevops.qytk8s.com` 的正式业务域名发布，属于下一节
 
-## !!! 本节必刷脚本
+## 本节必刷脚本
 
 ### 远程构建并推送业务镜像
 
@@ -121,6 +138,7 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/13_verify_gitops_e2e.
 
 - 确保 `Harbor` 项目存在
 - 在 `git` 节点配置 Docker 对统一 CA 的信任
+- 预拉 `Harbor` 中的 Python 基础镜像
 - 从 `Gitea` 拉取应用仓
 - 构建并推送 4 个业务镜像
 
@@ -128,7 +146,8 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/13_verify_gitops_e2e.
 
 负责：
 
-- 安装 `Argo CD`
+- 使用第六章本地 Harbor 版安装清单安装 `Argo CD`
+- 预拉 `argocd/dex/redis` 的 Harbor 镜像
 - 让 `Argo CD` 信任 `git.qytk8s.com`
 - 为 `argocd.qytk8s.com` 签发并配置正式证书
 - 固定 `argocd-server` VIP 为 `10.1.1.50`
@@ -158,6 +177,12 @@ curl --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt 
 
 ```bash
 curl -k -s -u 'admin:Harbor12345' https://harbor.qytk8s.com/api/v2.0/projects/qytang-netdevops/repositories?page_size=20
+```
+
+### 查看 Harbor 基础镜像仓
+
+```bash
+curl -k -s -u 'admin:Harbor12345' https://harbor.qytk8s.com/api/v2.0/projects/library/repositories?page_size=50
 ```
 
 ### 查看 Argo CD 应用状态
@@ -218,4 +243,4 @@ curl --resolve argocd.qytk8s.com:443:10.1.1.50 --cacert /docker_k8s_2026/k8s/01-
 
 进入正式业务入口、账户速查与 Git 边界说明：
 
-- `docs/07_domains_accounts_and_classroom_demo.md`
+- `docs/06_domains_accounts_and_classroom_demo.md`

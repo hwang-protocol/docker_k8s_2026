@@ -13,22 +13,22 @@ main() {
   echo "========================================================="
 
   echo "[1/5] 前端页面"
-  curl -I -s http://127.0.0.1:8080 | sed -n '1p'
+  curl -s --max-time 5 -o /tmp/qytang_local_frontend.html -w 'HTTP %{http_code}\n' http://127.0.0.1:8080
 
   echo "[2/5] 设备服务"
-  curl -s http://127.0.0.1:8001/healthz
+  curl -s --max-time 5 http://127.0.0.1:8001/healthz
   echo
 
   echo "[3/5] 资源服务"
-  curl -s http://127.0.0.1:8002/healthz
+  curl -s --max-time 5 http://127.0.0.1:8002/healthz
   echo
 
   echo "[4/5] 审计服务"
-  curl -s http://127.0.0.1:8003/healthz
+  curl -s --max-time 5 http://127.0.0.1:8003/healthz
   echo
 
   echo "[5/5] Dashboard 汇总"
-  curl -s http://127.0.0.1:8001/api/v1/dashboard/summary
+  curl -s --max-time 5 http://127.0.0.1:8001/api/v1/dashboard/summary
   echo
 
   echo "OK: 本地预览链路正常"
