@@ -1,183 +1,289 @@
 # 第 5 步：演示 L3/L4 与 L7 策略
 
-## 本步目标
+## 测试目标
 
-利用 `CiliumNetworkPolicy` 演示第二章最关键的安全能力：
+利用 `CiliumNetworkPolicy` 演示第二章最关键的东西向安全能力：
 
-1. `L3/L4` 级别的访问控制
-2. `L7` 级别的 HTTP 感知控制
+- `L3/L4` 级别的访问控制
+- `L7` 级别的 HTTP 感知控制
 
-本步会通过 `whoami`、`client`、`other` 三个工作负载，逐步演示：
+本步使用 `whoami`、`client`、`other` 三个工作负载，依次验证下面 4 个状态：
 
-- 基线状态：都能访问
-- `L3/L4`：只允许 `client`
-- `L7`：只允许 `client` 发起 `GET /`
+1. 基线状态下，`client` 与 `other` 都可以访问 `whoami`
+2. 应用 `L3/L4` 策略后，只允许 `client`
+3. 切换为 `L7` 策略后，只允许 `client` 发起 `GET /`
+4. 可以从 `CiliumNetworkPolicy` 与 `CiliumEndpoint` 侧看到策略对象已经生效
 
-## 教学提示：这里的 `L7` 和后面可能讲到的 `Istio` 有什么不同
+## 执行标记
 
-这是本步最值得提前解释清楚的困惑点。
+- **执行标记：必须执行**
 
-很多学员看到这里会自然问：
+说明：
 
-> 既然 `Cilium` 已经能按 `GET / POST` 做控制，那后面为什么还要讲 `Istio`？
+- 这一页不是在补充安装动作，而是在验证 `Cilium` 已经具备协议感知的安全控制能力
+- 它是第二章从“网络已通”走向“网络可控”的关键一步
 
-建议你上课时直接这样回答：
+## 理论说明
 
-### 1. 这里演示的 `Cilium L7 Policy`，本质上是什么
+### 策略收紧路径
 
-本质上它仍然是**网络侧的安全控制**，只是从：
+```mermaid
+flowchart LR
+  baseline[基线状态<br/>client 与 other 都可访问]
+  l34[L3/L4 策略<br/>只允许 client -> whoami:80]
+  l7[L7 HTTP 策略<br/>只允许 client 发起 GET /]
+  identity[CiliumEndpoint 身份与标签]
 
-- 传统的 `IP / Port`
+  baseline --> l34
+  l34 --> l7
+  l34 --> identity
+  l7 --> identity
+```
 
-往前走了一步，变成：
+这张图说明：
 
-- 能识别 `HTTP Method`
-- 能识别 `HTTP Path`
-- 能把“允许谁访问谁”细化到应用协议层
+- 本步不是一上来就讲复杂的零信任体系
+- 而是先从最容易理解的 3 层递进关系入手：
+  - 默认全通
+  - 先按工作负载身份控制
+  - 再按 HTTP 行为控制
 
-所以它更像是：
+### `L3/L4` 与 `L7` 的区别
 
-- 网络底座上的应用感知防火墙
-- 零信任网络准入的一部分
+在 Kubernetes 网络策略里，常见的第一层控制是：
 
-### 2. `Istio` 更偏什么
+- 来源是谁
+- 目标是谁
+- 访问哪个端口
 
-`Istio` 更偏：
+这就是这里的 `L3/L4` 控制。
 
-- 服务身份
-- `mTLS`
-- `JWT`
-- `AuthorizationPolicy`
-- 请求级认证与授权
-- 服务治理
+例如本步第一份策略表达的是：
 
-所以它通常不只是问：
+- 只有 `app=client` 的工作负载可以访问 `app=whoami`
+- 只允许访问 TCP `80`
 
-- `GET /` 能不能放
+第二份策略进一步把规则收紧到 HTTP 层，表达的是：
 
-而是继续问：
+- 依旧只允许 `client`
+- 依旧只允许访问 `whoami:80`
+- 但只允许 `GET /`
 
-- 调用方服务身份是谁
-- 是否带了合法证书
-- 是否带了合法 `JWT`
-- 这个租户或用户是否有权限访问
+因此，本步最重要的教学结论是：
 
-### 3. 一句话帮助学员区分
+- `L3/L4` 解决“谁可以连过来”
+- `L7` 解决“连过来以后允许做什么”
 
-- `Cilium L7`：偏**网络准入控制**
-- `Istio`：偏**服务身份、安全与治理**
+### 为什么这一页要引入 `other`
 
-### 4. 为什么第二章先讲 `Cilium L7`
+如果只有 `client` 和 `whoami` 两个工作负载，本步只能证明“访问是通的”，但不容易说明“控制是收紧的”。
 
-因为第二章的目标是先让学员建立这个认知：
+因此额外引入：
 
-- Kubernetes 安全不只是开端口
-- 东西向零信任也可以做到协议感知
-- 网络层已经可以开始识别 HTTP 行为
+- `other`
 
-等这个认知建立后，后面再讲 `Istio`，学员就更容易明白：
+它的作用是成为一个对照组，用来明确说明：
 
-- `Istio` 不是替代 `Cilium`
-- 而是在更上层继续做服务间认证、授权与治理
+- 基线下可以访问
+- 加 `L3/L4` 规则后不再允许
 
-## 对应清单
+这样策略效果会更直观。
+
+### 本步策略清单关键字段示意
+
+本步会使用下面 3 份清单：
 
 - `manifests/21_other.yaml`
 - `manifests/30_cnp_l3l4_allow_client.yaml`
 - `manifests/31_cnp_l7_allow_get.yaml`
 
+#### `L3/L4` 策略关键字段
+
+```yaml
+spec:
+  endpointSelector:
+    matchLabels:
+      app: whoami
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: client
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+```
+
+关键字段说明：
+
+- `endpointSelector`
+  - 策略作用对象是 `whoami`
+- `fromEndpoints`
+  - 只允许带有 `app=client` 标签的源端点
+- `toPorts`
+  - 只允许访问 TCP `80`
+
+#### `L7 HTTP` 策略关键字段
+
+```yaml
+spec:
+  endpointSelector:
+    matchLabels:
+      app: whoami
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app: client
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+          rules:
+            http:
+              - method: "GET"
+                path: "/"
+```
+
+关键字段说明：
+
+- `rules.http`
+  - 进一步把允许行为收紧到 HTTP 请求层
+- `method: "GET"`
+  - 只允许 `GET`
+- `path: "/"`
+  - 只允许访问根路径
+
 ## 对应脚本
+
+本步对应脚本：
 
 - `k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh`
 
-## 执行命令
+本步使用的原始清单仍然独立保存在项目目录中，而不是写死在脚本里：
+
+- `manifests/21_other.yaml`
+- `manifests/30_cnp_l3l4_allow_client.yaml`
+- `manifests/31_cnp_l7_allow_get.yaml`
+
+说明：
+
+- `k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh` 只是把下面这些测试动作串起来的一把梭脚本
+- 教材主线按手动测试展开
+
+## 测试过程与关键看点
+
+### 步骤 1：创建 `other` 并清理旧策略
+
+执行命令：
 
 ```bash
-chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh
+kubectl apply -f http://ops:9000/02-cloud-native-networking/manifests/21_other.yaml
+kubectl delete cnp -n net-demo whoami-l3l4-allow-client --ignore-not-found
+kubectl delete cnp -n net-demo whoami-l7-allow-get --ignore-not-found
+kubectl rollout status deployment/other -n net-demo --timeout=5m
 ```
+
+结果看点：
+
+- `other` 应成功进入 `Running`
+- 删除旧策略时显示 `deleted` 或 `not found` 都是正常现象
+
+### 步骤 2：验证基线状态
+
+执行命令：
 
 ```bash
-bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh
+kubectl exec -n net-demo deployment/client -- curl -sS http://whoami
+kubectl exec -n net-demo deployment/other -- curl -sS http://whoami
+kubectl exec -n net-demo deployment/client -- \
+  sh -c "curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 http://whoami/"
+kubectl exec -n net-demo deployment/other -- \
+  sh -c "curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 http://whoami/"
 ```
 
-## 脚本做了什么
+结果看点：
 
-脚本会完成下面 6 个动作：
+- `client` 与 `other` 都应能访问 `whoami`
+- 两个 HTTP 返回码都应为 `200`
+- 这一步的价值是先建立“默认全通”的基线
 
-1. 创建 `other` Pod，并清理旧策略
-2. 验证基线状态下 `client` 与 `other` 都能访问 `whoami`
-3. 应用 `L3/L4` 策略，只允许 `client`
-4. 切换为 `L7 GET-only` 策略
-5. 查看当前 `CiliumNetworkPolicy`
-6. 查看当前 `CiliumEndpoint`
+### 步骤 3：应用 `L3/L4` 策略并观察结果
 
-## 你会看到什么
-
-在脚本输出中，应能明确看到：
-
-- 基线阶段：`client` 与 `other` 都返回 `whoami` 输出
-- 基线阶段：`client` 与 `other` 的 `HTTP Code` 都是 `200`
-- `L3/L4` 阶段：`client` 为 `200`，`other` 为非 `200`（常见为 `000`）
-- `L7` 阶段：`client GET` 为 `200`，`client POST` 为非 `200`（常见为 `403`）
-
-最后应看到：
-
-```text
-OK: L3/L4 与 L7 策略演示完成
+```bash
+kubectl apply -f http://ops:9000/02-cloud-native-networking/manifests/30_cnp_l3l4_allow_client.yaml
+sleep 5
+kubectl exec -n net-demo deployment/client -- \
+  sh -c "curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 http://whoami/"
+kubectl exec -n net-demo deployment/other -- \
+  sh -c "curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 http://whoami/"
 ```
 
-## 单项验证
+结果看点：
 
-### 验证 1：查看策略对象
+- `client` 应继续返回 `200`
+- `other` 应不再返回 `200`
+- 这一步说明策略已经能按工作负载身份收紧访问范围
+
+### 步骤 4：切换为 `L7 GET-only` 策略并观察结果
+
+```bash
+kubectl delete -f http://ops:9000/02-cloud-native-networking/manifests/30_cnp_l3l4_allow_client.yaml
+kubectl apply -f http://ops:9000/02-cloud-native-networking/manifests/31_cnp_l7_allow_get.yaml
+sleep 5
+kubectl exec -n net-demo deployment/client -- \
+  sh -c "curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 http://whoami/"
+kubectl exec -n net-demo deployment/client -- \
+  sh -c "curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 -X POST http://whoami/"
+```
+
+结果看点：
+
+- `GET /` 应返回 `200`
+- `POST /` 应返回非 `200`
+- 常见拒绝结果为 `403`
+- 这一步说明策略已经从“能不能访问”继续收紧到“允许什么 HTTP 行为”
+
+### 步骤 5：查看当前策略对象与端点对象
 
 ```bash
 kubectl get cnp -n net-demo
-```
-
-预期：
-
-- 能看到当前生效的 `CiliumNetworkPolicy`
-
-### 验证 2：查看端点对象
-
-```bash
 kubectl get cep -n net-demo
 ```
 
-预期：
+结果看点：
 
-- 能看到 `whoami`
-- 能看到 `client`
-- 能看到 `other`
+- 当前通常会看到 `whoami-l7-allow-get`
+- 能看到 `whoami`、`client`、`other` 对应的 `CiliumEndpoint`
+- 这一步的意义是把“策略对象”和“端点身份”也展示出来，方便上课解释
 
-### 验证 3：手动测试 GET
-
-```bash
-kubectl exec -n net-demo deployment/client -- sh -c "curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 http://whoami/"
-```
-
-预期：
-
-- 返回 `200`
-
-### 验证 4：手动测试 POST
+### 步骤 6：补充验证 `other` 已被拒绝
 
 ```bash
-kubectl exec -n net-demo deployment/client -- sh -c "curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 -X POST http://whoami/"
+kubectl exec -n net-demo deployment/other -- \
+  sh -c "curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 http://whoami/"
 ```
 
-预期：
+结果看点：
 
-- 返回非 `200`
-- 常见返回为 `403`
+- 在 `L3/L4` 阶段通常已经不是 `200`
+- 如果已经切换为最终的 `L7` 策略，`other` 仍然不应被放行
 
-## 本步完成标准
+## 关键看点
+
+本步不要只看“通不通”，要优先观察下面 3 件事：
+
+- 基线阶段，`client` 与 `other` 都应返回 `200`
+- `L3/L4` 阶段，`client` 继续 `200`，`other` 不再 `200`
+- `L7` 阶段，同一个 `client` 对 `GET /` 与 `POST /` 会得到不同结果
+
+## 通过标准
 
 满足下面条件后，就可以进入下一步：
 
+- `other` 工作负载已创建成功
 - `L3/L4` 策略演示成功
-- `L7` GET-only 策略演示成功
-- `CiliumNetworkPolicy` 与 `CiliumEndpoint` 可被正确观察
+- `L7 GET-only` 策略演示成功
+- `CiliumNetworkPolicy` 与 `CiliumEndpoint` 可以被正确观察
 
 ## 下一步
 
