@@ -12,19 +12,28 @@
 - 负载均衡策略
 - 连接池与异常实例剔除参数
 
+## 执行标记
+
+- **执行标记：必须执行**
+
+说明：
+
+- 本步只负责把稳定治理基线铺好
+- `50/50`、`90/10`、`timeout`、`retry`、`fault injection` 的课堂切换，放到后面的手动测试阶段
+
 ## 流量治理关系图
 
 ```mermaid
 flowchart LR
-    request[RequestTo_hello] --> virtualService[VirtualService]
-    virtualService --> subsetV1[Subset_v1]
-    virtualService --> subsetV2[Subset_v2]
+    request[/hello 请求] --> virtualService[VirtualService]
+    virtualService --> subsetV1[Subset v1]
+    virtualService --> subsetV2[Subset v2]
 
     destinationRule[DestinationRule] --> subsetV1
     destinationRule --> subsetV2
-    destinationRule --> lb[LoadBalancerPolicy]
-    destinationRule --> pool[ConnectionPool]
-    destinationRule --> outlier[OutlierDetection]
+    destinationRule --> lb[负载均衡策略]
+    destinationRule --> pool[连接池]
+    destinationRule --> outlier[异常实例剔除]
 ```
 
 这张图建议你重点讲清：
@@ -279,13 +288,13 @@ kubectl -n mesh-demo get deploy -l app=helloworld --show-labels
 
 ```mermaid
 flowchart LR
-    user[Client] --> vs[VirtualService]
-    vs -->|100_percent| v1[helloworld_v1]
-    vs -->|0_percent| v2[helloworld_v2]
+    user[客户端] --> vs[VirtualService]
+    vs -->|100%| v1[helloworld v1]
+    vs -->|0%| v2[helloworld v2]
 
     dr[DestinationRule] --> v1
     dr --> v2
-    dr --> retry[RetryTimeoutPool]
+    dr --> retry[超时 重试 连接治理]
 ```
 
 这张图说明的顺序如下：

@@ -9,18 +9,27 @@
 - `waypoint`
 - 服务间 `AuthorizationPolicy`
 
+## 执行标记
+
+- **执行标记：必须执行**
+
+说明：
+
+- 本步先用主脚本把安全对象一次性铺好
+- 课堂上再按下面 6 个功能单元逐个讲现象
+
 ## 安全链路关系图
 
 ```mermaid
 flowchart LR
-    client[Client] --> ingress[IstioIngressGateway]
+    client[客户端] --> ingress[Istio Ingress Gateway]
     ingress --> reqAuth[RequestAuthentication]
     reqAuth --> authz[AuthorizationPolicy]
     authz --> helloSvc[helloworld]
 
-    trusted[trusted_client] --> ztunnelA[ztunnel]
-    untrusted[untrusted_client] --> ztunnelA
-    ztunnelA --> ztunnelB[ztunnel]
+    trusted[trusted-client] --> ztunnelA[源节点 ztunnel]
+    untrusted[untrusted-client] --> ztunnelA
+    ztunnelA --> ztunnelB[目标节点 ztunnel]
     ztunnelB --> httpbinSvc[httpbin]
 ```
 
@@ -57,6 +66,11 @@ bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/04_enable_jwt_and_m
 2. 理论说明
 3. 验证方法
 4. 预期结果
+
+也就是说：
+
+- 主脚本负责把安全对象铺到位
+- 下面的小节负责解释每个对象到底解决什么问题
 
 ## 讲解顺序
 
@@ -286,15 +300,15 @@ ls -lh /docker_k8s_2026/k8s/05-security-and-zero-trust/pki
 
 ```mermaid
 flowchart TD
-    subgraph northSouth [NorthSouth]
-        req[Request] --> jwt[RequestAuthentication]
+    subgraph northSouth [北向链路]
+        req[请求] --> jwt[RequestAuthentication]
         jwt --> allow[AuthorizationPolicy]
-        allow --> backend[Backend]
+        allow --> backend[后端服务]
     end
 
-    subgraph eastWest [EastWest]
-        svc1[ClientService] --> mtls[PeerAuthentication_STRICT]
-        mtls --> svc2[TargetService]
+    subgraph eastWest [东西向链路]
+        svc1[客户端服务] --> mtls[PeerAuthentication STRICT]
+        mtls --> svc2[目标服务]
         svc2 --> svcAuthz[AuthorizationPolicy]
     end
 ```

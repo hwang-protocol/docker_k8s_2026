@@ -10,6 +10,15 @@
 - `mTLS` 与服务间授权正常
 - 基线流量治理对象正常
 
+## 执行标记
+
+- **执行标记：只读验收**
+
+说明：
+
+- 本页不再重新部署第五章对象
+- 只确认第五章标准结束状态是否已经形成
+
 ## 本步脚本
 
 - `k8s/05-security-and-zero-trust/scripts/07_verify_istio_security.sh`
@@ -56,6 +65,11 @@ bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/07_verify_istio_sec
 kubectl get nodes -o wide
 ```
 
+### 关键看点
+
+- 重点不是逐行阅读所有列
+- 而是确认所有节点都保持 `Ready`
+
 ### 预期结果
 
 - 所有节点为 `Ready`
@@ -75,6 +89,15 @@ kubectl -n istio-system get pods -o wide
 ```bash
 kubectl -n istio-ingress get pods,svc -o wide
 ```
+
+### 关键看点
+
+- `istio-system` 重点看：
+  - `istiod`
+  - `ztunnel`
+- `istio-ingress` 重点看：
+  - `istio-ingressgateway`
+  - `LoadBalancer` 地址是否为 `10.1.1.62`
 
 ### 预期结果
 
@@ -96,12 +119,17 @@ kubectl -n istio-ingress get pods,svc -o wide
 ### 验证方法
 
 ```bash
-curl -I --resolve secure-app.qytk8s.com:80:10.1.1.61 http://secure-app.qytk8s.com/public
+curl -I --resolve secure-app.qytk8s.com:80:10.1.1.62 http://secure-app.qytk8s.com/public
 ```
 
 ```bash
-curl --resolve secure-app.qytk8s.com:443:10.1.1.61 --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt https://secure-app.qytk8s.com/public
+curl --resolve secure-app.qytk8s.com:443:10.1.1.62 --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt https://secure-app.qytk8s.com/public
 ```
+
+### 关键看点
+
+- 第一条命令重点看是否跳到 `HTTPS`
+- 第二条命令重点看是否返回 `200`，以及正文中是否出现 `public-whoami`
 
 ### 预期结果
 
@@ -120,6 +148,11 @@ curl --resolve secure-app.qytk8s.com:443:10.1.1.61 --cacert /docker_k8s_2026/k8s
 ```bash
 kubectl -n mesh-demo get pods,svc
 ```
+
+### 关键看点
+
+- 重点看第五章演示组件是否齐全
+- 不需要纠结 Pod 的排列顺序，而是确认关键工作负载已经就绪
 
 ### 预期结果
 
@@ -143,6 +176,14 @@ kubectl -n mesh-demo get pods,svc
 kubectl get requestauthentication,authorizationpolicy,peerauthentication -A
 ```
 
+### 关键看点
+
+- 重点不是对象数量
+- 而是要确认第五章 3 类核心安全对象都已经出现：
+  - `RequestAuthentication`
+  - `AuthorizationPolicy`
+  - `PeerAuthentication`
+
 ### 预期结果
 
 - 入口 `JWT` 策略存在
@@ -164,6 +205,13 @@ kubectl get requestauthentication,authorizationpolicy,peerauthentication -A
 bash /docker_k8s_2026/k8s/05-security-and-zero-trust/manual_tests/02_test_jwt_auth.sh
 ```
 
+### 关键看点
+
+- 重点看三种典型结果是否同时出现：
+  - 无 token
+  - 错 token
+  - 正确 token
+
 ### 预期结果
 
 - 无 token 请求被拒绝
@@ -181,6 +229,11 @@ bash /docker_k8s_2026/k8s/05-security-and-zero-trust/manual_tests/02_test_jwt_au
 ```bash
 bash /docker_k8s_2026/k8s/05-security-and-zero-trust/manual_tests/03_test_mesh_authz.sh
 ```
+
+### 关键看点
+
+- 重点看“可信客户端成功、不可信客户端被拒绝”这一对对照是否成立
+- 不要把这一条和入口 `JWT` 混淆；这里验证的是服务间身份授权
 
 ### 预期结果
 
@@ -201,5 +254,5 @@ bash /docker_k8s_2026/k8s/05-security-and-zero-trust/manual_tests/03_test_mesh_a
 
 ## 补充说明
 
-- `win2019 DNS` 需要存在 `secure-app.qytk8s.com -> 10.1.1.61`
+- `win2019 DNS` 需要存在 `secure-app.qytk8s.com -> 10.1.1.62`
 - `win2019` 需要导入 Harbor CA 根证书

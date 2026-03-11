@@ -23,7 +23,7 @@ VIRTUALSERVICE_URL="http://ops:9000/05-security-and-zero-trust/manifests/21_virt
 DOMAIN="secure-app.qytk8s.com"
 SECRET_NAME="secure-app-qytk8s-com-tls"
 SECRET_NAMESPACE="istio-ingress"
-VIP="10.1.1.61"
+VIP="10.1.1.62"
 CA_CERT="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt"
 CA_KEY="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.key"
 

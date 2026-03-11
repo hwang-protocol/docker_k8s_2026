@@ -8,7 +8,7 @@ set -euo pipefail
 # ==============================================================================
 
 DOMAIN="secure-app.qytk8s.com"
-VIP="10.1.1.61"
+VIP="10.1.1.62"
 CA_CERT="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt"
 
 main() {

@@ -75,17 +75,17 @@
 
 ```mermaid
 flowchart LR
-    user[UserBrowserOrClient] --> dns[DNS]
-    dns --> vip[MetalLBVIP_10_1_1_61]
-    vip --> ingress[IstioIngressGateway]
+    user[用户浏览器或客户端] --> dns[DNS]
+    dns --> vip[MetalLB VIP<br/>10.1.1.62]
+    vip --> ingress[Istio Ingress Gateway]
 
-    ingress --> publicSvc[public_whoami]
+    ingress --> publicSvc[public-whoami]
     ingress --> helloSvc[helloworld]
     ingress --> httpbinSvc[httpbin]
 
     istiod[istiod] --> ingress
-    istiod --> ztunnel[ztunnel_on_each_node]
-    istiod --> waypoint[waypoint_in_mesh_demo]
+    istiod --> ztunnel[各节点 ztunnel]
+    istiod --> waypoint[mesh-demo 中的 waypoint]
 
     ztunnel --> helloSvc
     ztunnel --> httpbinSvc
@@ -99,7 +99,7 @@ flowchart LR
 
 你讲课时可以按这个图先讲 5 句话：
 
-- `MetalLB` 负责把 `10.1.1.61` 这个 VIP 发布出来
+- `MetalLB` 负责把 `10.1.1.62` 这个 VIP 发布出来
 - `Cilium` 继续负责底层网络联通，不被 `Istio` 替换
 - `Istio Ingress Gateway` 是第五章新增的北向增强入口
 - `istiod` 是控制面，负责把配置和策略下发出去
@@ -133,9 +133,9 @@ flowchart LR
 7. `08_manual_tests.md`
 8. `09_verify.md`
 
-## 从第四章快照恢复后的贴贴贴顺序
+## 一把过贴贴贴顺序
 
-在 `ops` 上按下面顺序执行即可：
+从第四章完整完成后的标准起点开始，在 `ops` 上按下面顺序执行即可：
 
 ```bash
 bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/01_prepare_istio_artifacts.sh
@@ -186,22 +186,13 @@ bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/99_bootstrap_chapte
 - `ops` 已提供 `http://ops:9000/`
 - Harbor 仍然保留
 
-## 快照恢复说明
-
-| 节点 | 是否恢复快照 | 说明 |
-| :--- | :--- | :--- |
-| `ops` | **不恢复** | 保留文档、脚本、证书与制品 |
-| `cp01` / `cp02` / `cp03` | 恢复 | 恢复到第四章结束状态 |
-| `wk-app01` / `wk-app02` / `wk-edge01` / `wk-obs01` | 恢复 | 恢复到第四章结束状态 |
-| `harbor` | **不恢复** | Harbor 数据与镜像保留 |
-
 ## 版本冻结
 
 - Kubernetes：`v1.33.9`
 - Istio：`1.29.0`
 - Cilium：保持第二章版本
 - 新入口域名：`secure-app.qytk8s.com`
-- 新入口 VIP：`10.1.1.61`
+- 新入口 VIP：`10.1.1.62`
 - 演示命名空间：`mesh-demo`
 
 ## 关键设计冻结

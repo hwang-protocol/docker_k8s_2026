@@ -42,14 +42,14 @@
 
 ```mermaid
 flowchart LR
-    cilium[Cilium] --> network[PodNetworkAndServiceForward]
-    cilium --> lb[LoadBalancerAndNorthSouthBase]
+    cilium[Cilium] --> network[Pod 网络与 Service 转发]
+    cilium --> lb[基础负载均衡与北向入口底座]
 
-    istio[Istio] --> identity[ServiceIdentity]
-    istio --> security[JWT_mTLS_AuthorizationPolicy]
-    istio --> governance[VirtualService_DestinationRule]
+    istio[Istio] --> identity[服务身份]
+    istio --> security[JWT<br/>mTLS<br/>AuthorizationPolicy]
+    istio --> governance[VirtualService<br/>DestinationRule]
 
-    network --> ingress[IstioIngressGateway]
+    network --> ingress[Istio Ingress Gateway]
     identity --> ztunnel[ztunnel]
     governance --> waypoint[waypoint]
 ```
@@ -87,13 +87,13 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    client[ExternalClient] --> tls[TLS_at_IngressGateway]
-    tls --> jwt[JWT_at_RequestAuthentication]
+    client[外部客户端] --> tls[Ingress Gateway 上的 TLS]
+    tls --> jwt[RequestAuthentication 中的 JWT 识别]
     jwt --> authz[AuthorizationPolicy]
-    authz --> service[BackendService]
+    authz --> service[后端服务]
 
-    serviceA[ServiceA] --> mtls[mTLS_via_ztunnel]
-    mtls --> serviceB[ServiceB]
+    serviceA[服务 A] --> mtls[经 ztunnel 建立的 mTLS]
+    mtls --> serviceB[服务 B]
 ```
 
 这张图要强调的是：
@@ -135,9 +135,9 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    src[ClientWorkload] --> ztunnelSrc[ztunnel_on_source_node]
-    ztunnelSrc --> ztunnelDst[ztunnel_on_target_node]
-    ztunnelDst --> target[TargetWorkload]
+    src[源工作负载] --> ztunnelSrc[源节点 ztunnel]
+    ztunnelSrc --> ztunnelDst[目标节点 ztunnel]
+    ztunnelDst --> target[目标工作负载]
 
     src --> waypoint[waypoint]
     waypoint --> target

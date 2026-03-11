@@ -9,7 +9,7 @@ set -euo pipefail
 
 CHAPTER_DIR="/docker_k8s_2026/k8s/05-security-and-zero-trust"
 DOMAIN="secure-app.qytk8s.com"
-VIP="10.1.1.61"
+VIP="10.1.1.62"
 CA_CERT="/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt"
 USER_TOKEN_FILE="${CHAPTER_DIR}/pki/user.jwt"
 
