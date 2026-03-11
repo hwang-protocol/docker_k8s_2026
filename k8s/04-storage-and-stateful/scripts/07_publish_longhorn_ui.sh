@@ -116,6 +116,42 @@ wait_for_gateway_address() {
   return 1
 }
 
+reconcile_gateway_listeners() {
+  python3 - <<'PY'
+import json
+import subprocess
+import sys
+
+allowed = {"http", "https", "longhorn-http", "longhorn-https"}
+
+raw = subprocess.check_output(
+    ["kubectl", "get", "gateway", "-n", "gateway-demo", "app-gateway", "-o", "json"],
+    text=True,
+)
+obj = json.loads(raw)
+listeners = obj["spec"].get("listeners", [])
+filtered = [item for item in listeners if item.get("name") in allowed]
+
+if len(filtered) == len(listeners):
+    print("Gateway listeners 已符合第四章范围，无需收口")
+    sys.exit(0)
+
+obj["spec"]["listeners"] = filtered
+meta = obj["metadata"]
+for key in ["creationTimestamp", "generation", "resourceVersion", "uid", "managedFields", "annotations"]:
+    meta.pop(key, None)
+obj.pop("status", None)
+
+subprocess.run(
+    ["kubectl", "replace", "-f", "-"],
+    input=json.dumps(obj),
+    text=True,
+    check=True,
+)
+print("已将 app-gateway 收口为第四章所需 listeners: http https longhorn-http longhorn-https")
+PY
+}
+
 main() {
   echo "========================================================="
   echo "开始发布 Longhorn UI"
@@ -137,6 +173,9 @@ main() {
 
   echo "[4/8] 应用 Longhorn UI Gateway/HTTPRoute/ReferenceGrant 清单"
   kubectl apply -f "${MANIFEST_URL}"
+
+  echo "[4.5/8] 收口 app-gateway listeners，确保只保留第四章范围"
+  reconcile_gateway_listeners
 
   echo "[5/8] 处理 Cilium Gateway 与 MetalLB 的 EndpointSlice 兼容标签"
   label_gateway_endpointslice
