@@ -1485,3 +1485,89 @@ BGP 主线冻结为：
 - `VyOS RR + Cilium BGP Control Plane` 具备了控制面演示能力
 
 可以正式进入第三章：南北向流量与入口控制主线。
+
+### 阶段 21：第一章 Harbor 复核与 `06_containerd.md` 教材化精修
+
+#### 1. 目标
+
+完成两项工作：
+
+1. 复核“未恢复 Harbor 快照”场景下 Harbor 是否仍可直接复用
+2. 将第一章第 5 步课件 `06_containerd.md` 精修为正式教材体
+
+#### 2. 实施范围
+
+本阶段涉及：
+
+- Harbor 主机：`harbor`
+- 课件文档：`k8s/01-k8s-architecture/docs/06_containerd.md`
+
+#### 3. Harbor 复核过程
+
+执行了以下检查：
+
+```bash
+ssh root@harbor 'docker ps --format "table {{.Names}}\t{{.Status}}"'
+curl -k -I https://harbor.qytk8s.com
+curl -k https://harbor.qytk8s.com/api/v2.0/health
+ssh root@harbor 'docker ps -a --format "table {{.Names}}\t{{.Status}}"'
+ssh root@harbor 'cd /opt/harbor-install && docker compose up -d'
+curl -k -u 'admin:Harbor12345' https://harbor.qytk8s.com/api/v2.0/projects
+```
+
+#### 4. Harbor 复核结论
+
+确认结果如下：
+
+- `harbor` 主机在线，DNS 正常解析到 `10.1.1.203`
+- 初始状态下 Harbor 主服务未完整运行，仅 `harbor-log` 存活
+- Harbor 安装目录位于 `/opt/harbor-install`
+- 在 `harbor` 节点执行 `docker compose up -d` 后，以下组件恢复正常：
+  - `nginx`
+  - `harbor-core`
+  - `registry`
+  - `registryctl`
+  - `harbor-db`
+  - `redis`
+  - `trivy-adapter`
+  - `harbor-jobservice`
+- `https://harbor.qytk8s.com/api/v2.0/health` 最终返回整体 `healthy`
+- Harbor 中原有项目与镜像仍然保留，包括：
+  - `k8s`
+  - `cilium`
+  - `longhornio`
+  - `istio`
+  - `qytang-netdevops`
+
+#### 5. 对第一章实施策略的影响
+
+本阶段明确了一条重要实施原则：
+
+- “未恢复 Harbor 快照”不等于“Harbor 必然健康可直接跳过”
+- 正确做法应为：先做 Harbor 健康检查，再决定是否跳过 Harbor 安装与基础镜像推送
+
+在本次环境中，结论为：
+
+- `scripts/02_install_harbor_remote.sh` 当前不应重复执行
+- `scripts/03_push_k8s_images_remote.sh` 当前不应重复执行
+- 第一章第 2、3 步应按“先验证、后决定是否执行”处理
+
+#### 6. `06_containerd.md` 精修内容
+
+本阶段已将 `k8s/01-k8s-architecture/docs/06_containerd.md` 重写为正式教材体，补齐了以下内容：
+
+- 执行标记
+- 问题背景
+- `containerd`、`kubelet`、`CRI`、`pause sandbox` 的理论说明
+- `SystemdCgroup = true` 的原因
+- 组件关系图与步骤关系图
+- 脚本主线拆解
+- 验证方法、预期结果与通过标准
+
+#### 7. 当前结论
+
+本阶段完成后：
+
+- Harbor 已恢复到可复用状态
+- 第一章第 2、3 步后续应以“健康检查 + 条件执行”为准
+- 第一章第 5 步课件已达到更完整的教材体标准
