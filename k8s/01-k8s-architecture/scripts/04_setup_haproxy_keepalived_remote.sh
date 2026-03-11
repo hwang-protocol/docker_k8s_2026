@@ -8,191 +8,68 @@ set -euo pipefail
 # ==============================================================================
 
 VIP="10.1.1.10"
-INTERFACE_NAME="ens160"
-VRRP_ID="51"
-AUTH_PASS="K8S2026"
+BASE_DIR="/docker_k8s_2026/k8s/01-k8s-architecture"
+CONFIGS_DIR="${BASE_DIR}/configs/loadbalancer"
+HAPROXY_CFG="${CONFIGS_DIR}/haproxy.cfg"
+CHECK_SCRIPT="${CONFIGS_DIR}/check_haproxy.sh"
+KEEPALIVED_LB01="${CONFIGS_DIR}/keepalived-lb01.conf"
+KEEPALIVED_LB02="${CONFIGS_DIR}/keepalived-lb02.conf"
 
-configure_lb01() {
-  ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@lb01 "bash -s" <<EOF
+require_local_files() {
+  local file
+  for file in \
+    "${HAPROXY_CFG}" \
+    "${CHECK_SCRIPT}" \
+    "${KEEPALIVED_LB01}" \
+    "${KEEPALIVED_LB02}"; do
+    if [[ ! -f "${file}" ]]; then
+      echo "ERROR: 缺少配置文件: ${file}"
+      exit 1
+    fi
+  done
+}
+
+install_packages() {
+  local node="$1"
+  ssh -o BatchMode=yes -o StrictHostKeyChecking=no "root@${node}" "bash -s" <<'EOF'
 set -euo pipefail
-
 export DEBIAN_FRONTEND=noninteractive
-
-echo "[lb01 1/5] 安装 haproxy 和 keepalived"
 apt-get update -y
 apt-get install -y haproxy keepalived
-
-echo "[lb01 2/5] 写入 haproxy.cfg"
-cat >/etc/haproxy/haproxy.cfg <<'INNER'
-global
-    log /dev/log local0
-    log /dev/log local1 notice
-    daemon
-
-defaults
-    log global
-    mode tcp
-    option tcplog
-    timeout connect 10s
-    timeout client  1m
-    timeout server  1m
-
-frontend k8s_api_frontend
-    bind *:6443
-    default_backend k8s_api_backend
-
-backend k8s_api_backend
-    balance roundrobin
-    option tcp-check
-    server cp01 cp01:6443 check
-    server cp02 cp02:6443 check
-    server cp03 cp03:6443 check
-INNER
-
-echo "[lb01 3/5] 写入健康检查脚本"
-cat >/etc/keepalived/check_haproxy.sh <<'INNER'
-#!/usr/bin/env bash
-systemctl is-active --quiet haproxy
-INNER
-chmod +x /etc/keepalived/check_haproxy.sh
-
-echo "[lb01 4/5] 写入 keepalived.conf"
-cat >/etc/keepalived/keepalived.conf <<INNER
-global_defs {
-   router_id LB01
-}
-
-vrrp_script chk_haproxy {
-   script "/etc/keepalived/check_haproxy.sh"
-   interval 2
-   weight 10
-}
-
-vrrp_instance VI_K8S_API {
-    state MASTER
-    interface ${INTERFACE_NAME}
-    virtual_router_id ${VRRP_ID}
-    priority 200
-    advert_int 1
-
-    authentication {
-        auth_type PASS
-        auth_pass ${AUTH_PASS}
-    }
-
-    unicast_src_ip 10.1.1.11
-    unicast_peer {
-        10.1.1.12
-    }
-
-    virtual_ipaddress {
-        ${VIP}/24 dev ${INTERFACE_NAME}
-    }
-
-    track_script {
-        chk_haproxy
-    }
-}
-INNER
-
-echo "[lb01 5/5] 启动 haproxy 和 keepalived"
-systemctl enable --now haproxy
-systemctl enable --now keepalived
-systemctl restart haproxy keepalived
-
-systemctl is-active haproxy
-systemctl is-active keepalived
+mkdir -p /etc/haproxy /etc/keepalived
 EOF
 }
 
-configure_lb02() {
-  ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@lb02 "bash -s" <<EOF
+push_file() {
+  local node="$1"
+  local local_path="$2"
+  local remote_path="$3"
+  ssh -o BatchMode=yes -o StrictHostKeyChecking=no "root@${node}" "cat > ${remote_path}" < "${local_path}"
+}
+
+configure_node() {
+  local node="$1"
+  local keepalived_conf="$2"
+
+  echo "[${node} 1/5] 安装 haproxy 和 keepalived"
+  install_packages "${node}"
+
+  echo "[${node} 2/5] 下发 haproxy.cfg"
+  push_file "${node}" "${HAPROXY_CFG}" "/etc/haproxy/haproxy.cfg"
+
+  echo "[${node} 3/5] 下发健康检查脚本"
+  push_file "${node}" "${CHECK_SCRIPT}" "/etc/keepalived/check_haproxy.sh"
+  ssh -o BatchMode=yes -o StrictHostKeyChecking=no "root@${node}" "chmod +x /etc/keepalived/check_haproxy.sh"
+
+  echo "[${node} 4/5] 下发 keepalived.conf"
+  push_file "${node}" "${keepalived_conf}" "/etc/keepalived/keepalived.conf"
+
+  echo "[${node} 5/5] 启动 haproxy 和 keepalived"
+  ssh -o BatchMode=yes -o StrictHostKeyChecking=no "root@${node}" "bash -s" <<'EOF'
 set -euo pipefail
-
-export DEBIAN_FRONTEND=noninteractive
-
-echo "[lb02 1/5] 安装 haproxy 和 keepalived"
-apt-get update -y
-apt-get install -y haproxy keepalived
-
-echo "[lb02 2/5] 写入 haproxy.cfg"
-cat >/etc/haproxy/haproxy.cfg <<'INNER'
-global
-    log /dev/log local0
-    log /dev/log local1 notice
-    daemon
-
-defaults
-    log global
-    mode tcp
-    option tcplog
-    timeout connect 10s
-    timeout client  1m
-    timeout server  1m
-
-frontend k8s_api_frontend
-    bind *:6443
-    default_backend k8s_api_backend
-
-backend k8s_api_backend
-    balance roundrobin
-    option tcp-check
-    server cp01 cp01:6443 check
-    server cp02 cp02:6443 check
-    server cp03 cp03:6443 check
-INNER
-
-echo "[lb02 3/5] 写入健康检查脚本"
-cat >/etc/keepalived/check_haproxy.sh <<'INNER'
-#!/usr/bin/env bash
-systemctl is-active --quiet haproxy
-INNER
-chmod +x /etc/keepalived/check_haproxy.sh
-
-echo "[lb02 4/5] 写入 keepalived.conf"
-cat >/etc/keepalived/keepalived.conf <<INNER
-global_defs {
-   router_id LB02
-}
-
-vrrp_script chk_haproxy {
-   script "/etc/keepalived/check_haproxy.sh"
-   interval 2
-   weight 10
-}
-
-vrrp_instance VI_K8S_API {
-    state BACKUP
-    interface ${INTERFACE_NAME}
-    virtual_router_id ${VRRP_ID}
-    priority 150
-    advert_int 1
-
-    authentication {
-        auth_type PASS
-        auth_pass ${AUTH_PASS}
-    }
-
-    unicast_src_ip 10.1.1.12
-    unicast_peer {
-        10.1.1.11
-    }
-
-    virtual_ipaddress {
-        ${VIP}/24 dev ${INTERFACE_NAME}
-    }
-
-    track_script {
-        chk_haproxy
-    }
-}
-INNER
-
-echo "[lb02 5/5] 启动 haproxy 和 keepalived"
 systemctl enable --now haproxy
 systemctl enable --now keepalived
 systemctl restart haproxy keepalived
-
 systemctl is-active haproxy
 systemctl is-active keepalived
 EOF
@@ -205,11 +82,13 @@ main() {
   echo "域名：api.qytk8s.com"
   echo "========================================================="
 
+  require_local_files
+
   echo "[1/2] 配置 lb01"
-  configure_lb01
+  configure_node "lb01" "${KEEPALIVED_LB01}"
 
   echo "[2/2] 配置 lb02"
-  configure_lb02
+  configure_node "lb02" "${KEEPALIVED_LB02}"
 
   echo "OK: HAProxy + Keepalived 部署完成"
 }

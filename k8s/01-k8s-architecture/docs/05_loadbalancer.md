@@ -79,13 +79,172 @@
 
 - `k8s/01-k8s-architecture/scripts/04_setup_haproxy_keepalived_remote.sh`
 
+本步还会直接使用下面这些原始配置文件：
+
+- `k8s/01-k8s-architecture/configs/loadbalancer/haproxy.cfg`
+- `k8s/01-k8s-architecture/configs/loadbalancer/keepalived-lb01.conf`
+- `k8s/01-k8s-architecture/configs/loadbalancer/keepalived-lb02.conf`
+- `k8s/01-k8s-architecture/configs/loadbalancer/check_haproxy.sh`
+
 这个脚本会做下面几件事：
 
 1. 在 `lb01`、`lb02` 安装 `haproxy` 和 `keepalived`
-2. 写入 `haproxy.cfg`
-3. 写入 `keepalived.conf`
-4. 写入健康检查脚本
-5. 启动并设置服务开机自启
+2. 读取 Git 项目中的原始配置文件
+3. 把 `haproxy.cfg`、`keepalived.conf` 和健康检查脚本下发到远端
+4. 启动并设置服务开机自启
+
+## 脚本内部在做什么
+
+下面对脚本内部关键动作进行拆解说明。
+
+现在的结构已经调整为：
+
+- 配置文件单独放在 Git 项目里
+- 脚本本身只负责安装、读取本地文件、下发到远端、启动服务
+- 原始配置与自动化脚本的职责边界更加清晰
+
+## 脚本执行主线
+
+如果把 `04_setup_haproxy_keepalived_remote.sh` 当成一个“自动化编排器”，它的主线其实非常清晰：
+
+1. 先检查本地原始配置文件是否齐全
+2. 先配置 `lb01`
+3. 再配置 `lb02`
+4. 每台机器都按同样顺序执行：
+   - 安装软件
+   - 下发 `haproxy.cfg`
+   - 下发 `check_haproxy.sh`
+   - 下发 `keepalived.conf`
+   - 启动服务并检查状态
+
+也就是说，这个脚本已经不再承担“定义配置内容”的责任，而是只承担“把 Git 中的标准配置落到远端节点并启动”的责任。
+
+## 先看脚本的核心函数
+
+### `require_local_files()`
+
+这一段会先检查下面 4 个文件是否都已经存在：
+
+```bash
+for file in \
+  "${HAPROXY_CFG}" \
+  "${CHECK_SCRIPT}" \
+  "${KEEPALIVED_LB01}" \
+  "${KEEPALIVED_LB02}"; do
+  if [[ ! -f "${file}" ]]; then
+    echo "ERROR: 缺少配置文件: ${file}"
+    exit 1
+  fi
+done
+```
+
+它的意义是：
+
+- 如果 Git 项目里的配置文件不完整，脚本直接退出
+- 不会出现“远端装了软件，但配置只下发了一半”的半成品状态
+
+### `install_packages()`
+
+这段函数会通过 SSH 在目标节点上执行真正的安装命令：
+
+```bash
+ssh -o BatchMode=yes -o StrictHostKeyChecking=no "root@${node}" "bash -s" <<'EOF'
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y haproxy keepalived
+mkdir -p /etc/haproxy /etc/keepalived
+EOF
+```
+
+这里需要重点理解两点：
+
+- 安装动作是在远端 `lb01/lb02` 上完成的，不是在 `ops` 本机
+- 除了安装软件，还会提前创建 `/etc/haproxy` 和 `/etc/keepalived`
+
+### `push_file()`
+
+这一段是整个重构后的关键：
+
+```bash
+ssh -o BatchMode=yes -o StrictHostKeyChecking=no "root@${node}" "cat > ${remote_path}" < "${local_path}"
+```
+
+它的含义是：
+
+- 左边 `< "${local_path}"`：从 `ops` 本地读取 Git 中的原始配置文件
+- 右边 `"cat > ${remote_path}"`：把文件内容直接写入远端目标路径
+
+这就是当前采用的结构：
+
+- 原始配置文件保存在 Git 项目中
+- 脚本只负责读取并下发
+- 不再把配置本体埋在 heredoc 里
+
+### `configure_node()`
+
+这段函数把单台机器的处理流程固定为 5 步：
+
+```bash
+echo "[${node} 1/5] 安装 haproxy 和 keepalived"
+install_packages "${node}"
+
+echo "[${node} 2/5] 下发 haproxy.cfg"
+push_file "${node}" "${HAPROXY_CFG}" "/etc/haproxy/haproxy.cfg"
+
+echo "[${node} 3/5] 下发健康检查脚本"
+push_file "${node}" "${CHECK_SCRIPT}" "/etc/keepalived/check_haproxy.sh"
+ssh -o BatchMode=yes -o StrictHostKeyChecking=no "root@${node}" "chmod +x /etc/keepalived/check_haproxy.sh"
+
+echo "[${node} 4/5] 下发 keepalived.conf"
+push_file "${node}" "${keepalived_conf}" "/etc/keepalived/keepalived.conf"
+
+echo "[${node} 5/5] 启动 haproxy 和 keepalived"
+```
+
+这一段把单台机器的处理顺序固定了下来：
+
+- 第一步解决“软件是否存在”
+- 第二步和第三步解决“配置是否下发”
+- 第四步解决“主备配置是否分别落到正确节点”
+- 第五步解决“服务是否立即生效”
+
+### `main()`
+
+入口函数其实只做三件事：
+
+```bash
+require_local_files
+configure_node "lb01" "${KEEPALIVED_LB01}"
+configure_node "lb02" "${KEEPALIVED_LB02}"
+```
+
+也就是说，这个脚本已经变成了一个非常标准的“配置编排器”。
+
+## 按 `lb01` 展开后，实际执行命令长什么样
+
+如果把 `configure_node "lb01" "${KEEPALIVED_LB01}"` 展开看，它最终做的事情可以近似理解为下面这组动作：
+
+```bash
+ssh root@lb01 "apt-get update -y && apt-get install -y haproxy keepalived && mkdir -p /etc/haproxy /etc/keepalived"
+
+ssh root@lb01 "cat > /etc/haproxy/haproxy.cfg" < /docker_k8s_2026/k8s/01-k8s-architecture/configs/loadbalancer/haproxy.cfg
+
+ssh root@lb01 "cat > /etc/keepalived/check_haproxy.sh" < /docker_k8s_2026/k8s/01-k8s-architecture/configs/loadbalancer/check_haproxy.sh
+ssh root@lb01 "chmod +x /etc/keepalived/check_haproxy.sh"
+
+ssh root@lb01 "cat > /etc/keepalived/keepalived.conf" < /docker_k8s_2026/k8s/01-k8s-architecture/configs/loadbalancer/keepalived-lb01.conf
+
+ssh root@lb01 "systemctl enable --now haproxy keepalived && systemctl restart haproxy keepalived && systemctl is-active haproxy keepalived"
+```
+
+`lb02` 与此完全同构，只是最后一份配置文件会换成：
+
+```text
+configs/loadbalancer/keepalived-lb02.conf
+```
+
+这一段说明脚本的本质是对一组明确系统命令的顺序编排。
 
 ## 执行命令
 
@@ -159,6 +318,95 @@ ssh root@lb01 "cat /etc/keepalived/keepalived.conf"
 
 - `HAProxy` 后端包含 `cp01`、`cp02`、`cp03`
 - `Keepalived` 已配置 VIP `10.1.1.10`
+
+## 配置文件关键内容解读
+
+配置文件的关键内容如下。
+
+### `haproxy.cfg` 重点看哪里
+
+这个文件现在可以直接在 Git 项目里查看：
+
+- `k8s/01-k8s-architecture/configs/loadbalancer/haproxy.cfg`
+
+```text
+defaults
+    mode tcp
+
+frontend k8s_api_frontend
+    bind *:6443
+    default_backend k8s_api_backend
+
+backend k8s_api_backend
+    balance roundrobin
+    option tcp-check
+    server cp01 cp01:6443 check
+    server cp02 cp02:6443 check
+    server cp03 cp03:6443 check
+```
+
+这几行足够说明核心思想：
+
+- `mode tcp`：这里不是七层 HTTP 代理，而是四层 TCP 转发
+- `bind *:6443`：对外暴露 Kubernetes API 入口
+- `default_backend k8s_api_backend`：入口收到流量后，统一打到控制平面后端池
+- `cp01/cp02/cp03`：三控制平面都已经纳入负载均衡池
+
+### `keepalived.conf` 重点看哪里
+
+这两个文件现在也都在 Git 项目里可直接查看：
+
+- `k8s/01-k8s-architecture/configs/loadbalancer/keepalived-lb01.conf`
+- `k8s/01-k8s-architecture/configs/loadbalancer/keepalived-lb02.conf`
+
+```text
+vrrp_instance VI_K8S_API {
+    state MASTER
+    interface ens160
+    virtual_router_id 51
+    priority 200
+
+    authentication {
+        auth_type PASS
+        auth_pass K8S2026
+    }
+
+    virtual_ipaddress {
+        10.1.1.10/24 dev ens160
+    }
+
+    track_script {
+        chk_haproxy
+    }
+}
+```
+
+这几行的关键含义如下：
+
+- `state MASTER/BACKUP`：定义主备角色
+- `priority`：决定谁优先持有 VIP
+- `virtual_ipaddress`：真正漂移的是 `10.1.1.10`
+- `track_script`：VIP 是否继续保留，要看 `haproxy` 是否健康
+
+### `check_haproxy.sh` 为什么必须有
+
+这个文件现在也已经单独保存在 Git 项目中：
+
+- `k8s/01-k8s-architecture/configs/loadbalancer/check_haproxy.sh`
+
+```bash
+#!/usr/bin/env bash
+systemctl is-active --quiet haproxy
+```
+
+如果没有这段检查，可能会出现一种危险情况：
+
+- `Keepalived` 进程还活着
+- 但 `HAProxy` 已经挂了
+- VIP 仍然留在故障节点
+- 最终导致 `api.qytk8s.com:6443` 表面可达，实际无法转发
+
+所以这段脚本虽然很短，但它是 VIP 故障切换逻辑的关键一环。
 
 ## 本步完成标准
 

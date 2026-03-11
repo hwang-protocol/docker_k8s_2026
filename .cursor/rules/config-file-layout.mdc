@@ -1,0 +1,12 @@
+---
+description: 原始配置文件与脚本分离规范
+alwaysApply: true
+---
+
+# Config File Layout
+
+- 原始配置文件必须独立保存在 Git 项目中，优先放在对应章节的 `configs/` 目录下。
+- `haproxy.cfg`、`keepalived.conf`、`*.service`、`*.conf`、`*.sh` 这类需要下发到远端的原始配置，不要内嵌在脚本 heredoc 中。
+- 自动化脚本应只负责：安装软件、读取本地配置文件、下发到远端、设置权限、启动服务。
+- `artifacts/` 更适合放生成产物、导出文件、dashboard JSON、provisioning 素材，不适合放教学主线中的原始配置文件。
+- 如果配置文件属于 Kubernetes YAML，继续放在 `manifests/`；如果是非 YAML 的原始服务配置，优先放在 `configs/`。
