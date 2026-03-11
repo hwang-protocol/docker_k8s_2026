@@ -9,6 +9,7 @@ set -euo pipefail
 
 CHAPTER_DIR="/docker_k8s_2026/k8s/04-storage-and-stateful"
 PKI_DIR="${CHAPTER_DIR}/pki"
+LISTENERS_FILE="${CHAPTER_DIR}/manifests/20_gateway_longhorn_listeners.json"
 MANIFEST_URL="http://ops:9000/04-storage-and-stateful/manifests/21_gateway_longhorn_ui.yaml"
 
 DOMAIN="longhorn.qytk8s.com"
@@ -116,13 +117,16 @@ wait_for_gateway_address() {
   return 1
 }
 
-reconcile_gateway_listeners() {
-  python3 - <<'PY'
+upsert_gateway_listeners() {
+  python3 - "${LISTENERS_FILE}" <<'PY'
 import json
 import subprocess
 import sys
 
-allowed = {"http", "https", "longhorn-http", "longhorn-https"}
+listeners_path = sys.argv[1]
+with open(listeners_path, "r", encoding="utf-8") as fh:
+    desired = json.load(fh)
+desired_by_name = {item["name"]: item for item in desired}
 
 raw = subprocess.check_output(
     ["kubectl", "get", "gateway", "-n", "gateway-demo", "app-gateway", "-o", "json"],
@@ -130,15 +134,28 @@ raw = subprocess.check_output(
 )
 obj = json.loads(raw)
 listeners = obj["spec"].get("listeners", [])
-filtered = [item for item in listeners if item.get("name") in allowed]
+new_listeners = []
+seen = set()
 
-if len(filtered) == len(listeners):
-    print("Gateway listeners 已符合第四章范围，无需收口")
+for item in listeners:
+    name = item.get("name")
+    if name in desired_by_name:
+        new_listeners.append(desired_by_name[name])
+        seen.add(name)
+    else:
+        new_listeners.append(item)
+
+for item in desired:
+    if item["name"] not in seen:
+        new_listeners.append(item)
+
+if listeners == new_listeners:
+    print("Longhorn listeners 已存在，无需更新 app-gateway")
     sys.exit(0)
 
-obj["spec"]["listeners"] = filtered
+obj["spec"]["listeners"] = new_listeners
 meta = obj["metadata"]
-for key in ["creationTimestamp", "generation", "resourceVersion", "uid", "managedFields", "annotations"]:
+for key in ["creationTimestamp", "generation", "resourceVersion", "uid", "managedFields"]:
     meta.pop(key, None)
 obj.pop("status", None)
 
@@ -148,7 +165,7 @@ subprocess.run(
     text=True,
     check=True,
 )
-print("已将 app-gateway 收口为第四章所需 listeners: http https longhorn-http longhorn-https")
+print("已将 Longhorn listeners 增量注入 app-gateway，现有其他 listeners 保持不变")
 PY
 }
 
@@ -159,35 +176,35 @@ main() {
   echo "VIP：${VIP}"
   echo "========================================================="
 
-  echo "[0/8] 集群连通性检查与恢复"
+  echo "[0/9] 集群连通性检查与恢复"
   bash "${CHAPTER_DIR}/scripts/00_check_and_recover_cluster.sh"
 
-  echo "[1/8] 准备本地 PKI 目录"
+  echo "[1/9] 准备本地 PKI 目录"
   prepare_local_dirs
 
-  echo "[2/8] 使用 Harbor CA 签发 Longhorn UI 证书"
+  echo "[2/9] 使用 Harbor CA 签发 Longhorn UI 证书"
   generate_server_cert
 
-  echo "[3/8] 创建/更新 Kubernetes TLS Secret"
+  echo "[3/9] 创建/更新 Kubernetes TLS Secret"
   create_tls_secret
 
-  echo "[4/8] 应用 Longhorn UI Gateway/HTTPRoute/ReferenceGrant 清单"
+  echo "[4/9] 将 Longhorn listeners 增量注入 app-gateway"
+  upsert_gateway_listeners
+
+  echo "[5/9] 应用 Longhorn UI HTTPRoute/ReferenceGrant 清单"
   kubectl apply -f "${MANIFEST_URL}"
 
-  echo "[4.5/8] 收口 app-gateway listeners，确保只保留第四章范围"
-  reconcile_gateway_listeners
-
-  echo "[5/8] 处理 Cilium Gateway 与 MetalLB 的 EndpointSlice 兼容标签"
+  echo "[6/9] 处理 Cilium Gateway 与 MetalLB 的 EndpointSlice 兼容标签"
   label_gateway_endpointslice
 
-  echo "[6/8] 等待 Gateway 获取 MetalLB VIP"
+  echo "[7/9] 等待 Gateway 获取 MetalLB VIP"
   wait_for_gateway_address
 
-  echo "[7/8] 查看网关与路由状态"
+  echo "[8/9] 查看网关与路由状态"
   kubectl get gateway,httproute -n gateway-demo
   kubectl -n longhorn-system get referencegrant
 
-  echo "[8/8] 本机验证 Longhorn UI 的 HTTP 跳转与 HTTPS 页面"
+  echo "[9/9] 本机验证 Longhorn UI 的 HTTP 跳转与 HTTPS 页面"
   curl -I --resolve "${DOMAIN}:80:${VIP}" "http://${DOMAIN}/"
   curl --resolve "${DOMAIN}:443:${VIP}" --cacert "${CA_CERT}" -I "https://${DOMAIN}/"
 

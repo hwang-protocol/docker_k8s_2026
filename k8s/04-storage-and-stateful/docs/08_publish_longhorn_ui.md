@@ -88,11 +88,18 @@ flowchart LR
 
 本步会使用下面这份清单：
 
+- `manifests/20_gateway_longhorn_listeners.json`
 - `manifests/21_gateway_longhorn_ui.yaml`
 
-这份清单里除了 Longhorn 相关对象，还预留了后续章节会扩展的其他监听与路由。
+这一步现在分成两部分：
 
-但第四章这一页只需要关注下面这些 Longhorn 相关内容。
+- `20_gateway_longhorn_listeners.json`
+  - 只定义 Longhorn 自己的两个 listener
+  - 由脚本增量注入现有 `app-gateway`
+- `21_gateway_longhorn_ui.yaml`
+  - 只定义 Longhorn 自己的 `HTTPRoute` 与 `ReferenceGrant`
+
+这样做的目的，是避免第四章在后续章节里重新执行时，误覆盖未来新增的 `netdevops`、`grafana`、`jaeger` 等 listener。
 
 #### `Gateway` 中的 Longhorn 监听
 
@@ -165,6 +172,7 @@ spec:
 
 本步会直接消费：
 
+- `manifests/20_gateway_longhorn_listeners.json`
 - `manifests/21_gateway_longhorn_ui.yaml`
 
 ## 脚本关键任务
@@ -184,7 +192,21 @@ SECRET_NAMESPACE="gateway-demo"
 - Longhorn UI 使用独立域名与独立证书
 - Secret 创建在 `gateway-demo`，供现有 `app-gateway` 引用
 
-### 关键任务 2：应用 Longhorn UI 清单
+### 关键任务 2：把 Longhorn listener 增量注入现有 `app-gateway`
+
+脚本原始代码：
+
+```bash
+python3 - "${LISTENERS_FILE}" <<'PY'
+```
+
+关键介绍：
+
+- 这里读取的是 `manifests/20_gateway_longhorn_listeners.json`
+- 脚本只会补齐或更新 `longhorn-http`、`longhorn-https`
+- 已存在的其他 listener 会保留，不会被第四章脚本覆盖
+
+### 关键任务 3：应用 Longhorn UI 清单
 
 脚本原始代码：
 
@@ -197,7 +219,7 @@ kubectl apply -f "${MANIFEST_URL}"
 - 这里应用的就是 `manifests/21_gateway_longhorn_ui.yaml`
 - Longhorn 相关的 `HTTPRoute` 和 `ReferenceGrant` 都在这份清单里
 
-### 关键任务 3：检查并修正 `EndpointSlice` 标签
+### 关键任务 4：检查并修正 `EndpointSlice` 标签
 
 脚本原始代码：
 
