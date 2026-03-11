@@ -124,7 +124,20 @@ OK: Kubernetes 核心镜像已推送到 Harbor
 ### 验证 1：查看 Harbor 项目列表
 
 ```bash
-curl -k -u 'admin:Harbor12345' https://harbor.qytk8s.com/api/v2.0/projects
+curl -k -u 'admin:Harbor12345' https://harbor.qytk8s.com/api/v2.0/projects | python3 -c '
+import json
+import sys
+
+projects = json.load(sys.stdin)
+print("NAME\tPUBLIC\tREPO_COUNT")
+for item in projects:
+    public_flag = item.get("metadata", {}).get("public", "-")
+    print("{}\t{}\t{}".format(
+        item.get("name", "-"),
+        public_flag,
+        item.get("repo_count", "-")
+    ))
+'
 ```
 
 预期：
@@ -132,10 +145,37 @@ curl -k -u 'admin:Harbor12345' https://harbor.qytk8s.com/api/v2.0/projects
 - 可以看到 `k8s` 项目
 - `k8s` 项目应为公开项目（public）
 
+课堂展示时，如果输出类似下面这样，就非常容易看：
+
+```text
+NAME               PUBLIC   REPO_COUNT
+cilium             true     8
+istio              true     8
+k8s                true     7
+library            true     0
+longhornio         true     13
+northsouth         true     3
+qytang-netdevops   true     4
+storage            true     1
+```
+
 ### 验证 2：查看 `k8s` 项目的仓库列表
 
 ```bash
-curl -k -u 'admin:Harbor12345' "https://harbor.qytk8s.com/api/v2.0/projects/k8s/repositories?page=1&page_size=20"
+curl -k -u 'admin:Harbor12345' "https://harbor.qytk8s.com/api/v2.0/projects/k8s/repositories?page=1&page_size=20" | python3 -c '
+import json
+import sys
+
+repos = json.load(sys.stdin)
+print("NAME\tARTIFACTS\tPULLS\tUPDATED")
+for item in repos:
+    print("{}\t{}\t{}\t{}".format(
+        item.get("name", "-"),
+        item.get("artifact_count", "-"),
+        item.get("pull_count", "-"),
+        item.get("update_time", "-")
+    ))
+'
 ```
 
 预期：
@@ -147,6 +187,19 @@ curl -k -u 'admin:Harbor12345' "https://harbor.qytk8s.com/api/v2.0/projects/k8s/
 - 可以看到 `pause`
 - 可以看到 `etcd`
 - 可以看到 `coredns`
+
+课堂展示时，建议重点看 `NAME` 列，确认 7 个核心镜像都已经进入 Harbor：
+
+```text
+NAME                             ARTIFACTS   PULLS   UPDATED
+k8s/coredns                      1           10      2026-03-09T07:47:08.652Z
+k8s/etcd                         1           9       2026-03-09T06:22:18.692Z
+k8s/pause                        1           21      2026-03-09T06:23:58.801Z
+k8s/kube-proxy                   1           21      2026-03-09T06:23:58.803Z
+k8s/kube-scheduler               1           9       2026-03-09T06:22:08.647Z
+k8s/kube-controller-manager      1           9       2026-03-09T06:21:58.645Z
+k8s/kube-apiserver               1           9       2026-03-09T06:21:58.639Z
+```
 
 ### 验证 3：查看 `harbor` 节点本地镜像
 
