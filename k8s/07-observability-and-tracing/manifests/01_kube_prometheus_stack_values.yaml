@@ -1,0 +1,56 @@
+grafana:
+  adminPassword: Cisc0123
+  defaultDashboardsEnabled: true
+  service:
+    type: ClusterIP
+  persistence:
+    enabled: true
+    storageClassName: longhorn
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+  nodeSelector:
+    node-role: observability
+  grafana.ini:
+    users:
+      default_theme: dark
+    auth:
+      disable_login_form: false
+    auth.anonymous:
+      enabled: false
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL
+      provider:
+        foldersFromFilesStructure: true
+
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: longhorn
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 20Gi
+    nodeSelector:
+      node-role: observability
+
+alertmanager:
+  enabled: false
+
+kubeStateMetrics:
+  nodeSelector:
+    node-role: observability
+
+prometheusOperator:
+  nodeSelector:
+    node-role: observability

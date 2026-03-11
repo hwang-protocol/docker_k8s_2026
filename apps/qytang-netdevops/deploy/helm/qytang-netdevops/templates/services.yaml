@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: frontend
   namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: qytang-netdevops
 spec:
   type: {{ .Values.frontend.service.type }}
   selector:
@@ -17,6 +20,9 @@ kind: Service
 metadata:
   name: device-service
   namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: device-service
+    app.kubernetes.io/part-of: qytang-netdevops
 spec:
   selector:
     app: device-service
@@ -30,6 +36,9 @@ kind: Service
 metadata:
   name: resource-service
   namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: resource-service
+    app.kubernetes.io/part-of: qytang-netdevops
 spec:
   selector:
     app: resource-service
@@ -43,6 +52,9 @@ kind: Service
 metadata:
   name: audit-service
   namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: audit-service
+    app.kubernetes.io/part-of: qytang-netdevops
 spec:
   selector:
     app: audit-service

@@ -7,6 +7,8 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY . /app
 
+ENV PYTHONPATH=/app
+
 EXPOSE 8080
 
 CMD ["python", "frontend/server.py"]

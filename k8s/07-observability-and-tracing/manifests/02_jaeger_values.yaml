@@ -1,0 +1,65 @@
+uiconfig:
+  dependencies:
+    menuEnabled: true
+    dagMaxNumServices: 200
+  monitor:
+    menuEnabled: true
+  themes:
+    enabled: true
+  criticalPathEnabled: true
+  topTagPrefixes:
+    - http.
+    - db.
+    - peer.
+
+jaeger:
+  replicas: 1
+  nodeSelector:
+    node-role: observability
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      memory: 1Gi
+
+config:
+  service:
+    extensions:
+      - jaeger_storage
+      - jaeger_query
+      - healthcheckv2
+    pipelines:
+      traces:
+        receivers:
+          - otlp
+        processors:
+          - batch
+        exporters:
+          - jaeger_storage_exporter
+  extensions:
+    healthcheckv2:
+      use_v2: true
+      http:
+        endpoint: 0.0.0.0:13133
+    jaeger_query:
+      storage:
+        traces: primary_store
+      ui:
+        config_file: /etc/jaeger/ui-config.json
+    jaeger_storage:
+      backends:
+        primary_store:
+          memory: {}
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+  processors:
+    batch: {}
+  exporters:
+    jaeger_storage_exporter:
+      trace_storage: primary_store

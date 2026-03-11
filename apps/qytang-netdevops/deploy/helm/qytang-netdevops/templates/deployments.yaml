@@ -3,6 +3,9 @@ kind: Deployment
 metadata:
   name: frontend
   namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: qytang-netdevops
 spec:
   replicas: {{ .Values.frontend.replicaCount }}
   selector:
@@ -12,6 +15,8 @@ spec:
     metadata:
       labels:
         app: frontend
+        app.kubernetes.io/name: frontend
+        app.kubernetes.io/part-of: qytang-netdevops
     spec:
       containers:
         - name: frontend
@@ -28,6 +33,10 @@ spec:
               value: "0.0.0.0"
             - name: QYTANG_FRONTEND_PORT
               value: "8080"
+            - name: QYTANG_OTEL_ENDPOINT
+              value: {{ .Values.observability.otel.endpoint | quote }}
+            - name: QYTANG_DEPLOYMENT_ENV
+              value: {{ .Values.observability.environment | quote }}
           ports:
             - containerPort: 8080
 ---
@@ -36,6 +45,9 @@ kind: Deployment
 metadata:
   name: device-service
   namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: device-service
+    app.kubernetes.io/part-of: qytang-netdevops
 spec:
   replicas: {{ .Values.deviceService.replicaCount }}
   selector:
@@ -45,6 +57,8 @@ spec:
     metadata:
       labels:
         app: device-service
+        app.kubernetes.io/name: device-service
+        app.kubernetes.io/part-of: qytang-netdevops
     spec:
       containers:
         - name: device-service
@@ -61,6 +75,10 @@ spec:
               value: http://audit-service:8003
             - name: QYTANG_AUTO_SEED
               value: "true"
+            - name: QYTANG_OTEL_ENDPOINT
+              value: {{ .Values.observability.otel.endpoint | quote }}
+            - name: QYTANG_DEPLOYMENT_ENV
+              value: {{ .Values.observability.environment | quote }}
           ports:
             - containerPort: 8001
 ---
@@ -69,6 +87,9 @@ kind: Deployment
 metadata:
   name: resource-service
   namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: resource-service
+    app.kubernetes.io/part-of: qytang-netdevops
 spec:
   replicas: {{ .Values.resourceService.replicaCount }}
   selector:
@@ -78,6 +99,8 @@ spec:
     metadata:
       labels:
         app: resource-service
+        app.kubernetes.io/name: resource-service
+        app.kubernetes.io/part-of: qytang-netdevops
     spec:
       containers:
         - name: resource-service
@@ -88,6 +111,10 @@ spec:
               value: /app
             - name: QYTANG_NETDEVOPS_DB_URL
               value: postgresql+psycopg://{{ .Values.postgres.username }}:{{ .Values.postgres.password }}@postgres:5432/{{ .Values.postgres.database }}
+            - name: QYTANG_OTEL_ENDPOINT
+              value: {{ .Values.observability.otel.endpoint | quote }}
+            - name: QYTANG_DEPLOYMENT_ENV
+              value: {{ .Values.observability.environment | quote }}
           ports:
             - containerPort: 8002
 ---
@@ -96,6 +123,9 @@ kind: Deployment
 metadata:
   name: audit-service
   namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: audit-service
+    app.kubernetes.io/part-of: qytang-netdevops
 spec:
   replicas: {{ .Values.auditService.replicaCount }}
   selector:
@@ -105,6 +135,8 @@ spec:
     metadata:
       labels:
         app: audit-service
+        app.kubernetes.io/name: audit-service
+        app.kubernetes.io/part-of: qytang-netdevops
     spec:
       containers:
         - name: audit-service
@@ -115,5 +147,9 @@ spec:
               value: /app
             - name: QYTANG_NETDEVOPS_DB_URL
               value: postgresql+psycopg://{{ .Values.postgres.username }}:{{ .Values.postgres.password }}@postgres:5432/{{ .Values.postgres.database }}
+            - name: QYTANG_OTEL_ENDPOINT
+              value: {{ .Values.observability.otel.endpoint | quote }}
+            - name: QYTANG_DEPLOYMENT_ENV
+              value: {{ .Values.observability.environment | quote }}
           ports:
             - containerPort: 8003

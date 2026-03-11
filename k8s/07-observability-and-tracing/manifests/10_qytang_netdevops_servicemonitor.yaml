@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: qytang-netdevops-services
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/part-of: qytang-netdevops
+spec:
+  namespaceSelector:
+    matchNames:
+      - qytang-netdevops
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: qytang-netdevops
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s

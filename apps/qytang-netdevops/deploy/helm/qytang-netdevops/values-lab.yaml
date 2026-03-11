@@ -1,32 +1,37 @@
 namespace: qytang-netdevops
 
+observability:
+  environment: lab
+  otel:
+    endpoint: http://otel-opentelemetry-collector.observability:4317
+
 frontend:
   # 可以改：前端是无状态服务，课堂上最推荐先改这里。
   replicaCount: 1
   image:
     repository: harbor.qytk8s.com/qytang-netdevops/frontend
-    tag: v0.1.3
+    tag: v0.2.3
 
 deviceService:
   # 可以改：设备服务是无状态服务。
   replicaCount: 1
   image:
     repository: harbor.qytk8s.com/qytang-netdevops/device-service
-    tag: v0.1.0
+    tag: v0.2.3
 
 resourceService:
   # 可以改：资源服务是无状态服务。
   replicaCount: 1
   image:
     repository: harbor.qytk8s.com/qytang-netdevops/resource-service
-    tag: v0.1.0
+    tag: v0.2.3
 
 auditService:
   # 可以改：审计服务是无状态服务。
   replicaCount: 1
   image:
     repository: harbor.qytk8s.com/qytang-netdevops/audit-service
-    tag: v0.1.0
+    tag: v0.2.3
 
 postgres:
   # 不建议改副本数：当前 PostgreSQL 为单实例有状态服务，课堂上保持 1 即可。

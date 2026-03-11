@@ -1,0 +1,174 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": null,
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "content": "## Trace 演示说明\n- 业务请求会通过 `OpenTelemetry` 写入 `Jaeger`\n- `Grafana` 只负责给出慢链路线索和指标趋势\n- 当流量被打到 `device-service -> resource-service / audit-service` 后，请切到 `https://jaeger.qytk8s.com` 查看瀑布图",
+        "mode": "markdown"
+      },
+      "title": "Trace Playbook",
+      "type": "text"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (service, target_service) (rate(qytang_outbound_requests_total[5m]))",
+          "legendFormat": "{{service}} -> {{target_service}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Service Hop Traffic",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, service, target_service) (rate(qytang_outbound_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{service}} -> {{target_service}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Hop Latency P95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "id": 4,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "topk(12, histogram_quantile(0.95, sum by (le, service, path) (rate(qytang_http_request_duration_seconds_bucket[5m]))))",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Slowest Routes P95",
+      "type": "table"
+    },
+    {
+      "datasource": null,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "id": 5,
+      "options": {
+        "content": "## Jaeger 入口\n- 课堂上不要在 Grafana 内查 Trace\n- 直接打开 `https://jaeger.qytk8s.com`\n- 在 `Service` 中选择 `device-service`\n- 再看 `Find Traces` 和瀑布图定位慢 span",
+        "mode": "markdown"
+      },
+      "title": "Jump To Jaeger",
+      "type": "text"
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": [
+    "trace",
+    "jaeger",
+    "qytang"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "Trace 线索与 Jaeger 跳转",
+  "version": 1,
+  "weekStart": ""
+}

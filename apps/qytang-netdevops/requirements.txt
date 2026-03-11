@@ -3,3 +3,9 @@ uvicorn
 sqlalchemy
 pydantic
 psycopg[binary]
+prometheus-client
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-grpc
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-sqlalchemy
