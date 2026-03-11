@@ -2,13 +2,12 @@
 
 ## 本步目标
 
-在 `Cilium` 已经接管网络平面后，通过 `Hubble` 直接观察集群中的东西向流量。
+在 `Cilium` 已经接管网络平面后，启用并接入 `Hubble` 观测入口，为后续观察流量做好准备。
 
-本步重点不是“看一个界面”，而是确认下面这些能力已经成立：
+本步先完成下面两件事：
 
-- Pod 到 Pod 的访问路径可以被观察
-- `client -> whoami` 的实际业务流量可以被观察
-- `Cilium + eBPF` 已经能够对业务流量做可视化观测
+- `ops` 可以通过端口转发访问 `hubble-relay`
+- 后续章节需要时，可以继续通过 `CLI` 或 `UI` 观察流量
 
 ## 执行标记
 
@@ -16,8 +15,8 @@
 
 说明：
 
-- 本步是第二章观测主线的起点
-- 它验证的不是“网络能不能通”，而是“流量是否已经可见”
+- 本步是第二章观测能力的准备步骤
+- 主线重点是把 `Hubble` 接入到可用状态，而不是在这里做完整观测演示
 
 ## 问题背景
 
@@ -26,29 +25,28 @@
 - `Cilium` 安装
 - Service Discovery 演示
 
-这意味着业务流量已经存在，但如果不能观测流量，第二章就还没有把“可观测网络平面”这条主线真正建立起来。
+这意味着业务流量已经存在，但在正式观察之前，还需要先把 `Hubble` 的访问入口接通。
 
-因此，本步要进一步回答：
+因此，本步先回答下面两个问题：
 
-- 哪个 Pod 在访问哪个 Pod
-- 流量是否被放行
-- 这些结果能否通过 `Hubble` 直接观察到
+- `hubble-relay` 是否已经就绪
+- `ops` 是否已经可以接入 `Hubble`
 
 ## 理论说明
 
 ### `Hubble` 在第二章中的位置
 
-`Hubble` 是 `Cilium` 的流量观测窗口。
+`Hubble` 是 `Cilium` 的观测窗口，不负责转发流量。
 
-它并不负责转发流量，而是负责把 `Cilium` 已经处理过的流量结果可视化地呈现出来。
+它负责把 `Cilium` 已经在数据平面里看到的连接、方向、协议和 verdict 展示出来，因此这一步更接近“观察实验结果”，而不是再次部署网络组件。
 
-### Hubble 观察关系图
+### 观察链路关系图
 
 ```mermaid
 flowchart LR
   client[client Pod]
   whoami[whoami Pod]
-  cilium[Cilium]
+  cilium[Cilium eBPF 数据平面]
   relay[Hubble Relay]
   cli[hubble CLI]
 
@@ -61,9 +59,10 @@ flowchart LR
 
 这张图说明：
 
-- 业务流量先由 `Cilium` 处理
-- `Hubble Relay` 负责把流量观测能力汇聚起来
-- `hubble CLI` 再从 Relay 侧读取观测结果
+- 真正承载业务请求的是 `client -> whoami`
+- `Cilium` 在数据平面记录这条连接
+- `Hubble Relay` 汇聚观测能力
+- `hubble` CLI 从 Relay 读取并展示结果
 
 ### 为什么第二章主线优先使用 CLI 而不是 UI
 
@@ -82,6 +81,12 @@ flowchart LR
 
 `Hubble UI` 可以作为补充演示，但不应成为第二章主线验收标准。
 
+### Hubble UI 参考图
+
+下图是选择 `net-demo` 命名空间后的界面参考：
+
+<img src="./images/05_hubble_ui_net_demo.png" alt="Hubble UI 观察 net-demo 命名空间流量" width="60%" />
+
 ## 对应脚本
 
 本步对应脚本：
@@ -96,91 +101,61 @@ flowchart LR
 
 1. 检查 `Hubble Relay`
 2. 建立本地端口转发
-3. 生成演示流量
-4. 观察 `net-demo` 命名空间中的流量
+3. 检查 `hubble` CLI 是否已经连通
+4. 预留后续观测入口
 
-### 重要任务 1：检查 `Hubble Relay`
+## 执行命令
 
-脚本原始代码：
+### 1. 先确认 `Hubble Relay` 已正常运行
 
 ```bash
 kubectl get pods -n kube-system -l k8s-app=hubble-relay -o wide
 ```
 
-这一段的作用是：
+关键看点：
 
-- 先确认 `hubble-relay` Pod 已存在
+- 至少看到 1 个 `hubble-relay` Pod
+- `STATUS` 应为 `Running`
+- 这一步只是在确认观测后端已就绪，不是在重新安装 `Hubble`
 
-### 重要任务 2：建立本地端口转发
-
-脚本原始代码：
+### 2. 在 `ops` 本机建立临时端口转发
 
 ```bash
-kubectl -n kube-system port-forward svc/hubble-relay 4245:80 >/tmp/hubble-port-forward.log 2>&1 &
-PORT_FORWARD_PID=$!
-wait_for_hubble_relay
+kubectl -n kube-system port-forward svc/hubble-relay 4245:80 >/tmp/hubble-port-forward.log 2>&1
+```
+
+请保留这个终端窗口，不要关闭。
+
+关键看点：
+
+- 这一步只是把集群内的 `hubble-relay` 暂时映射到 `ops:4245`
+- 它是课堂观察动作，不会修改集群状态
+
+### 3. 在另一个终端确认 `hubble` CLI 已连通
+
+```bash
 hubble status --server localhost:4245
 ```
 
-这一段完成的是：
+关键看点：
 
-- 把 `hubble-relay` 暂时映射到 `ops` 本机的 `4245`
-- 确认 `hubble` CLI 能与 Relay 建立连接
+- 重点看 `Healthcheck (via localhost:4245): Ok`
+- 看到 server 正常响应，就说明后面的 `observe` 可以使用
 
-### 重要任务 3：生成演示流量
-
-脚本原始代码：
+### 4. 完成接入后，保留后续观测入口
 
 ```bash
-kubectl exec -n net-demo deployment/client -- sh -c 'for i in 1 2 3; do curl -sS http://whoami >/dev/null; sleep 1; done'
+hubble status --server localhost:4245
 ```
 
-这一段的作用是：
+关键看点：
 
-- 在集群中主动制造 `client -> whoami` 的业务流量
+- 重点看 `Healthcheck (via localhost:4245): Ok`
+- 这说明 `ops` 已经具备后续观察流量的入口
 
-### 重要任务 4：观察 `net-demo` 流量
+### 5. 可选补充：临时查看 `Hubble UI`
 
-脚本原始代码：
-
-```bash
-hubble observe --server localhost:4245 --last 50 | grep -E 'net-demo/(client|whoami)'
-```
-
-这一段的作用是：
-
-- 从最近的观测记录中筛选出 `net-demo` 命名空间内的业务流量
-
-## 执行命令
-
-先给脚本增加执行权限：
-
-```bash
-chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/04_enable_hubble.sh
-```
-
-然后执行：
-
-```bash
-bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/04_enable_hubble.sh
-```
-
-## 关键看点
-
-在 `Hubble` 输出中，优先看下面这些信息：
-
-- 命名空间是否为 `net-demo`
-- 源端是否为 `client`
-- 目的端是否为 `whoami`
-- verdict 是否为 `FORWARDED`
-
-这比逐行阅读全部流量记录更重要。
-
-## Hubble UI 补充说明
-
-第二章主线验收以 CLI 为准，`Hubble UI` 仅作为补充展示。
-
-如果需要临时查看图形界面，可在 `ops` 上执行：
+如果课堂上需要补充图形化演示，可在 `ops` 上执行：
 
 ```bash
 kubectl -n kube-system port-forward --address 0.0.0.0 svc/hubble-ui 12000:80
@@ -192,7 +167,7 @@ kubectl -n kube-system port-forward --address 0.0.0.0 svc/hubble-ui 12000:80
 http://10.1.1.201:12000
 ```
 
-说明：
+关键看点：
 
 - 这属于临时课堂演示方式
 - 不属于第二章主线验收项
@@ -201,9 +176,9 @@ http://10.1.1.201:12000
 
 满足下面条件后，就可以进入下一步：
 
-- `hubble status` 正常
-- 能在观测结果中看到 `net-demo/client -> whoami` 的流量记录
-- 流量 verdict 为 `FORWARDED`
+- `hubble status --server localhost:4245` 返回正常
+- `ops` 已能通过端口转发接入 `hubble-relay`
+- 如需图形演示，`Hubble UI` 临时入口可打开
 
 ## 下一步
 

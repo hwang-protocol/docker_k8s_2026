@@ -17,6 +17,7 @@
 | **Argo CD** | `https://argocd.qytk8s.com` | `admin` | `Cisc0123` | **持续交付平台**。监听 Gitea 变更，自动将最新状态同步到 K8s 集群。 |
 | **Longhorn** | `https://longhorn.qytk8s.com` | 无 | 无 | **分布式块存储 UI**。管理集群的持久化卷 (PV/PVC)，查看数据副本与节点分布。 |
 | **QYT NetDevOps** | `https://netdevops.qytk8s.com` | 无 | 无 | **核心业务系统**。包含前端页面与后端微服务，演示业务流量入口。 |
+| **Hubble UI** | `https://hubble.qytk8s.com` | 无 | 无 | **云原生网络可视化界面**。观察第三章北向发布链路和集群内流量记录。 |
 | **Grafana** | `https://grafana.qytk8s.com` | `admin` | `Cisc0123` | **监控可视化大盘**。查看 Kubernetes 平台总览与 QYT NetDevOps 业务指标。 |
 | **Jaeger** | `https://jaeger.qytk8s.com` | 无 | 无 | **分布式链路追踪**。查看微服务之间的 API 调用瀑布图与耗时分析。 |
 
