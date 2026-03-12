@@ -160,19 +160,28 @@ kubectl get pods -n kube-system -o wide
 ### 验收 4：查看 Harbor 健康状态
 
 ```bash
-curl -k -s https://harbor.qytk8s.com/api/v2.0/health | jq -r '.status'
+curl -k -s https://harbor.qytk8s.com/api/v2.0/health | jq -r '.status, (.components[] | "\(.name): \(.status)")'
 ```
 
 预期结果：
 
 ```text
 healthy
+core: healthy
+database: healthy
+jobservice: healthy
+portal: healthy
+redis: healthy
+registry: healthy
+registryctl: healthy
+trivy: healthy
 ```
 
 关键看点：
 
-- 只需要确认最终状态为 `healthy`
-- 不需要人工阅读完整 JSON
+- 第一行整体状态应为 `healthy`
+- 下面各组件状态也应全部为 `healthy`
+- 这样更适合人工确认 Harbor 是否真的完整可用
 
 ### 验收 5：查看 API 高可用入口
 

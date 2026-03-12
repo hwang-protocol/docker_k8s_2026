@@ -127,13 +127,30 @@ ssh root@harbor "docker ps --format 'table {{.Names}}\t{{.Status}}'"
 ### 验证 2：检查 Harbor 健康接口
 
 ```bash
-curl -k https://harbor.qytk8s.com/api/v2.0/health
+curl -k -s https://harbor.qytk8s.com/api/v2.0/health | jq -r '.status, (.components[] | "\(.name): \(.status)")'
 ```
 
 预期：
 
-- 返回 JSON 结果
-- `status` 为 `healthy`
+- 输出应类似：
+
+```text
+healthy
+core: healthy
+database: healthy
+jobservice: healthy
+portal: healthy
+redis: healthy
+registry: healthy
+registryctl: healthy
+trivy: healthy
+```
+
+关键看点：
+
+- 第一行整体状态应为 `healthy`
+- 下面每个组件状态也应为 `healthy`
+- 这样既能看到整体结果，也能看到 Harbor 各核心组件是否都正常
 
 ### 验证 3：检查 Harbor Web 页面
 
@@ -160,3 +177,109 @@ curl -k https://harbor.qytk8s.com/api/v2.0/health
 下一步进入 Kubernetes 基础镜像预热：
 
 - `docs/04_push_k8s_images.md`
+
+## 附录：Harbor 在快照恢复或主机重启后未正常启动时如何修复
+
+### 适用场景
+
+这一段不属于第一章主线步骤，只用于下面这类情况：
+
+- 恢复了环境快照
+- `harbor` 主机重启过
+- `harbor` 主机和数据目录都还在
+- 但 Harbor 主服务没有完整启动
+
+### 典型现象
+
+例如执行：
+
+```bash
+ssh root@harbor "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+```
+
+只看到：
+
+- `harbor-log`
+
+或者看不到下面这些核心容器：
+
+- `nginx`
+- `harbor-core`
+- `registry`
+- `registryctl`
+- `harbor-db`
+- `redis`
+- `harbor-jobservice`
+- `trivy-adapter`
+
+这说明：
+
+- Harbor 主机还在
+- Harbor 数据可能还在
+- 但 Harbor 服务没有完整拉起
+
+### 推荐修复方式
+
+先不要急着重装 Harbor，优先尝试直接恢复服务：
+
+```bash
+ssh root@harbor "cd /opt/harbor-install && docker compose up -d"
+```
+
+### 修复后的验证
+
+#### 验证 1：检查核心容器是否已经恢复
+
+```bash
+ssh root@harbor "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+```
+
+关键看点：
+
+- 不能只剩 `harbor-log`
+- 至少应看到：
+  - `nginx`
+  - `harbor-core`
+  - `registry`
+  - `registryctl`
+  - `harbor-db`
+  - `redis`
+  - `harbor-jobservice`
+  - `trivy-adapter`
+
+#### 验证 2：检查 Harbor 健康接口
+
+```bash
+curl -k -s https://harbor.qytk8s.com/api/v2.0/health | jq -r '.status, (.components[] | "\(.name): \(.status)")'
+```
+
+关键看点：
+
+- 第一行整体状态应为 `healthy`
+- 后续每个组件状态也应为 `healthy`
+- 这样比直接阅读原始 JSON 更适合人工验收
+
+#### 验证 3：检查 HTTPS 入口
+
+```bash
+curl -k -I https://harbor.qytk8s.com/
+```
+
+关键看点：
+
+- 能返回正常的 `HTTP` 响应头
+- 说明 `nginx` 和 Harbor Web 入口已经恢复
+
+### 什么时候才需要重装
+
+只有出现下面情况时，才建议回到第一章主线，重新执行 `02_install_harbor_remote.sh`：
+
+- `/opt/harbor-install` 不存在
+- `docker compose up -d` 无法恢复核心容器
+- Harbor 配置文件已经损坏
+- Harbor 数据目录已经丢失
+
+一句话总结：
+
+- 主机和数据还在时，优先做服务恢复
+- 只有安装目录或数据损坏时，才回到主线重装 Harbor
