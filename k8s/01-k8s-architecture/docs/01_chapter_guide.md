@@ -28,8 +28,7 @@
 
 为了便于你在 `ops` 上直接“贴贴贴”，本章对每个脚本都做执行标记：
 
-- **必须执行**：恢复到本章起点快照后，默认需要实际执行
-- **条件执行**：是否执行取决于你是否保留了上一轮产物
+- **必须执行**：本轮从第一章重新开始时，默认需要实际执行
 - **只读验证**：这一项主要用于检查结果，不会改配置
 
 ## 本章脚本执行矩阵
@@ -37,8 +36,8 @@
 | 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
 | :--- | :--- | :--- | :--- | :--- |
 | 1 | `02_prepare_os.md` | `scripts/01_prepare_os_remote.sh` | 必须执行 | 在所有 Ubuntu 节点完成系统初始化 |
-| 2 | `03_harbor.md` | `scripts/02_install_harbor_remote.sh` | 条件执行 | 如果 `harbor` 还没部署，就执行；如果 Harbor 已经保留，可只做验证 |
-| 3 | `04_push_k8s_images.md` | `scripts/03_push_k8s_images_remote.sh` | 条件执行 | 如果 Harbor 中已经保留了 `k8s` 项目和核心镜像，这一步可以跳过，只做验证 |
+| 2 | `03_harbor.md` | `scripts/02_install_harbor_remote.sh` | 必须执行 | 部署本课程统一使用的 Harbor 私有镜像仓库 |
+| 3 | `04_push_k8s_images.md` | `scripts/03_push_k8s_images_remote.sh` | 必须执行 | 将 Kubernetes 基础镜像推送到 Harbor 的 `k8s` 项目 |
 | 4 | `05_loadbalancer.md` | `scripts/04_setup_haproxy_keepalived_remote.sh` | 必须执行 | 需要为控制平面准备统一 VIP 入口 |
 | 5 | `06_containerd.md` | `scripts/05_install_containerd_remote.sh` | 必须执行 | 所有 K8s 节点都需要 containerd |
 | 6 | `07_containerd_harbor.md` | `scripts/06_config_containerd_harbor_remote.sh` | 必须执行 | 让 containerd 信任 Harbor，并切换 pause 镜像 |
@@ -47,40 +46,6 @@
 | 9 | `10_join_control_planes.md` | `scripts/09_join_control_planes_remote.sh` | 必须执行 | 把 `cp02`、`cp03` 加入控制平面 |
 | 10 | `11_join_workers.md` | `scripts/10_join_workers_remote.sh` | 必须执行 | 加入 4 台 Worker，并打标签 |
 | 11 | `12_verify.md` | 无 | 只读验证 | 本章最终验收，不改配置 |
-
-## 执行路径说明
-
-根据当前环境中已保留的基础设施状态，可以按下面方式选择执行路径：
-
-### 路径 A：从第一章起点环境开始执行
-
-推荐执行：
-
-- 执行步骤 1
-- 执行步骤 2
-- 执行步骤 3
-- 执行步骤 4 ~ 10
-- 执行步骤 11 验收
-
-### 路径 B：已保留 Harbor 与基础镜像
-
-推荐执行：
-
-- 执行步骤 1
-- 先检查步骤 2，如果 Harbor 正常，则不重复部署
-- 先检查步骤 3，如果 `k8s` 项目和镜像还在，则不重复推送
-- 执行步骤 4 ~ 10
-- 执行步骤 11 验收
-
-在该路径下，通常可以不重复执行：
-
-- `scripts/02_install_harbor_remote.sh`
-- `scripts/03_push_k8s_images_remote.sh`
-
-前提条件：
-
-- Harbor 服务还在
-- Harbor 中 `k8s` 项目和核心镜像还在
 
 ## 本章执行顺序
 
@@ -166,4 +131,3 @@ curl -s http://ops:9000/01-k8s-architecture/manifests/kubeadm-init-cp01.yaml | h
 - Kubernetes：`v1.33.9`
 
 本章以及后续章节都统一按这个版本编写，不再变动。
-
