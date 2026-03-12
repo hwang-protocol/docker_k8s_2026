@@ -63,6 +63,44 @@ flowchart LR
 - 它负责给 `LoadBalancer Service` 分配 VIP
 - 并通过 `L2Advertisement` 让这个 VIP 在网络里真正可达
 
+### `speaker` 和“谁在发布 VIP”不是一回事
+
+这是 `MetalLB` 里最容易混淆的一层。
+
+可以把它拆成两件事：
+
+1. 哪些节点上运行了 `speaker`
+这是 `DaemonSet` 调度问题。
+
+2. 某个 VIP 最终允许哪些节点去对外通告
+这是 `L2Advertisement` 选择问题。
+
+也就是说：
+
+- `speaker` 在一个节点上运行
+- 不等于这个节点就一定会对某个 VIP 发 ARP 通告
+
+真正决定第三章这组业务 VIP 由谁来发布的，是下面这段：
+
+```yaml
+spec:
+  ipAddressPools:
+    - edge-pool
+  nodeSelectors:
+    - matchLabels:
+        kubernetes.io/hostname: wk-edge01
+```
+
+它的含义是：
+
+- `edge-pool` 里的 VIP
+- 只允许 `wk-edge01` 对外承担二层通告角色
+
+所以课程里可以把它简单记成：
+
+- `speaker` 决定“哪些节点具备通告能力”
+- `L2Advertisement` 决定“这次到底轮到谁通告”
+
 ### 为什么这里先讲地址池，再讲 Gateway
 
 第三章的设计顺序不是偶然的：
@@ -115,6 +153,30 @@ spec:
   - 明确只通告这一组 VIP
 - `nodeSelectors`
   - 只允许 `wk-edge01` 对外承担通告角色
+
+### 不限制 `nodeSelectors` 会怎样
+
+如果这里不把 `nodeSelectors` 收敛到 `wk-edge01`，结果就不会再是“固定只有 edge 节点发布 VIP”。
+
+更准确地说，会变成：
+
+- 运行了 `speaker`
+- 且满足这组地址池条件的节点
+
+都可能进入候选集合。
+
+这带来的问题是：
+
+- 北向入口角色不稳定
+- 课堂上不容易把“入口角色”固定收敛到 `wk-edge01`
+
+所以第三章故意把它钉死在：
+
+- `wk-edge01`
+
+这样学员更容易建立稳定认知：
+
+- `wk-edge01` = 北向入口节点
 
 ## 对应脚本
 
@@ -259,6 +321,40 @@ spec:
 - `kubernetes.io/hostname: wk-edge01`
   - 明确把业务入口角色收敛到 `wk-edge01`
 
+### 怎么看 `speaker` 会跑到哪些节点
+
+不用读整份 `DaemonSet` YAML，直接抓这 3 个字段就够了：
+
+```bash
+kubectl -n metallb-system get ds speaker -o jsonpath='{.spec.template.spec.nodeSelector}{"\n"}{.spec.template.spec.affinity}{"\n"}{.spec.template.spec.tolerations}{"\n"}'
+```
+
+关键看点：
+
+- `nodeSelector`
+  - 决定哪些节点有资格运行 `speaker`
+- `affinity`
+  - 如果有节点亲和性，也会进一步限制节点范围
+- `tolerations`
+  - 决定它能不能跑到带污点的节点，例如 control-plane
+
+在当前实验里，典型结果是：
+
+- `nodeSelector` 只要求 `kubernetes.io/os=linux`
+- `tolerations` 允许它容忍 control-plane 的 `NoSchedule`
+
+这意味着：
+
+- `speaker` 并不是只给 `wk-edge01`
+- 它通常可以在多个 Linux 节点上运行
+
+再次强调：
+
+- 哪些节点上“有 `speaker`”
+- 和哪些节点“真的发布 `edge-pool` VIP”
+
+不是同一个问题。
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -308,6 +404,64 @@ kubectl get l2advertisement -n metallb-system edge-pool-on-wk-edge01 -o yaml
 
 - 地址池范围为 `10.1.1.50-10.1.1.79`
 - `nodeSelectors` 中明确指向 `wk-edge01`
+
+### 验证 4：只抽关键字段，判断 `speaker` 的运行范围
+
+```bash
+kubectl -n metallb-system get ds speaker -o jsonpath='{.spec.template.spec.nodeSelector}{"\n"}{.spec.template.spec.affinity}{"\n"}{.spec.template.spec.tolerations}{"\n"}'
+```
+
+关键看点：
+
+- 如果 `nodeSelector` 只看到 `kubernetes.io/os=linux`
+  - 表示所有 Linux 节点都可能运行 `speaker`
+- 如果 `tolerations` 里出现 control-plane 相关项
+  - 表示控制平面节点也允许运行 `speaker`
+
+预期结果：
+
+- 读者能区分：
+  - `speaker` 的部署范围
+  - `edge-pool` 的实际 VIP 发布节点
+
+### 验证 5：怎么看当前是 `wk-edge01` 在发布 `10.1.1.60`
+
+先看配置层：
+
+```bash
+kubectl -n metallb-system get l2advertisement edge-pool-on-wk-edge01 -o jsonpath='{.spec.ipAddressPools}{"\n"}{.spec.nodeSelectors}{"\n"}'
+```
+
+关键看点：
+
+- 第一行应出现 `edge-pool`
+- 第二行应明确出现 `wk-edge01`
+
+这表示：
+
+- `edge-pool` 这组 VIP
+- 只允许 `wk-edge01` 进入发布候选
+
+如果要从运行时再做一次网络确认，可以在外部主机上执行：
+
+```bash
+arping -I eth0 10.1.1.60
+```
+
+然后再去 `wk-edge01` 上查看网卡 MAC：
+
+```bash
+ssh root@wk-edge01 'ip link show'
+```
+
+关键看点：
+
+- `10.1.1.60` 回应的 MAC
+- 应与 `wk-edge01` 的网卡 MAC 对上
+
+预期结果：
+
+- 可以把 `10.1.1.60` 理解成“当前由 `wk-edge01` 这张网卡在二层上回应”
 
 ## 关键看点
 
