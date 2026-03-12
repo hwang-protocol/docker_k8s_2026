@@ -383,10 +383,56 @@ vrrp_instance VI_K8S_API {
 
 这几行的关键含义如下：
 
-- `state MASTER/BACKUP`：定义主备角色
-- `priority`：决定谁优先持有 VIP
+- `state MASTER/BACKUP`：定义启动时的初始主备姿态
+- `priority`：决定谁更优先持有 VIP
 - `virtual_ipaddress`：真正漂移的是 `10.1.1.10`
 - `track_script`：VIP 是否继续保留，要看 `haproxy` 是否健康
+
+这里还需要特别说明一个经常被问到的问题：
+
+- `state MASTER/BACKUP` 不是最终决定谁持有 VIP 的唯一因素
+- 真正更关键的是 `priority`
+
+也就是说：
+
+- `lb01` 当前配置为 `priority 200`
+- `lb02` 当前配置为 `priority 150`
+
+因此在两台节点都健康时：
+
+- `lb01` 会优先成为持有 `10.1.1.10` 的节点
+- `lb02` 作为备节点等待
+
+### 默认是否抢占
+
+当前这套课程配置里，两份 `keepalived.conf` 都没有出现：
+
+```conf
+nopreempt
+```
+
+这意味着本章当前采用的是默认抢占模型。
+
+它的含义是：
+
+- 当 `lb01` 故障时，VIP 会漂移到 `lb02`
+- 当 `lb01` 恢复后，因为它优先级更高，通常会把 VIP 再抢回去
+
+如果显式加入：
+
+```conf
+nopreempt
+```
+
+则含义会变成：
+
+- 高优先级节点恢复后，不主动抢回 VIP
+- 当前已经持有 VIP 的节点会继续保持主角色，直到再次发生故障切换
+
+所以这一章可以这样记：
+
+- 默认：有抢占
+- 写了 `nopreempt`：不抢占
 
 ### `check_haproxy.sh` 为什么必须有
 
