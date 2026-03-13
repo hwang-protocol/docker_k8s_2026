@@ -31,6 +31,19 @@ wait_for_hubble_relay() {
   return 1
 }
 
+print_key_flows() {
+  local output
+
+  output="$(hubble observe --server localhost:4245 --since 20s --last 100 2>/dev/null || true)"
+
+  printf '%s\n' "${output}" | awk '
+    /net-demo\/client-.*kube-system\/coredns-.*:53/ && !dns++ { print; next }
+    /net-demo\/client-.*<> net-demo\/whoami:80/ && !svc++ { print; next }
+    /net-demo\/client-.*-> net-demo\/whoami-[^ ]*:80/ && !backend++ { print; next }
+    /net-demo\/client-.*<- net-demo\/whoami-[^ ]*:80/ && !reply++ { print; next }
+  '
+}
+
 main() {
   echo "========================================================="
   echo "[1/4] 检查 Hubble Relay"
@@ -54,9 +67,9 @@ main() {
 
   echo
   echo "========================================================="
-  echo "[4/4] 观察 net-demo 流量"
+  echo "[4/4] 输出关键 Hubble 观测记录"
   echo "========================================================="
-  hubble observe --server localhost:4245 --last 50 | grep -E 'net-demo/(client|whoami)'
+  print_key_flows
 
   echo
   echo "OK: Hubble 观测演示完成"
