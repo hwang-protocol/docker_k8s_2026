@@ -55,6 +55,46 @@ flowchart LR
 3. 解析结果落到 `whoami Service`
 4. `Service` 再把流量转发到后端 `whoami Pod`
 
+### 先理解 3 个基础对象
+
+这是第二章第一次正式接触 Kubernetes 业务对象，因此这里先把最基础的 3 个概念讲清楚：
+
+- `Namespace`
+  - 用来做资源隔离
+- `Deployment`
+  - 用来声明“我要几个 Pod、Pod 里跑什么容器”
+- `Service`
+  - 用来给一组 Pod 提供稳定入口
+
+这一页中：
+
+- `net-demo` 是演示专用命名空间
+- `whoami Deployment` 负责创建服务端 Pod
+- `whoami Service` 负责给服务端 Pod 提供稳定访问名
+- `client Deployment` 负责创建客户端 Pod，用来发起访问请求
+
+### `Deployment`、`Service` 与 Pod 关系图
+
+```mermaid
+flowchart LR
+  deploy1[whoami Deployment]
+  pod1[whoami Pod]
+  svc[whoami Service]
+  deploy2[client Deployment]
+  pod2[client Pod]
+
+  deploy1 --> pod1
+  svc --> pod1
+  deploy2 --> pod2
+  pod2 --> svc
+```
+
+这张图强调的是：
+
+- `Deployment` 负责创建 Pod
+- `Service` 不创建 Pod
+- `Service` 只是根据标签选中后端 Pod，并提供稳定访问入口
+
 ### 为什么这一页必须同时讲短名和 FQDN
 
 在 Kubernetes 集群内，Service 通常既可以通过短名访问：
@@ -78,7 +118,7 @@ whoami.net-demo.svc.cluster.local
 
 因此本步必须同时验证二者。
 
-### 本步清单关键对象示意
+### 本步清单原文与关键内容
 
 本步会使用下面 3 份清单：
 
@@ -86,56 +126,128 @@ whoami.net-demo.svc.cluster.local
 - `manifests/10_whoami.yaml`
 - `manifests/20_client.yaml`
 
-其中最关键的字段如下：
-
-#### `whoami` Deployment + Service
+#### 清单 1：命名空间
 
 ```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: net-demo
+```
+
+关键看点：
+
+- `kind: Namespace`
+  - 说明这是一个命名空间对象
+- `name: net-demo`
+  - 第二章这组演示统一放在这个隔离空间里
+
+#### 清单 2：`whoami` Deployment 与 Service
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whoami
+  namespace: net-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whoami
+  template:
+    metadata:
+      labels:
+        app: whoami
+    spec:
+      containers:
+        - name: whoami
+          image: harbor.qytk8s.com/cilium/whoami:v1.10.3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
 metadata:
   name: whoami
   namespace: net-demo
 spec:
   selector:
     app: whoami
-```
-
-以及：
-
-```yaml
-spec:
-  selector:
-    app: whoami
   ports:
-    - port: 80
+    - name: http
+      port: 80
       targetPort: 80
 ```
 
-关键字段说明：
+关键看点：
 
-- `namespace: net-demo`
-  - 把演示环境隔离在第二章专用命名空间中
-- `selector: app: whoami`
-  - 让 Service 选择到 `whoami Pod`
-- `port: 80 / targetPort: 80`
-  - 表示 Service 对外暴露 80，并转发到 Pod 的 80
+- `kind: Deployment`
+  - 表示这里先创建的是工作负载控制器，不是单独手搓一个 Pod
+- `replicas: 1`
+  - 主线先保留 1 个服务端 Pod，先把 `Deployment`、`Service`、DNS 三件事讲清楚
+- `template.metadata.labels.app: whoami`
+  - 这是 Pod 身上的标签
+- `Service.spec.selector.app: whoami`
+  - 这是 Service 选择后端 Pod 的条件
+- `port: 80`
+  - 这是 Service 对外暴露的端口
+- `targetPort: 80`
+  - 这是 Service 转发到容器里的端口
 
-#### `client` Deployment
+这里最关键的一层关系是：
+
+- Pod 身上打了 `app: whoami`
+- Service 用 `selector: app: whoami` 去选中它
+
+因此 `whoami Service` 才知道应该把流量转发给哪个 Pod。
+
+另外，`whoami` 镜像返回的页面中会带出当前处理请求的主机名。
+
+在 Kubernetes 里，这个主机名通常就是 Pod 名称。因此后面如果把 `whoami` 临时扩成多个副本，就可以通过返回内容直接观察请求是否被分发到了不同 Pod。
+
+#### 清单 3：`client` Deployment
 
 ```yaml
-containers:
-  - name: client
-    image: harbor.qytk8s.com/cilium/curl:8.12.1
-    command:
-      - sh
-      - -c
-      - sleep infinity
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client
+  namespace: net-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client
+  template:
+    metadata:
+      labels:
+        app: client
+    spec:
+      containers:
+        - name: client
+          image: harbor.qytk8s.com/cilium/curl:8.12.1
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - sleep infinity
 ```
 
-关键字段说明：
+关键看点：
 
-- 使用 `curl` 镜像作为主动发起访问的客户端
+- `kind: Deployment`
+  - `client` 也是通过 Deployment 创建出来的 Pod
+- `image: harbor.qytk8s.com/cilium/curl:8.12.1`
+  - 这里使用的是一个带 `curl` 的轻量客户端镜像
 - `sleep infinity`
-  - 让 Pod 保持常驻，便于后续反复执行 `kubectl exec`
+  - 让 Pod 保持常驻，便于后续反复进入容器执行 `curl`
+
+可以把 `client` 理解成：
+
+- 一个专门放在集群里的“测试终端”
+- 后面所有 Service Discovery 测试都从它里面发起
 
 ## 对应脚本
 
@@ -166,13 +278,14 @@ kubectl apply -f http://ops:9000/02-cloud-native-networking/manifests/20_client.
 本步在做什么：
 
 - 创建 `net-demo` 命名空间
-- 创建 `whoami` 服务端工作负载
-- 创建 `client` 客户端工作负载
+- 创建 `whoami Deployment`
+- 创建 `whoami Service`
+- 创建 `client Deployment`
 
 结果看点：
 
 - 输出应为 `created` 或 `configured`
-- 这一步只是下发资源，还不能证明业务已经可访问
+- 这一步只是把对象提交进集群，还不能说明 `Service Discovery` 已经成功
 
 ### 步骤 2：等待工作负载进入可用状态
 
@@ -204,13 +317,19 @@ kubectl get svc -n net-demo
 本步在做什么：
 
 - 观察 `whoami` 与 `client` Pod 是否已经 `Running`
-- 观察 `whoami` Service 是否已经创建完成
+- 观察 `whoami Service` 是否已经创建完成
 
 结果看点：
 
 - `whoami` 与 `client` 应为 `Running`
 - `whoami` Service 应存在
 - `CLUSTER-IP` 应已经分配
+
+这里可以这样理解：
+
+- Pod 是真正运行容器的地方
+- `CLUSTER-IP` 是 Service 在集群内部拿到的稳定访问地址
+- 后面 `client` 访问 `whoami` 时，先访问的是 Service，而不是直接访问 Pod IP
 
 ### 步骤 4：从 `client` 测试短名访问
 
@@ -227,7 +346,7 @@ kubectl exec -n net-demo deployment/client -- curl -sS http://whoami
 结果看点：
 
 - 应返回 `whoami` 页面内容
-- 这说明 Pod 到 Service 的调用链已经打通
+- 这说明 `client Pod -> whoami Service -> whoami Pod` 的调用链已经打通
 
 ### 步骤 5：从 `client` 测试 FQDN 访问
 
@@ -262,6 +381,56 @@ kubectl exec -n net-demo deployment/client -- sh -c 'getent hosts whoami'
 
 - 输出中应出现一个 `ClusterIP`
 - 该地址应对应 `whoami Service`
+
+## 扩展实验：把 `whoami` 扩成 2 个副本并观察基础负载分发
+
+这一组扩展实验不改变本页主线通过标准，但它更有利于后面配合 `Hubble` 观察多条业务流量。
+
+### 扩展步骤 1：把 `whoami` 扩容到 2 个副本
+
+执行命令：
+
+```bash
+kubectl scale deployment whoami -n net-demo --replicas=2
+kubectl rollout status deployment/whoami -n net-demo --timeout=5m
+kubectl get pods -n net-demo -l app=whoami -o wide
+```
+
+结果看点：
+
+- 应看到 `2` 个 `whoami` Pod 都已进入 `Running`
+- 两个 Pod 名应不同
+
+### 扩展步骤 2：连续多次访问 `whoami Service`
+
+执行命令：
+
+```bash
+kubectl exec -n net-demo deployment/client -- sh -c 'for i in 1 2 3 4 5 6 7 8; do curl -sS http://whoami | grep Hostname; done'
+```
+
+结果看点：
+
+- 输出中应出现 `Hostname`
+- 如果 Service 已经在多个后端之间分发流量，`Hostname` 会在两个不同的 Pod 名之间切换
+
+本步的判断标准不是“严格轮询”，而是：
+
+- 是否出现了不止一个后端 Pod 名
+
+### 扩展步骤 3：恢复主线环境
+
+执行命令：
+
+```bash
+kubectl scale deployment whoami -n net-demo --replicas=1
+kubectl rollout status deployment/whoami -n net-demo --timeout=5m
+```
+
+结果看点：
+
+- `whoami` 恢复为 `1` 个副本
+- 环境重新回到主线状态
 
 ## 通过标准
 
