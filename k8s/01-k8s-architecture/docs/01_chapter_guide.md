@@ -45,23 +45,8 @@
 | 8 | `09_kubeadm_init.md` | `scripts/08_kubeadm_init_remote.sh` | 必须执行 | 初始化第一个控制平面 `cp01` |
 | 9 | `10_join_control_planes.md` | `scripts/09_join_control_planes_remote.sh` | 必须执行 | 把 `cp02`、`cp03` 加入控制平面 |
 | 10 | `11_join_workers.md` | `scripts/10_join_workers_remote.sh` | 必须执行 | 加入 4 台 Worker，并打标签 |
-| 11 | `12_verify.md` | 无 | 只读验证 | 本章最终验收，不改配置 |
-
-## 本章执行顺序
-
-请严格按照下面顺序执行：
-
-1. `02_prepare_os.md`
-2. `03_harbor.md`
-3. `04_push_k8s_images.md`
-4. `05_loadbalancer.md`
-5. `06_containerd.md`
-6. `07_containerd_harbor.md`
-7. `08_kube_tools.md`
-8. `09_kubeadm_init.md`
-9. `10_join_control_planes.md`
-10. `11_join_workers.md`
-11. `12_verify.md`
+| 11 | `12_cluster_certificates.md` | 无 | 只读理解 | 说明控制平面证书有效期与后续续期方法 |
+| 12 | `13_verify.md` | 无 | 只读验证 | 本章最终验收，不改配置 |
 
 ## 课程文件 HTTP 服务
 

@@ -368,6 +368,6 @@ kubectl get nodes
 
 ## 下一步
 
-下一步进入第一章总验收：
+下一步先进入集群证书说明与续期方法：
 
-- `docs/12_verify.md`
+- `docs/12_cluster_certificates.md`
