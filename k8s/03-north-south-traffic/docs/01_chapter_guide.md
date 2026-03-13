@@ -21,7 +21,6 @@
 - Service Discovery
 - 可观测性
 - 网络策略
-- BGP 控制面
 
 第三章要继续解决：
 

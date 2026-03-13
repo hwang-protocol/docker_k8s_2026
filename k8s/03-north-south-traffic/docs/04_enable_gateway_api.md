@@ -66,7 +66,6 @@ flowchart LR
 
 - `Cilium` 安装
 - `Hubble`
-- `BGP`
 - `kube-proxy replacement`
 
 第三章只是在现有基础上追加：

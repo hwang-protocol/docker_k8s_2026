@@ -1218,8 +1218,6 @@ nginx 已在 `ops` 上运行，`http://ops:9000/` 可访问所有章节目录和
 - `kube-proxy replacement`
 - `Hubble`
 - `L3/L4` 与 `L7` 策略
-- `Cilium BGP Control Plane`
-- `VyOS Route Reflector`
 
 同时明确与第三章的边界：
 
@@ -1241,7 +1239,7 @@ nginx 已在 `ops` 上运行，`http://ops:9000/` 可访问所有章节目录和
 - YAML / values / 演示清单全部放在本章 `manifests/`
 - 通过 `http://ops:9000/` 对外发布
 
-#### 4. 网络与 BGP 主线冻结
+#### 4. 网络主线冻结
 
 本章继续沿用第一章地址设计：
 
@@ -1256,13 +1254,6 @@ nginx 已在 `ops` 上运行，`http://ops:9000/` 可访问所有章节目录和
 - `Hubble`
 - `L7` policy
 
-BGP 主线冻结为：
-
-- `10.1.1.254` 为 `VyOS`
-- `VyOS` 作为 `Route Reflector`
-- 4 台 Worker 作为 `iBGP client`
-- 全部使用私有 ASN：`65001`
-
 #### 5. 风险点预先识别
 
 在开始实施前，已明确识别的关键风险点如下：
@@ -1270,7 +1261,6 @@ BGP 主线冻结为：
 - 第一章集群中已存在 `kube-proxy`，第二章必须先删除 `kube-proxy` 并清理 `iptables` 中的 `KUBE-*` 规则，再安装开启 `kubeProxyReplacement=true` 的 Cilium
 - `Cilium` 安装时必须显式指定 `k8sServiceHost` 与 `k8sServicePort`
 - `L7` policy 依赖 Envoy；在 `Cilium 1.19` 中默认采用 embedded 模式
-- 第二章的 BGP 主线必须避免和第三章的南北向入口发布内容混讲
 
 #### 6. 当前实施状态
 
@@ -1368,7 +1358,7 @@ BGP 主线冻结为：
 
 1. 删除 `kube-proxy`，清理各节点 `KUBE-*` iptables 规则
 2. 使用本地 `cilium-1.19.1.tgz` 与本章 `values.yaml` 安装 `Cilium`
-3. 启用 `native routing`、`kube-proxy replacement`、`Hubble` 与 `BGP Control Plane`
+3. 启用 `native routing`、`kube-proxy replacement`、`Hubble`
 4. 验证 `CoreDNS`、`Cilium`、`Hubble Relay`、`Hubble UI` 恢复
 5. 部署 `net-demo` 命名空间中的 `whoami` 与 `client`
 6. 演示 `Service`、短名 DNS、FQDN 访问
@@ -1386,7 +1376,7 @@ BGP 主线冻结为：
 
 #### 5. 当前结论
 
-第二章前半段已经完成，后续可以继续进入“零信任策略 + BGP 控制面”主线。
+第二章前半段已经完成，后续可以继续进入“零信任策略”主线。
 
 ### 阶段 19：第二章第 5 步 - L3/L4 与 L7 零信任策略演示
 
@@ -1428,63 +1418,9 @@ BGP 主线冻结为：
 
 第二章中的“零信任 + L7 HTTP 感知”已经可以稳定演示。
 
-### 阶段 20：第二章第 6-7 步 - VyOS RR、Cilium BGP 与最终验收
+### 阶段 20：第二章第 6 步 - 最终验收（已移除 BGP 主线）
 
-#### 1. 目标
-
-把第二章最后一段控制面能力补齐，让 4 台 Worker 通过 `iBGP` 接入 `VyOS Route Reflector`，并补全最终验收文档。
-
-#### 2. 交付物
-
-本阶段已生成：
-
-- 第二章第 6 步课件：`k8s/02-cloud-native-networking/docs/07_bgp_rr.md`
-- 第二章第 6 步脚本：`k8s/02-cloud-native-networking/scripts/06_configure_bgp_rr.sh`
-- 第二章第 7 步验收文档：`k8s/02-cloud-native-networking/docs/08_verify.md`
-- 第二章 BGP 清单：`k8s/02-cloud-native-networking/manifests/40_cilium_bgp_peer_config.yaml`
-- 第二章 BGP 清单：`k8s/02-cloud-native-networking/manifests/41_cilium_bgp_advertisement_podcidr.yaml`
-- 第二章 BGP 清单：`k8s/02-cloud-native-networking/manifests/42_cilium_bgp_cluster_config_rr.yaml`
-
-#### 3. 实施说明
-
-本阶段完成了以下动作：
-
-1. 将 `VyOS(10.1.1.254)` 配置为 `AS65001` 下的 `Route Reflector`
-2. 使用 `peer-group CILIUM` 绑定 4 个 Worker 邻居
-3. 通过 `CiliumBGPPeerConfig`、`CiliumBGPAdvertisement`、`CiliumBGPClusterConfig` 配置 `Cilium BGP`
-4. 让 4 台 Worker 向 `VyOS` 广告自己的 `PodCIDR`
-5. 生成第二章最终验收文档 `08_verify.md`
-
-#### 4. 关键实现细节
-
-本阶段确认了一个重要实现细节：
-
-- 在 `VyOS 1.4.3` 上，直接给单个 neighbor 配置 `route-reflector-client` 会触发配置脚本异常
-- 为了保证课程可复现性，最终采用了 `peer-group CILIUM + route-reflector-client` 的稳定写法
-
-#### 5. 验证结果
-
-本阶段已验证：
-
-- 4 台 Worker 与 `10.1.1.254` 的 `BGP Session State` 全部为 `established`
-- `kubectl get cbgpnode` 中出现 4 台 Worker
-- `VyOS show ip bgp summary` 中可看到 4 个 `Established` 邻居
-- `VyOS show ip route bgp` 中已学到：
-  - `10.244.0.0/24`
-  - `10.244.1.0/24`
-  - `10.244.2.0/24`
-  - `10.244.5.0/24`
-
-#### 6. 当前结论
-
-第二章主线已经完整闭环：
-
-- `Cilium` 接管了数据平面
-- `Hubble` 具备了东西向可观测能力
-- `L3/L4` 与 `L7` 策略具备了零信任演示能力
-- `VyOS RR + Cilium BGP Control Plane` 具备了控制面演示能力
-
-可以正式进入第三章：南北向流量与入口控制主线。
+原 VyOS RR、Cilium BGP 相关内容已从第二章删除。第二章现以第 6 步（原第 7 步）验收文档 `07_verify.md` 结束，覆盖 Cilium、Hubble、策略与网络连通性验证。
 
 ### 阶段 21：第一章 Harbor 复核与 `06_containerd.md` 教材化精修
 
