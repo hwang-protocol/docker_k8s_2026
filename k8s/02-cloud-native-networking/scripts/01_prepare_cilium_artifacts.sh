@@ -128,6 +128,22 @@ TARGET_IMAGES=(
   "harbor.qytk8s.com/cilium/curl:8.12.1"
 )
 
+harbor_artifact_exists() {
+  local target_image="$1"
+  local image_ref image_path repo tag http_code
+
+  image_ref="${target_image#${HARBOR_DOMAIN}/}"
+  image_path="${image_ref%%:*}"
+  repo="${image_path#${HARBOR_PROJECT}/}"
+  tag="${target_image##*:}"
+
+  http_code=$(curl -k -s -o /tmp/harbor_artifact_check.json -w '%{http_code}' \
+    -u "${HARBOR_USERNAME}:${HARBOR_PASSWORD}" \
+    "https://${HARBOR_DOMAIN}/api/v2.0/projects/${HARBOR_PROJECT}/repositories/${repo}/artifacts/${tag}")
+
+  [[ "${http_code}" == "200" ]]
+}
+
 echo "${HARBOR_PASSWORD}" | docker login "${HARBOR_DOMAIN}" -u "${HARBOR_USERNAME}" --password-stdin >/dev/null
 
 for index in "${!SOURCE_IMAGES[@]}"; do
@@ -138,6 +154,12 @@ for index in "${!SOURCE_IMAGES[@]}"; do
   echo "源镜像：${src}"
   echo "目标镜像：${dst}"
   echo "========================================================="
+
+  if harbor_artifact_exists "${dst}"; then
+    echo "Harbor 已存在目标镜像，跳过公网拉取与推送"
+    echo
+    continue
+  fi
 
   docker pull "${src}"
   docker tag "${src}" "${dst}"
