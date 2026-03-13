@@ -321,6 +321,6 @@ kubectl get cep -n net-demo
 
 ## 下一步
 
-下一步进入 `VyOS Route Reflector + Cilium BGP Control Plane`：
+下一步进入第二章最终验收：
 
-- `docs/07_bgp_rr.md`
+- `docs/07_verify.md`

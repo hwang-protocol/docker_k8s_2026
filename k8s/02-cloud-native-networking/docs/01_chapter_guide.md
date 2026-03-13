@@ -12,8 +12,7 @@
 - `Pod IP`、`Service`、`CoreDNS`、`Service Discovery` 可以完整演示
 - `Hubble` 可以观察东西向流量
 - `L3/L4` 与 `L7` 策略都可以演示
-- `VyOS` 作为 `Route Reflector`，4 台 Worker 作为 `iBGP client`
-- 第二章重点体现东西向网络、eBPF 数据平面与 BGP 控制面能力
+- 第二章重点体现东西向网络、eBPF 数据平面、服务发现与策略控制能力
 
 ## 问题背景
 
@@ -55,8 +54,6 @@
 - `native routing`
 - `Hubble`
 - `L3/L4` 与 `L7` 策略
-- `Cilium BGP Control Plane`
-- `VyOS Route Reflector`
 
 第三章再集中处理：
 
@@ -75,7 +72,6 @@ flowchart LR
   dns[CoreDNS Running]
   hubble[Hubble]
   policy[L3/L4/L7 策略]
-  bgp[BGP Control Plane]
   verify[第二章验收]
 
   init --> cilium
@@ -83,19 +79,17 @@ flowchart LR
   cilium --> dns
   cilium --> hubble
   cilium --> policy
-  cilium --> bgp
   ebpf --> verify
   dns --> verify
   hubble --> verify
   policy --> verify
-  bgp --> verify
 ```
 
 这张图表达了第二章的完整主线：
 
 - 从第一章结束状态出发
 - 先由 `Cilium` 接管 CNI
-- 再逐步补齐 `eBPF`、DNS、观测、策略与 BGP 控制面
+- 再逐步补齐 `eBPF`、DNS、观测与策略能力
 - 最终形成第二章验收结果
 
 ## 本章学习方式
@@ -127,8 +121,7 @@ flowchart LR
 | 3 | `04_service_discovery.md` | `scripts/03_apply_service_discovery_demo.sh` | 必须执行 | 演示 Pod、Service、DNS 与 Service Discovery |
 | 4 | `05_enable_hubble.md` | `scripts/04_enable_hubble.sh` | 必须执行 | 启用 Hubble 并观测东西向流量 |
 | 5 | `06_l7_policy.md` | `scripts/05_apply_l7_policy_demo.sh` | 必须执行 | 演示 `L3/L4` 与 `L7` 策略 |
-| 6 | `07_bgp_rr.md` | `scripts/06_configure_bgp_rr.sh` | 必须执行 | 接入 `VyOS`，建立 `Route Reflector + iBGP client` |
-| 7 | `08_verify.md` | 无 | 只读验证 | 本章最终验收，不改配置 |
+| 6 | `07_verify.md` | 无 | 只读验证 | 本章最终验收，不改配置 |
 
 ## 本章执行顺序
 
@@ -139,8 +132,7 @@ flowchart LR
 3. `04_service_discovery.md`
 4. `05_enable_hubble.md`
 5. `06_l7_policy.md`
-6. `07_bgp_rr.md`
-7. `08_verify.md`
+6. `07_verify.md`
 
 ## 第二章起点状态
 
@@ -183,19 +175,13 @@ flowchart LR
 - `eBPF kube-proxy replacement`
 - 与第一章一致的 `Pod CIDR`
 
-## 第二章 BGP 设计要点
-
-本章中 BGP 的主线设计如下：
-
-- `VyOS(10.1.1.254)` 作为 `Route Reflector`
-- 4 台 Worker 作为 `iBGP client`
-- 全部使用私有 ASN：`65001`
+## 第二章网络设计要点补充
 
 本章重点讲：
 
 - 为什么 `Cilium` 不只是 CNI
 - 为什么 `eBPF` 不只是“转发更快”
-- 为什么网络工程师要关心 Kubernetes 里的 BGP 控制面
+- 为什么 `native routing + kube-proxy replacement + Hubble + L7 policy` 能组成完整的东西向网络主线
 
 ## 课程文件 HTTP 服务
 

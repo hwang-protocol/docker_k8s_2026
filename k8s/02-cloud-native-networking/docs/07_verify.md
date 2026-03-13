@@ -1,4 +1,4 @@
-# 第 7 步：第二章最终验收
+# 第 6 步：第二章最终验收
 
 ## 本步目标
 
@@ -8,7 +8,6 @@
 - `Service Discovery` 正常
 - `Hubble` 可以观察东西向流量
 - `L3/L4` 与 `L7` 策略可以演示
-- `VyOS RR + Cilium BGP` 已建立
 
 本步不改配置，只做验收。
 
@@ -28,13 +27,11 @@
 - `Service` 与 DNS 访问链路
 - `Hubble` 流量观测
 - `CiliumNetworkPolicy`
-- `VyOS Route Reflector + Cilium BGP Control Plane`
 
 因此最终验收要回答的问题也很明确：
 
 - 集群网络现在是否已经稳定可用
 - 业务流量是否可解析、可访问、可观察、可控制
-- Kubernetes 是否已经和外部网络设备建立了明确的 BGP 控制面关系
 
 ## 理论说明
 
@@ -46,23 +43,19 @@ flowchart LR
   svc[Service 与 CoreDNS]
   hubble[Hubble 流量观测]
   policy[Cilium L3/L4 与 L7 策略]
-  bgp[Cilium BGP Control Plane]
-  rr[VyOS Route Reflector]
 
   cilium --> svc
   cilium --> hubble
   cilium --> policy
-  cilium --> bgp
-  bgp --> rr
 ```
 
 这张图说明：
 
 - 第二章所有实验并不是分散的独立小点
 - 它们共同围绕同一个目标展开：
-  - 用 `Cilium` 建立 Kubernetes 的数据平面、观测能力、安全控制能力和对外路由控制能力
+  - 用 `Cilium` 建立 Kubernetes 的数据平面、观测能力与安全控制能力
 
-### 本页为什么按“从底座到控制面”的顺序验收
+### 本页为什么按“从底座到策略”的顺序验收
 
 本页采用下面的顺序：
 
@@ -70,16 +63,12 @@ flowchart LR
 2. `net-demo` 演示应用
 3. `Hubble`
 4. `CiliumNetworkPolicy`
-5. `BGP`
 
 这样安排的原因是：
 
 - 先确认底座是否稳定
 - 再确认业务访问是否成立
 - 再确认观测与策略是否成立
-- 最后确认外部网络控制面是否成立
-
-这比把所有命令杂糅在一起更适合作为教材验收路径。
 
 ## 验收顺序
 
@@ -89,7 +78,6 @@ flowchart LR
 2. `net-demo` 演示应用
 3. `Hubble`
 4. `CiliumNetworkPolicy`
-5. `BGP`
 
 ## 验证方法
 
@@ -176,70 +164,6 @@ kubectl exec -n net-demo deployment/client -- sh -c "curl -sS -o /dev/null -w '%
 - 同一个 `client` 对不同 HTTP 方法是否得到不同结果
 - 这说明当前策略已经进入协议感知层，而不只是简单的端口放行
 
-### 验证 5：BGP 邻居与路由
-
-```bash
-cilium bgp peers
-```
-
-预期结果：
-
-- 4 台 Worker 都连接到 `10.1.1.254`
-- `Session State` 为 `established`
-
-然后查看 `VyOS`：
-
-```bash
-python3 - <<'PY'
-import pexpect
-
-shell_prompt = r"vyos@[^\r\n]*\$ "
-child = pexpect.spawn(
-    "ssh -tt -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null vyos@10.1.1.254",
-    encoding="utf-8",
-    timeout=20,
-)
-child.expect("password:")
-child.sendline("vyos")
-while True:
-    idx = child.expect([r"Press RETURN to continue", shell_prompt], timeout=20)
-    if idx == 0:
-        child.sendline("")
-        continue
-    break
-child.sendline("set terminal length 0")
-child.expect(shell_prompt, timeout=20)
-child.sendline("show ip bgp summary")
-while True:
-    idx = child.expect([r"Press RETURN to continue", shell_prompt], timeout=20)
-    if idx == 0:
-        child.sendline("")
-        continue
-    break
-print(child.before)
-child.sendline("show ip route bgp")
-while True:
-    idx = child.expect([r"Press RETURN to continue", shell_prompt], timeout=20)
-    if idx == 0:
-        child.sendline("")
-        continue
-    break
-print(child.before)
-child.sendline("exit")
-child.expect(pexpect.EOF, timeout=10)
-PY
-```
-
-预期结果：
-
-- 4 个邻居为 `Established`
-- `show ip route bgp` 中能看到 `10.244.x.0/24` Pod 路由
-
-关键看点：
-
-- Kubernetes 侧和 `VyOS` 侧看到的邻居数量应一致
-- `VyOS` 侧应确实学到了 Worker 的 `PodCIDR`
-
 ## 通过标准
 
 满足下面条件后，第二章即可视为完成：
@@ -247,7 +171,6 @@ PY
 - `Cilium` 与 `Hubble` 正常
 - `Service Discovery` 正常
 - `L3/L4` 与 `L7` 策略正常
-- `VyOS RR + Cilium BGP` 正常
 
 ## 下一步
 

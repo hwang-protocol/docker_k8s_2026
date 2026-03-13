@@ -8,7 +8,7 @@ set -euo pipefail
 # 说明：
 # 1. 第一章 kubeadm 已安装 kube-proxy，本脚本会先清理 kube-proxy 与相关 iptables 规则
 # 2. 本脚本使用本地 Helm chart 和本地 values 文件安装 Cilium
-# 3. Cilium 采用 native routing + kube-proxy replacement + Hubble + BGP Control Plane
+# 3. Cilium 采用 native routing + kube-proxy replacement + Hubble
 # ==============================================================================
 
 K8S_NODES=(

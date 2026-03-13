@@ -7,7 +7,6 @@
 - `native routing`
 - `eBPF kube-proxy replacement`
 - `Hubble`
-- `BGP Control Plane`
 
 本步完成后，应达到下面状态：
 
@@ -115,8 +114,6 @@ flowchart LR
 
 - `Pod CIDR`
 - 东西向路由可达性
-- `BGP`
-- `Route Reflector`
 
 因此本章不采用 tunnel 模式，而是采用：
 
@@ -124,7 +121,7 @@ flowchart LR
 routingMode: native
 ```
 
-这样后面讲 `VyOS Route Reflector` 和 `Cilium BGP Control Plane` 时，主线会更清晰。
+这样更适合把第二章的 Pod 网段、Service 转发与跨节点直连路径讲清楚。
 
 如果改成 `VXLAN`，最常见的写法是：
 
@@ -133,11 +130,11 @@ routingMode: tunnel
 tunnelProtocol: vxlan
 ```
 
-这表示跨节点 Pod 流量会先封装进 `VXLAN`。它更容易先把网络跑通，但会弱化第二章后半段关于原生路由、`PodCIDR` 和 `BGP` 的表达。
+这表示跨节点 Pod 流量会先封装进 `VXLAN`。它更容易先把网络跑通，但会弱化第二章关于原生路由、`PodCIDR` 和直连路径的表达。
 
 因此本课程选择：
 
-- `native routing`：更适合讲清楚 Pod 网段、路由和 `BGP`
+- `native routing`：更适合讲清楚 Pod 网段与跨节点路由
 - `VXLAN`：更适合快速建立封装网络
 
 这一章采用哪种模式，由下面这个文件控制：
@@ -191,8 +188,6 @@ autoDirectNodeRoutes: true
 ipv4NativeRoutingCIDR: "10.244.0.0/16"
 
 kubeProxyReplacement: true
-bgpControlPlane:
-  enabled: true
 
 hubble:
   enabled: true
@@ -208,8 +203,6 @@ hubble:
   - 固定原生路由下的 Pod 网段
 - `kubeProxyReplacement: true`
   - 启用 `eBPF` 接管 Service 转发
-- `bgpControlPlane.enabled: true`
-  - 提前为第二章后半段 BGP 演示打开控制面能力
 - `hubble.enabled: true`
   - 同步启用第二章需要的可观测能力
 

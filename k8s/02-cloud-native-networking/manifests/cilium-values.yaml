@@ -4,7 +4,7 @@
 # 设计原则：
 # 1. 与第一章 Kubernetes v1.33.9 保持兼容
 # 2. 使用 native routing + eBPF kube-proxy replacement
-# 3. 启用 Hubble、L7 policy、BGP Control Plane
+# 3. 启用 Hubble 与 L7 policy
 # 4. 所有镜像统一从 Harbor 拉取
 # ==============================================================================
 
@@ -24,9 +24,6 @@ ipam:
     clusterPoolIPv4PodCIDRList:
       - "10.244.0.0/16"
     clusterPoolIPv4MaskSize: 24
-
-bgpControlPlane:
-  enabled: true
 
 l2announcements:
   enabled: false

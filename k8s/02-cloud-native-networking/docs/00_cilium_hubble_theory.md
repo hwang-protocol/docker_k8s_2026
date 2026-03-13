@@ -40,7 +40,6 @@
 - `eBPF` 如何替代传统 `kube-proxy`
 - `Hubble` 如何把东西向流量可视化
 - `L3/L4/L7` 策略如何逐层收紧访问
-- `Cilium BGP Control Plane` 如何把 Pod 网络接入外部路由体系
 
 ### 第二章总关系图
 
@@ -53,9 +52,6 @@ flowchart LR
   cilium[Cilium]
   ebpf[eBPF Data Plane]
   hubble[Hubble]
-  bgp[Cilium BGP Control Plane]
-  vyos[VyOS Route Reflector]
-
   poda --> svc
   svc --> podb
   poda --> dns
@@ -64,8 +60,6 @@ flowchart LR
   poda --> cilium
   podb --> cilium
   cilium --> hubble
-  cilium --> bgp
-  bgp --> vyos
 ```
 
 这张图可以把第二章的主线一次看清楚：
@@ -73,7 +67,6 @@ flowchart LR
 - `Cilium` 负责网络接入与转发能力
 - `eBPF` 负责数据平面增强
 - `Hubble` 负责流量观测
-- `Cilium BGP Control Plane` 负责把集群网络接入外部路由体系
 
 ### 什么是 `Cilium`
 
@@ -85,7 +78,6 @@ flowchart LR
 - Service 转发
 - 安全策略
 - 流量可观测
-- BGP 控制面
 
 第二章理解 `Cilium` 时，建议优先抓住下面 5 个关键词：
 
@@ -152,11 +144,10 @@ flowchart LR
 
 结论不是“`Calico` 落后，`Cilium` 更高级”，而是：
 
-> 第二章选择 `Cilium`，是因为它更适合把 **eBPF、东西向可观测、L7 感知策略、BGP 控制面** 这条主线一次讲透。
+> 第二章选择 `Cilium`，是因为它更适合把 **eBPF、东西向可观测、L7 感知策略** 这条主线一次讲透。
 
 如果读者以前主要使用的是 `Calico`，通常已经熟悉：
 
-- `BGP`
 - `NetworkPolicy`
 - `iptables`
 - 先打通网络，再逐步加策略
@@ -168,7 +159,6 @@ flowchart LR
 - `eBPF kube-proxy replacement`
 - 直接观察东西向流量
 - 在同一套体系内演示 `L3/L4` 到 `L7`
-- 把 `BGP Control Plane` 和 `Route Reflector` 连起来讲
 
 从课程表达角度看，`Cilium` 更适合承载这一组目标。
 
@@ -238,7 +228,7 @@ flowchart LR
 阅读完本页后，应能明确下面这些结论：
 
 - 第二章的主线是东西向网络，而不是北向入口
-- `Cilium` 不只是 CNI，而是承载网络、安全、观测与 BGP 的统一底座
+- `Cilium` 不只是 CNI，而是承载网络、安全与观测的统一底座
 - `Hubble` 是 `Cilium` 的流量可视化观察窗口
 - 第二章选择 `Cilium` 的原因是教学主线匹配，而不是简单否定 `Calico`
 - 第二章里的 `L7` 与后续 `Istio` 并不冲突，二者分工不同
