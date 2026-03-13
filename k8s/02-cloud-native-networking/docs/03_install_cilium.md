@@ -67,6 +67,32 @@ flowchart LR
 - 安装 `Cilium` 不是“再加一个网络组件”
 - 而是把第一章未完成的网络平面正式补齐，并让 `eBPF` 接管关键数据路径
 
+### `Cilium` 与 `Hubble` 组件关系图
+
+```mermaid
+flowchart LR
+  pods[业务 Pod]
+  ciliumds[cilium DaemonSet<br/>每个节点一份]
+  operator[cilium-operator<br/>控制面副本]
+  relay[hubble-relay<br/>统一汇聚入口]
+  ui[hubble-ui<br/>Web 可视化界面]
+  envoy[Embedded Envoy/L7 能力]
+
+  pods --> ciliumds
+  ciliumds --> relay
+  relay --> ui
+  operator --> ciliumds
+  ciliumds --> envoy
+```
+
+这张图可以帮助理解 `cilium status --wait` 里几类组件的分工：
+
+- `cilium`：运行在每个节点上，负责网络接入、转发、策略与流量采集
+- `cilium-operator`：负责集群级控制逻辑，例如 IPAM 与资源协同
+- `hubble-relay`：把各节点上的观测数据汇聚起来
+- `hubble-ui`：把汇聚后的流量信息展示成 Web 界面
+- `Embedded Envoy`：当前课程使用内嵌模式，因此不会看到单独的 `Envoy DaemonSet`
+
 ### 为什么这一步必须先清理 `kube-proxy`
 
 第一章的集群是通过 `kubeadm` 初始化的，因此默认已经安装了 `kube-proxy`。
@@ -98,18 +124,55 @@ flowchart LR
 routingMode: native
 ```
 
-这样后面讲 `VyOS Route Reflector` 和 `Cilium BGP Control Plane` 时，控制面主线会更清晰。
+这样后面讲 `VyOS Route Reflector` 和 `Cilium BGP Control Plane` 时，主线会更清晰。
+
+如果改成 `VXLAN`，最常见的写法是：
+
+```text
+routingMode: tunnel
+tunnelProtocol: vxlan
+```
+
+这表示跨节点 Pod 流量会先封装进 `VXLAN`。它更容易先把网络跑通，但会弱化第二章后半段关于原生路由、`PodCIDR` 和 `BGP` 的表达。
+
+因此本课程选择：
+
+- `native routing`：更适合讲清楚 Pod 网段、路由和 `BGP`
+- `VXLAN`：更适合快速建立封装网络
+
+这一章采用哪种模式，由下面这个文件控制：
+
+- `manifests/cilium-values.yaml`
+
+如果后续确实要切到 `VXLAN`，也应在这份 values 文件中调整，而不是在脚本里临时改参数。
 
 ### 为什么这里要显式指定 `k8sServiceHost` 和 `k8sServicePort`
 
-启用 `kube-proxy replacement` 后，`Cilium` 不再依赖传统 `kube-proxy` 提供 Kubernetes Service 访问路径。
+这两个字段同样写在下面这份安装配置文件中：
 
-因此必须显式指定：
+- `manifests/cilium-values.yaml`
+
+它们的作用不是给业务 Pod 用，而是告诉 `Cilium` 自己：
+
+- Kubernetes API Server 在哪里
+- 安装和启动时应该连到哪个地址
+
+当前课程里显式指定的是：
 
 - `k8sServiceHost: 10.1.1.10`
 - `k8sServicePort: 6443`
 
-也就是让 `Cilium` 直接通过 API VIP 去访问 Kubernetes API Server。
+也就是让 `Cilium` 直接通过第一章准备好的 API VIP：
+
+- `10.1.1.10:6443`
+
+去访问 Kubernetes API Server。
+
+这样做的好处是：
+
+- 三台控制平面后面只暴露一个统一入口
+- `Cilium` 不需要绑定某一台单独控制平面节点
+- 后续即使控制平面发生切换，`Cilium` 访问 API 的目标也不需要改
 
 ### 本步核心 values 关键字段示意
 
@@ -286,16 +349,53 @@ bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/02_install_cilium.s
 cilium status --wait
 ```
 
+示例输出：
+
+```text
+    /¯¯\
+ /¯¯\__/¯¯\    Cilium:             OK
+ \__/¯¯\__/    Operator:           OK
+ /¯¯\__/¯¯\    Envoy DaemonSet:    disabled (using embedded mode)
+ \__/¯¯\__/    Hubble Relay:       OK
+    \__/       ClusterMesh:        disabled
+
+DaemonSet              cilium                   Desired: 7, Ready: 7/7, Available: 7/7
+Deployment             cilium-operator          Desired: 2, Ready: 2/2, Available: 2/2
+Deployment             hubble-relay             Desired: 1, Ready: 1/1, Available: 1/1
+Deployment             hubble-ui                Desired: 1, Ready: 1/1, Available: 1/1
+Containers:            cilium                   Running: 7
+                       cilium-operator          Running: 2
+                       clustermesh-apiserver
+                       hubble-relay             Running: 1
+                       hubble-ui                Running: 1
+Cluster Pods:          4/4 managed by Cilium
+Helm chart version:    1.19.1
+Image versions         cilium             harbor.qytk8s.com/cilium/cilium:v1.19.1: 7
+                       cilium-operator    harbor.qytk8s.com/cilium/operator-generic:v1.19.1: 2
+                       hubble-relay       harbor.qytk8s.com/cilium/hubble-relay:v1.19.1: 1
+                       hubble-ui          harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3: 1
+                       hubble-ui          harbor.qytk8s.com/cilium/hubble-ui:v0.13.3: 1
+```
+
 预期结果：
 
 - `Cilium` 为 `OK`
 - `Operator` 为 `OK`
 - `Hubble Relay` 为 `OK`
+- `DaemonSet cilium` 为 `7/7`
+- `hubble-ui` 与 `hubble-relay` 均已启动
 
 关键看点：
 
-- 不需要人工通读所有字段
-- 重点确认 `Cilium`、`Operator`、`Hubble Relay` 的总体状态
+- 先看最上面 3 行：
+  - `Cilium: OK`
+  - `Operator: OK`
+  - `Hubble Relay: OK`
+- 再看 `DaemonSet cilium` 是否为 `7/7`
+- 再看 `Image versions` 是否已经统一来自：
+  - `harbor.qytk8s.com/cilium/...`
+- `Envoy DaemonSet: disabled (using embedded mode)` 在当前课程配置里是正常现象
+- `ClusterMesh: disabled` 也是正常现象，因为第二章并未启用多集群互联
 
 ### 验证 2：查看节点状态
 
