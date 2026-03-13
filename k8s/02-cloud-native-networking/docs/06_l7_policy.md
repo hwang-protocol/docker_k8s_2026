@@ -99,6 +99,10 @@ flowchart LR
 
 #### `L3/L4` 策略关键字段
 
+下面这段内容来自：
+
+- `manifests/30_cnp_l3l4_allow_client.yaml`
+
 ```yaml
 spec:
   endpointSelector:
@@ -124,6 +128,10 @@ spec:
   - 只允许访问 TCP `80`
 
 #### `L7 HTTP` 策略关键字段
+
+下面这段内容来自：
+
+- `manifests/31_cnp_l7_allow_get.yaml`
 
 ```yaml
 spec:
@@ -183,18 +191,36 @@ kubectl delete cnp -n net-demo whoami-l7-allow-get --ignore-not-found
 kubectl rollout status deployment/other -n net-demo --timeout=5m
 ```
 
+然后立刻查看当前 Pod 状态：
+
+```bash
+kubectl get pod -n net-demo
+```
+
+示例输出：
+
+```text
+NAME                      READY   STATUS    RESTARTS   AGE
+client-5d75665b4d-c8th2   1/1     Running   0          57m
+other-56dbc7b4cb-wcrj2    1/1     Running   0          41s
+whoami-578dd87854-j4hpd   1/1     Running   0          57m
+```
+
 结果看点：
 
 - `other` 应成功进入 `Running`
 - 删除旧策略时显示 `deleted` 或 `not found` 都是正常现象
+- 此时 `net-demo` 中应能同时看到：
+  - `client`
+  - `other`
+  - `whoami`
+- 这一步的意义是先把“对照组”准备好，后面策略收紧时才能直观看出谁被允许、谁被拒绝
 
 ### 步骤 2：验证基线状态
 
 执行命令：
 
 ```bash
-kubectl exec -n net-demo deployment/client -- curl -sS http://whoami
-kubectl exec -n net-demo deployment/other -- curl -sS http://whoami
 kubectl exec -n net-demo deployment/client -- \
   sh -c "curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 http://whoami/"
 kubectl exec -n net-demo deployment/other -- \
@@ -208,6 +234,8 @@ kubectl exec -n net-demo deployment/other -- \
 - 这一步的价值是先建立“默认全通”的基线
 
 ### 步骤 3：应用 `L3/L4` 策略并观察结果
+
+执行命令：
 
 ```bash
 kubectl apply -f http://ops:9000/02-cloud-native-networking/manifests/30_cnp_l3l4_allow_client.yaml
@@ -225,6 +253,8 @@ kubectl exec -n net-demo deployment/other -- \
 - 这一步说明策略已经能按工作负载身份收紧访问范围
 
 ### 步骤 4：切换为 `L7 GET-only` 策略并观察结果
+
+执行命令：
 
 ```bash
 kubectl delete -f http://ops:9000/02-cloud-native-networking/manifests/30_cnp_l3l4_allow_client.yaml
@@ -245,28 +275,32 @@ kubectl exec -n net-demo deployment/client -- \
 
 ### 步骤 5：查看当前策略对象与端点对象
 
+执行命令：
+
 ```bash
 kubectl get cnp -n net-demo
 kubectl get cep -n net-demo
 ```
+
+这里的两个缩写分别表示：
+
+- `cnp`
+  - `CiliumNetworkPolicy`
+  - 用来查看当前命名空间中的 Cilium 策略对象
+- `cep`
+  - `CiliumEndpoint`
+  - 用来查看 Cilium 为每个 Pod 维护的端点对象
+
+可以先把它们简单理解成：
+
+- `cnp`：规则本身
+- `cep`：被规则作用的端点对象
 
 结果看点：
 
 - 当前通常会看到 `whoami-l7-allow-get`
 - 能看到 `whoami`、`client`、`other` 对应的 `CiliumEndpoint`
 - 这一步的意义是把“策略对象”和“端点身份”也展示出来，方便上课解释
-
-### 步骤 6：补充验证 `other` 已被拒绝
-
-```bash
-kubectl exec -n net-demo deployment/other -- \
-  sh -c "curl -sS -o /dev/null -w '%{http_code}\n' --max-time 5 http://whoami/"
-```
-
-结果看点：
-
-- 在 `L3/L4` 阶段通常已经不是 `200`
-- 如果已经切换为最终的 `L7` 策略，`other` 仍然不应被放行
 
 ## 关键看点
 
