@@ -126,6 +126,19 @@ flowchart LR
 - 流量 verdict 是什么
 - 请求是 `FORWARDED` 还是 `DROPPED`
 
+> 术语说明：`verdict`
+>
+> `verdict` 表示 `Cilium/Hubble` 对一条流量的最终处理结论。
+>
+> - `FORWARDED`：这条流量被放行并继续转发
+> - `DROPPED`：这条流量被丢弃
+>
+> 观察流量时，可以把几个字段分开理解：
+>
+> - `source / destination`：是谁到谁
+> - `protocol / L7`：访问的是什么协议、方法或路径
+> - `verdict`：这条流量最后的命运是什么
+
 因此，第二章里二者的分工可以概括为：
 
 - `Cilium` 负责执行网络与安全动作
