@@ -89,6 +89,10 @@ flowchart LR
 - 不要在 VMware 里提前格式化
 - 不要把新盘并到系统盘里
 
+参考界面如下：
+
+<img src="../images/add_disk.png" alt="VMware 虚拟机添加数据盘示意" width="720" />
+
 ## Linux 侧预期结果
 
 重新开机后，在各节点里应该看到：
