@@ -9,6 +9,8 @@
 - `MetalLB` 镜像
 - 北向演示应用镜像
 
+> 说明：`CRD` 是 `CustomResourceDefinition` 的缩写，可以理解为“给 Kubernetes 扩展一种新的资源类型定义”。安装了 `Gateway API` 的 CRD 之后，集群才认识 `GatewayClass`、`Gateway`、`HTTPRoute` 这些对象；否则后续直接 `apply` 相关 YAML 时，Kubernetes 会因为“不认识这种资源”而报错。
+
 ## 执行标记
 
 - **执行标记：必须执行**
