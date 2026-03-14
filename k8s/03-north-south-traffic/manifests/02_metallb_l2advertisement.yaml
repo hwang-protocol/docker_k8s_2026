@@ -1,11 +1,11 @@
 apiVersion: metallb.io/v1beta1
 kind: L2Advertisement
 metadata:
-  name: edge-pool-on-wk-edge01
+  name: edge-pool-on-edge-nodes
   namespace: metallb-system
 spec:
   ipAddressPools:
     - edge-pool
   nodeSelectors:
     - matchLabels:
-        kubernetes.io/hostname: wk-edge01
+        qytk8s.com/node-role: edge

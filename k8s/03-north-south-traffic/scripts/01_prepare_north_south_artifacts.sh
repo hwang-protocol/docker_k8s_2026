@@ -76,6 +76,8 @@ download_metallb_manifest() {
     -e "s#quay.io/metallb/controller:${METALLB_VERSION}#${HARBOR_DOMAIN}/${HARBOR_PROJECT}/metallb-controller:${METALLB_VERSION}#g" \
     -e "s#quay.io/metallb/speaker:${METALLB_VERSION}#${HARBOR_DOMAIN}/${HARBOR_PROJECT}/metallb-speaker:${METALLB_VERSION}#g" \
     "${src}" >"${dst}"
+
+  perl -0pi -e 's/nodeSelector:\n        kubernetes\.io\/os: linux\n      serviceAccountName: speaker/nodeSelector:\n        kubernetes.io\/os: linux\n        qytk8s.com\/node-role: edge\n      serviceAccountName: speaker/' "${dst}"
 }
 
 download_gateway_api_standard_install() {

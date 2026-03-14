@@ -2141,6 +2141,7 @@ spec:
       hostNetwork: true
       nodeSelector:
         kubernetes.io/os: linux
+        qytk8s.com/node-role: edge
       serviceAccountName: speaker
       terminationGracePeriodSeconds: 2
       tolerations:

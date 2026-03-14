@@ -38,7 +38,8 @@ main() {
   echo "[4/6] 应用业务 VIP 地址池"
   kubectl apply -f "${POOL_URL}"
 
-  echo "[5/6] 应用 L2Advertisement（仅由 wk-edge01 对外通告）"
+  echo "[5/6] 为 wk-edge01 打入口标签并应用 L2Advertisement"
+  kubectl label node wk-edge01 qytk8s.com/node-role=edge --overwrite
   kubectl apply -f "${ADV_URL}"
 
   echo "[6/6] 查看 MetalLB 状态"

@@ -8,16 +8,11 @@
 
 - `MetalLB` 已安装
 - 业务地址池 `10.1.1.50-10.1.1.79` 已创建
-- 该地址池只允许 `wk-edge01` 对外通告
+- 该地址池只允许带有入口角色标签的节点对外通告
 
 ## 执行标记
 
 - **执行标记：必须执行**
-
-说明：
-
-- 这是第三章真正开始补齐南北向入口能力的一步
-- 本步完成后，裸机集群第一次具备为 `LoadBalancer Service` 分配业务 VIP 的能力
 
 ## 问题背景
 
@@ -29,17 +24,18 @@
 EXTERNAL-IP   <pending>
 ```
 
-也就是说：
-
-- Kubernetes 知道你要对外暴露服务
-- 但没有组件为你分配 VIP
-- 也没有组件把这个 VIP 在网络里真正通告出去
-
-第三章在这里引入 `MetalLB`，就是为了补齐这层能力。
+也就是说，Kubernetes 知道你要对外暴露服务，但不会替你分配和通告 VIP。第三章在这里引入 `MetalLB`，就是为了补齐这层能力。
 
 ## 理论说明
 
-### `MetalLB` 在第三章中的位置
+这一部分只回答 4 个问题：
+
+- `MetalLB` 在第三章链路里处于哪一层
+- `speaker` 和 `L2Advertisement` 分别控制什么
+- 本步到底会落下哪两份关键 YAML
+- 为什么当前实验先把入口收敛到单节点
+
+### 关系图：`MetalLB` 在第三章中的位置
 
 ```mermaid
 flowchart LR
@@ -57,17 +53,11 @@ flowchart LR
   client --> vip
 ```
 
-这张图说明：
+这张图只说明一件事：`MetalLB` 不负责七层转发，它负责给 `LoadBalancer Service` 分配 VIP，并通过 `L2Advertisement` 让 VIP 真正在网络里可达。
 
-- `MetalLB` 不是七层网关
-- 它负责给 `LoadBalancer Service` 分配 VIP
-- 并通过 `L2Advertisement` 让这个 VIP 在网络里真正可达
+### 核心区分：`speaker` 和“谁在发布 VIP”不是一回事
 
-### `speaker` 和“谁在发布 VIP”不是一回事
-
-这是 `MetalLB` 里最容易混淆的一层。
-
-可以把它拆成两件事：
+这部分最容易混淆，可以拆成两件事：
 
 1. 哪些节点上运行了 `speaker`
 这是 `DaemonSet` 调度问题。
@@ -75,12 +65,12 @@ flowchart LR
 2. 某个 VIP 最终允许哪些节点去对外通告
 这是 `L2Advertisement` 选择问题。
 
-也就是说：
-
-- `speaker` 在一个节点上运行
-- 不等于这个节点就一定会对某个 VIP 发 ARP 通告
+也就是说，`speaker` 在某个节点上运行，不等于这个节点就一定会对某个 VIP 发 ARP 通告。
 
 真正决定第三章这组业务 VIP 由谁来发布的，是下面这段：
+
+- 来源文件：`manifests/02_metallb_l2advertisement.yaml`
+- 对象类型：`L2Advertisement`
 
 ```yaml
 spec:
@@ -88,29 +78,47 @@ spec:
     - edge-pool
   nodeSelectors:
     - matchLabels:
-        kubernetes.io/hostname: wk-edge01
+        qytk8s.com/node-role: edge
 ```
 
 它的含义是：
 
 - `edge-pool` 里的 VIP
-- 只允许 `wk-edge01` 对外承担二层通告角色
+- 只允许带有 `qytk8s.com/node-role=edge` 标签的节点对外承担二层通告角色
 
-所以课程里可以把它简单记成：
+可以先简单记成：
 
-- `speaker` 决定“哪些节点具备通告能力”
-- `L2Advertisement` 决定“这次到底轮到谁通告”
+- `speaker` 决定“哪些节点安装通告进程”
+- `L2Advertisement` 决定“哪些节点有资格通告这组 VIP”
 
-### 为什么这里先讲地址池，再讲 Gateway
+`speaker` 的节点选择条件来源如下：
 
-第三章的设计顺序不是偶然的：
+- 来源文件：第 1 步固化生成的 `artifacts/metallb-native-v0.15.3.yaml`
+- 对象类型：`DaemonSet/speaker`
 
-1. 先补齐裸机 VIP 能力
-2. 再让 `Gateway` 这种北向入口对象去消费这个能力
+```yaml
+spec:
+  template:
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+        qytk8s.com/node-role: edge
+```
 
-如果不先装 `MetalLB`，后面的 `Gateway` 即使能生成 `LoadBalancer Service`，最终也很可能依然拿不到有效 `EXTERNAL-IP`。
+在当前课程改造后的安装清单里，`speaker` 自己也被收敛到了入口标签节点，只会跑在同时满足下面两个条件的节点上：
 
-### 本步关键清单
+- `kubernetes.io/os=linux`
+- `qytk8s.com/node-role=edge`
+
+这样 `speaker` 的部署范围与 `L2Advertisement` 的候选范围就统一到了同一组入口节点。
+
+这里不直接用 `kubernetes.io/hostname`，而是单独设计入口角色标签，原因是：
+
+- `hostname` 表达的是节点身份，不适合直接表达入口职责
+- 当前先给 `wk-edge01` 打这个标签，入口仍然可以稳定收敛到单节点
+- 后续如果把 `wk-obs01` 扩进来，只需要补同样的标签，不必修改选择模型
+
+### 关键对象：本步会落下哪两份清单
 
 本步会使用下面两份清单：
 
@@ -118,6 +126,9 @@ spec:
 - `manifests/02_metallb_l2advertisement.yaml`
 
 #### `IPAddressPool`
+
+- 来源文件：`manifests/01_metallb_ipaddresspool.yaml`
+- 对象类型：`IPAddressPool`
 
 ```yaml
 kind: IPAddressPool
@@ -135,16 +146,19 @@ spec:
 
 #### `L2Advertisement`
 
+- 来源文件：`manifests/02_metallb_l2advertisement.yaml`
+- 对象类型：`L2Advertisement`
+
 ```yaml
 kind: L2Advertisement
 metadata:
-  name: edge-pool-on-wk-edge01
+  name: edge-pool-on-edge-nodes
 spec:
   ipAddressPools:
     - edge-pool
   nodeSelectors:
     - matchLabels:
-        kubernetes.io/hostname: wk-edge01
+        qytk8s.com/node-role: edge
 ```
 
 关键字段说明：
@@ -152,13 +166,13 @@ spec:
 - `ipAddressPools: edge-pool`
   - 明确只通告这一组 VIP
 - `nodeSelectors`
-  - 只允许 `wk-edge01` 对外承担通告角色
+  - 只允许带有入口角色标签的节点对外承担通告角色
+- `qytk8s.com/node-role: edge`
+  - 表示该节点属于第三章北向入口节点集合
 
-### 不限制 `nodeSelectors` 会怎样
+### 设计取舍：为什么当前先收敛到 `wk-edge01`
 
-如果这里不把 `nodeSelectors` 收敛到 `wk-edge01`，结果就不会再是“固定只有 edge 节点发布 VIP”。
-
-更准确地说，会变成：
+如果这里不把 `nodeSelectors` 收敛到入口角色标签，就不会再是“固定只有 edge 节点发布 VIP”，而会变成：
 
 - 运行了 `speaker`
 - 且满足这组地址池条件的节点
@@ -168,15 +182,25 @@ spec:
 这带来的问题是：
 
 - 北向入口角色不稳定
-- 课堂上不容易把“入口角色”固定收敛到 `wk-edge01`
+- 课堂上不容易把“入口角色”固定收敛到 edge 节点集合
 
-所以第三章故意把它钉死在：
+所以第三章当前阶段的做法是：
 
-- `wk-edge01`
+- 先只给 `wk-edge01` 打 `qytk8s.com/node-role=edge`
 
-这样学员更容易建立稳定认知：
+这样更容易建立稳定认知：
 
-- `wk-edge01` = 北向入口节点
+- 当前 `wk-edge01` = 唯一入口节点
+- 后续再把同样标签补到其他节点，就能平滑扩容
+
+### 顺序说明：为什么这里先讲地址池，再讲 Gateway
+
+第三章这里的顺序是：
+
+1. 先补齐裸机 VIP 能力
+2. 再让 `Gateway` 这种北向入口对象去消费这个能力
+
+如果不先装 `MetalLB`，后面的 `Gateway` 即使能生成 `LoadBalancer Service`，最终也很可能拿不到有效 `EXTERNAL-IP`。
 
 ## 对应脚本
 
@@ -192,16 +216,18 @@ POOL_URL="http://ops:9000/03-north-south-traffic/manifests/01_metallb_ipaddressp
 ADV_URL="http://ops:9000/03-north-south-traffic/manifests/02_metallb_l2advertisement.yaml"
 ```
 
-关键介绍：
+变量含义：
 
 - `METALLB_MANIFEST_URL`
-  - 指向第 1 步已经固化好的 `MetalLB` 原始安装清单
+  - 指向第 1 步固化好的 `MetalLB` 安装清单
 - `POOL_URL`
   - 指向业务 VIP 地址池清单
 - `ADV_URL`
-  - 指向只允许 `wk-edge01` 对外通告的 `L2Advertisement` 清单
+  - 指向 `L2Advertisement` 清单
 
 ## 脚本关键任务
+
+这一部分按“脚本做什么 -> 用到哪个 YAML -> 看哪些关键字段”的顺序展开。
 
 ### 关键任务 1：预创建 `metallb-system` 并设置命名空间标签
 
@@ -218,7 +244,6 @@ kubectl label namespace metallb-system \
 
 关键介绍：
 
-- `MetalLB speaker` 以 `DaemonSet` 方式运行
 - 这里先把命名空间和相关安全标签准备好，保证组件能正常部署
 
 ### 关键任务 2：安装 `MetalLB` 原始组件
@@ -236,14 +261,24 @@ kubectl apply -f "${METALLB_MANIFEST_URL}"
 
 对应 YAML 关键内容：
 
+- 来源文件：第 1 步固化生成的 `artifacts/metallb-native-v0.15.3.yaml`
+- 对象类型：`Deployment/controller` 与 `DaemonSet/speaker`
+
 ```yaml
 image: harbor.qytk8s.com/northsouth/metallb-controller:v0.15.3
 ```
 
-以及：
+`speaker` 镜像与节点选择条件：
+
+- 来源文件：第 1 步固化生成的 `artifacts/metallb-native-v0.15.3.yaml`
+- 对象类型：`DaemonSet/speaker`
 
 ```yaml
 image: harbor.qytk8s.com/northsouth/metallb-speaker:v0.15.3
+
+nodeSelector:
+  kubernetes.io/os: linux
+  qytk8s.com/node-role: edge
 ```
 
 ### 关键任务 3：应用 VIP 地址池
@@ -257,10 +292,12 @@ kubectl apply -f "${POOL_URL}"
 关键介绍：
 
 - 这一段定义第三章业务 VIP 的可分配范围
-- `POOL_URL` 实际对应的是：
-  - `manifests/01_metallb_ipaddresspool.yaml`
+- `POOL_URL` 对应 `manifests/01_metallb_ipaddresspool.yaml`
 
 对应 YAML 关键内容：
+
+- 来源文件：`manifests/01_metallb_ipaddresspool.yaml`
+- 对象类型：`IPAddressPool`
 
 ```yaml
 kind: IPAddressPool
@@ -282,34 +319,38 @@ spec:
 - `autoAssign: true`
   - 允许 `MetalLB` 从地址池里自动分配 VIP
 
-### 关键任务 4：应用 L2Advertisement
+### 关键任务 4：为 `wk-edge01` 打入口标签并应用 `L2Advertisement`
 
 脚本原始代码：
 
 ```bash
+kubectl label node wk-edge01 qytk8s.com/node-role=edge --overwrite
 kubectl apply -f "${ADV_URL}"
 ```
 
 关键介绍：
 
-- 这一段限制只有 `wk-edge01` 对外承担通告角色
-- 更适合课堂上讲“边缘入口节点”的概念
-- `ADV_URL` 实际对应的是：
-  - `manifests/02_metallb_l2advertisement.yaml`
+- 第三章初始阶段先只给 `wk-edge01` 打入口角色标签
+- `L2Advertisement` 通过这个标签选出可对外通告 VIP 的节点
+- 后续如果要把 `wk-obs01` 扩进来，只需要补同样的标签
+- `ADV_URL` 对应 `manifests/02_metallb_l2advertisement.yaml`
 
 对应 YAML 关键内容：
+
+- 来源文件：`manifests/02_metallb_l2advertisement.yaml`
+- 对象类型：`L2Advertisement`
 
 ```yaml
 kind: L2Advertisement
 metadata:
-  name: edge-pool-on-wk-edge01
+  name: edge-pool-on-edge-nodes
   namespace: metallb-system
 spec:
   ipAddressPools:
     - edge-pool
   nodeSelectors:
     - matchLabels:
-        kubernetes.io/hostname: wk-edge01
+        qytk8s.com/node-role: edge
 ```
 
 关键字段说明：
@@ -317,13 +358,13 @@ spec:
 - `ipAddressPools: edge-pool`
   - 表示这条通告规则绑定的是 `edge-pool`
 - `nodeSelectors`
-  - 表示只有 `wk-edge01` 能对这组 VIP 做二层通告
-- `kubernetes.io/hostname: wk-edge01`
-  - 明确把业务入口角色收敛到 `wk-edge01`
+  - 表示只有带有入口角色标签的节点能对这组 VIP 做二层通告
+- `qytk8s.com/node-role: edge`
+  - 第三章初始阶段实际只有 `wk-edge01` 带这个标签，因此入口仍然收敛在 `wk-edge01`
 
-### 怎么看 `speaker` 会跑到哪些节点
+### 任务补充：怎么看 `speaker` 会跑到哪些节点
 
-不用读整份 `DaemonSet` YAML，直接抓这 3 个字段就够了：
+不用读整份 `DaemonSet` YAML，直接抓这 3 个字段即可：
 
 ```bash
 kubectl -n metallb-system get ds speaker -o jsonpath='{.spec.template.spec.nodeSelector}{"\n"}{.spec.template.spec.affinity}{"\n"}{.spec.template.spec.tolerations}{"\n"}'
@@ -338,22 +379,19 @@ kubectl -n metallb-system get ds speaker -o jsonpath='{.spec.template.spec.nodeS
 - `tolerations`
   - 决定它能不能跑到带污点的节点，例如 control-plane
 
-在当前实验里，典型结果是：
+当前实验里，典型结果是：
 
-- `nodeSelector` 只要求 `kubernetes.io/os=linux`
+- `nodeSelector` 同时要求：
+  - `kubernetes.io/os=linux`
+  - `qytk8s.com/node-role=edge`
 - `tolerations` 允许它容忍 control-plane 的 `NoSchedule`
 
 这意味着：
 
-- `speaker` 并不是只给 `wk-edge01`
-- 它通常可以在多个 Linux 节点上运行
+- 当前如果只有 `wk-edge01` 带这个标签，`speaker` 就只会跑在 `wk-edge01`
+- 后续如果 `wk-obs01` 也打上同样标签，`speaker` 会自动在 `wk-obs01` 新增一个 Pod
 
-再次强调：
-
-- 哪些节点上“有 `speaker`”
-- 和哪些节点“真的发布 `edge-pool` VIP”
-
-不是同一个问题。
+再次强调：哪些节点上“有 `speaker`”，和哪些节点“真的发布 `edge-pool` VIP”，不是同一个问题。
 
 ## 执行命令
 
@@ -370,6 +408,8 @@ bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/02_install_metallb.sh
 ```
 
 ## 验证方法
+
+这一部分按“先看对象是否创建成功，再看调度范围，最后看运行时发布行为”的顺序检查。
 
 ### 验证 1：查看 `MetalLB` 组件状态
 
@@ -391,19 +431,19 @@ kubectl get ipaddresspool,l2advertisement -n metallb-system
 预期结果：
 
 - `edge-pool` 存在
-- `edge-pool-on-wk-edge01` 存在
+- `edge-pool-on-edge-nodes` 存在
 
 ### 验证 3：查看 VIP 地址池详细内容
 
 ```bash
 kubectl get ipaddresspool -n metallb-system edge-pool -o yaml
-kubectl get l2advertisement -n metallb-system edge-pool-on-wk-edge01 -o yaml
+kubectl get l2advertisement -n metallb-system edge-pool-on-edge-nodes -o yaml
 ```
 
 预期结果：
 
 - 地址池范围为 `10.1.1.50-10.1.1.79`
-- `nodeSelectors` 中明确指向 `wk-edge01`
+- `nodeSelectors` 中明确指向 `qytk8s.com/node-role=edge`
 
 ### 验证 4：只抽关键字段，判断 `speaker` 的运行范围
 
@@ -413,8 +453,8 @@ kubectl -n metallb-system get ds speaker -o jsonpath='{.spec.template.spec.nodeS
 
 关键看点：
 
-- 如果 `nodeSelector` 只看到 `kubernetes.io/os=linux`
-  - 表示所有 Linux 节点都可能运行 `speaker`
+- 如果 `nodeSelector` 同时看到 `kubernetes.io/os=linux` 和 `qytk8s.com/node-role=edge`
+  - 表示只有带 edge 入口标签的 Linux 节点可能运行 `speaker`
 - 如果 `tolerations` 里出现 control-plane 相关项
   - 表示控制平面节点也允许运行 `speaker`
 
@@ -424,52 +464,14 @@ kubectl -n metallb-system get ds speaker -o jsonpath='{.spec.template.spec.nodeS
   - `speaker` 的部署范围
   - `edge-pool` 的实际 VIP 发布节点
 
-### 验证 5：怎么看当前是 `wk-edge01` 在发布 `10.1.1.60`
-
-先看配置层：
-
-```bash
-kubectl -n metallb-system get l2advertisement edge-pool-on-wk-edge01 -o jsonpath='{.spec.ipAddressPools}{"\n"}{.spec.nodeSelectors}{"\n"}'
-```
-
-关键看点：
-
-- 第一行应出现 `edge-pool`
-- 第二行应明确出现 `wk-edge01`
-
-这表示：
-
-- `edge-pool` 这组 VIP
-- 只允许 `wk-edge01` 进入发布候选
-
-如果要从运行时再做一次网络确认，可以在外部主机上执行：
-
-```bash
-arping -I eth0 10.1.1.60
-```
-
-然后再去 `wk-edge01` 上查看网卡 MAC：
-
-```bash
-ssh root@wk-edge01 'ip link show'
-```
-
-关键看点：
-
-- `10.1.1.60` 回应的 MAC
-- 应与 `wk-edge01` 的网卡 MAC 对上
-
-预期结果：
-
-- 可以把 `10.1.1.60` 理解成“当前由 `wk-edge01` 这张网卡在二层上回应”
-
 ## 关键看点
 
 这一页真正要确认的是：
 
 - `MetalLB` 组件已可用
 - 集群已经具备为 `LoadBalancer Service` 分配 VIP 的能力
-- VIP 并不是“全网任意节点都能通告”，而是按课程设计收敛到 `wk-edge01`
+- `edge-pool` 与 `L2Advertisement` 已准备好
+- 当前只有带 `qytk8s.com/node-role=edge` 标签的节点具备对外通告这组 VIP 的资格
 
 ## 通过标准
 
@@ -477,7 +479,7 @@ ssh root@wk-edge01 'ip link show'
 
 - `MetalLB` 正常运行
 - 集群已经具备对 `LoadBalancer Service` 分配 VIP 的能力
-- `edge-pool` 与 `edge-pool-on-wk-edge01` 已创建成功
+- `edge-pool` 与 `edge-pool-on-edge-nodes` 已创建成功
 
 ## 下一步
 
