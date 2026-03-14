@@ -84,6 +84,17 @@ flowchart LR
 
 这一页虽然不是通过现成 YAML 清单安装组件，但最终会在集群里生成一个非常关键的对象：
 
+- 来源方式：由 `scripts/04_issue_tls_certs.sh` 运行时动态生成
+- 对象类型：`Secret`
+- 说明：这里没有独立静态 YAML 文件，对象来自下面这段命令输出：
+
+```bash
+kubectl -n "${NAMESPACE}" create secret tls "${SECRET_NAME}" \
+  --cert "${SERVER_CERT}" \
+  --key "${SERVER_KEY}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
 ```yaml
 kind: Secret
 type: kubernetes.io/tls
