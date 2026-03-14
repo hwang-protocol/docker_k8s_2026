@@ -14,16 +14,6 @@
 - 已完成权重路由、灰度、超时、重试、故障注入等演示
 - 每一个关键知识点都配有手动测试脚本，便于课堂边讲边测
 
-## 本章学习方式
-
-这一章继续采用“文档主导 + 一把梭脚本 + 手动测试脚本”的方式：
-
-1. 登录 `ops`
-2. 先看文档，再执行自动化脚本
-3. 环境铺好后，再运行 `manual_tests/` 里的短脚本做课堂演示
-4. 课堂切换类脚本优先直接读取本地清单，避免场景切换时命中旧缓存
-5. 所有镜像继续统一走 `harbor.qytk8s.com`
-
 ## 课前理论导读
 
 正式操作前，建议先阅读：
@@ -33,10 +23,12 @@
 它负责把本章最容易混淆的几个点讲清楚：
 
 - `Cilium` 和 `Istio` 的边界
+- `MetalLB`、`Cilium Gateway API` 与 `Istio Ingress Gateway` 的关系
+- 引入 `Istio` 之后，`eBPF` 与 `Hubble` 还能看到什么
 - 北向 `TLS`、`JWT` 与服务间 `mTLS` 的职责
 - `Ambient`、`ztunnel`、`waypoint` 各自做什么
+- `Sidecar` 与 `Ambient` 的差别，以及为什么本章选择 `Ambient`
 - 为什么第五章要新增 `Istio Ingress Gateway`
-- 为什么自动化铺环境之后，还要保留手动测试环节
 
 ## 本章重点边界
 
@@ -71,39 +63,72 @@
 
 ## 第五章总关系图
 
-这一章最适合先看全景图，再进入每一步细节：
+先看这张总关系图，再进入每一步细节：
 
 ```mermaid
-flowchart LR
+flowchart TD
     user[用户浏览器或客户端] --> dns[DNS]
     dns --> vip[MetalLB VIP<br/>10.1.1.62]
     vip --> ingress[Istio Ingress Gateway]
 
-    ingress --> publicSvc[public-whoami]
-    ingress --> helloSvc[helloworld]
-    ingress --> httpbinSvc[httpbin]
+    subgraph base[底层网络底座]
+        cilium[Cilium]
+    end
 
-    istiod[istiod] --> ingress
-    istiod --> ztunnel[各节点 ztunnel]
-    istiod --> waypoint[mesh-demo 中的 waypoint]
+    subgraph mesh[Istio 控制与数据面]
+        istiod[istiod]
+        ztunnel[各节点 ztunnel]
+        waypoint[mesh-demo waypoint]
+    end
+
+    subgraph apps[第五章演示业务]
+        publicSvc[public-whoami]
+        helloSvc[helloworld]
+        httpbinSvc[httpbin]
+    end
+
+    ingress --> publicSvc
+    ingress --> helloSvc
+    ingress --> httpbinSvc
+
+    istiod --> ingress
+    istiod --> ztunnel
+    istiod --> waypoint
 
     ztunnel --> helloSvc
     ztunnel --> httpbinSvc
     waypoint --> httpbinSvc
 
-    cilium[Cilium] --> ingress
+    cilium --> ingress
     cilium --> publicSvc
     cilium --> helloSvc
     cilium --> httpbinSvc
 ```
 
-你讲课时可以按这个图先讲 5 句话：
+这张图只需要先抓住 5 个点：
 
 - `MetalLB` 负责把 `10.1.1.62` 这个 VIP 发布出来
-- `Cilium` 继续负责底层网络联通，不被 `Istio` 替换
+- `Cilium` 继续作为底层网络底座存在，但不是这一章的讲解重点
 - `Istio Ingress Gateway` 是第五章新增的北向增强入口
 - `istiod` 是控制面，负责把配置和策略下发出去
 - `ztunnel` 管 L4，`waypoint` 管后续要讲的 L7 治理能力
+
+### 第五章几个演示服务分别做什么
+
+| 服务 | 主要用途 |
+| :--- | :--- |
+| `public-whoami` | 用来验证第五章新入口是否已经发布成功 |
+| `helloworld` | 用来配合 `JWT`、`mTLS`、服务间访问控制等安全实验 |
+| `httpbin` | 用来演示请求头、状态码、延迟、超时、重试、故障注入等流量治理能力 |
+
+可以先把它们记成：
+
+- `public-whoami`
+  - 入口验证用
+- `helloworld`
+  - 安全机制演示用
+- `httpbin`
+  - 流量治理演示用
 
 ## 本章脚本执行矩阵
 
@@ -133,46 +158,6 @@ flowchart LR
 7. `08_manual_tests.md`
 8. `09_verify.md`
 
-## 一把过贴贴贴顺序
-
-从第四章完整完成后的标准起点开始，在 `ops` 上按下面顺序执行即可：
-
-```bash
-bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/01_prepare_istio_artifacts.sh
-```
-
-```bash
-bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/02_install_istio_ambient.sh
-```
-
-```bash
-bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/03_publish_istio_ingress_demo.sh
-```
-
-```bash
-bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/04_enable_jwt_and_mesh_security.sh
-```
-
-```bash
-bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/05_apply_traffic_management.sh
-```
-
-```bash
-bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/07_verify_istio_security.sh
-```
-
-如果希望一次性把课堂基线环境铺好，可直接执行：
-
-```bash
-bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/99_bootstrap_chapter5.sh
-```
-
-说明：
-
-- `manual_tests/` 下的脚本主要用于课堂演示，不建议混进“一把梭”基线环境里
-- 故障注入和 50/50、90/10 灰度等策略由手动测试脚本临时切换
-- 课堂结束后可用 `manual_tests/99_reset_baseline.sh` 恢复到稳定基线
-
 ## 第五章起点状态
 
 第五章开始前，默认你已经完成第四章，并满足下面条件：
@@ -201,7 +186,6 @@ bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/99_bootstrap_chapte
 - 第五章新增 `Istio Ingress Gateway` 作为增强入口
 - `JWT`、入口授权、灰度、故障注入都统一放在 `Istio` 体系内演示
 - 服务间 `mTLS` 与服务身份授权都在 `mesh-demo` 命名空间中完成
-- 课堂展示以“自动化先铺环境，手动脚本再展示效果”为基本方式
 
 ## 下一步
 
