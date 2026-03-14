@@ -37,19 +37,34 @@
 ```mermaid
 flowchart LR
     user[外部客户端] --> dns[secure-app.qytk8s.com]
-    dns --> vip[10.1.1.62]
+    dns --> vip[MetalLB VIP<br/>10.1.1.62]
     vip --> ingress[Istio Ingress Gateway]
-    ingress --> publicSvc[public-whoami]
-    ingress --> helloSvc[helloworld]
-    ingress --> httpbinSvc[httpbin]
+
+    ingress --> publicPath[路径 /public]
+    ingress --> helloPath[路径 /hello]
+    ingress --> httpbinPath[路径 /get 等]
+
+    publicPath --> publicSvc[public-whoami]
+    helloPath --> helloSvc[helloworld]
+    httpbinPath --> httpbinSvc[httpbin]
 ```
 
 这张图要配合下面 4 句话：
 
 - 用户不是直接访问 Pod，而是先访问域名
-- 域名解析到 `10.1.1.62`
-- `MetalLB` 把 VIP 绑定给 `Istio Ingress Gateway`
-- 真正转发到哪个后端，由后面的 `Gateway` 和 `VirtualService` 决定
+- 域名解析到 `MetalLB` 提供的 VIP `10.1.1.62`
+- `MetalLB` 把这个 VIP 绑定给 `Istio Ingress Gateway`
+- 三个后端都可以经由这个入口对外访问，但分流依据是不同的 URL 路径
+
+这里要特别区分：
+
+- `public-whoami`
+  - 是本步最重要的公开对照路径，用来先验证“入口 + HTTPS + 路由”已经正常
+- `helloworld`
+  - 也能通过入口访问，但主要用于后续版本路由和灰度演示
+- `httpbin`
+  - 也能通过入口访问，但主要使用 `/get`、`/headers`、`/delay`、`/status` 这些路径
+  - 它主要用于后续 `JWT`、授权、超时、重试和故障注入演示
 
 ### 为什么要保留 `/public` 这条路径
 
@@ -78,7 +93,75 @@ flowchart LR
 - `manifests/20_secure_app_gateway.yaml`
 - `manifests/21_virtualservice_baseline.yaml`
 
+### 这三份文件之间是什么关系
+
+```mermaid
+flowchart TD
+    values[91_ingress_gateway_values.yaml<br/>Helm values]
+    gateway[20_secure_app_gateway.yaml<br/>Gateway]
+    vs[21_virtualservice_baseline.yaml<br/>VirtualService]
+
+    lb[Istio Ingress Gateway Service<br/>LoadBalancer 10.1.1.62]
+    tls[TLS Secret<br/>secure-app-qytk8s-com-tls]
+    host[域名<br/>secure-app.qytk8s.com]
+
+    publicPath[路径 /public]
+    helloPath[路径 /hello]
+    httpbinPath[路径 /get 等]
+
+    publicSvc[public-whoami]
+    helloSvc[helloworld]
+    httpbinSvc[httpbin]
+
+    values --> lb
+    gateway --> lb
+    gateway --> tls
+    gateway --> host
+    vs --> gateway
+
+    vs --> publicPath
+    vs --> helloPath
+    vs --> httpbinPath
+
+    publicPath --> publicSvc
+    helloPath --> helloSvc
+    httpbinPath --> httpbinSvc
+```
+
+这张图建议按下面顺序理解：
+
+1. `91_ingress_gateway_values.yaml`
+   - 先把 `Istio Ingress Gateway` 这个入口组件安装出来
+   - 并通过 `LoadBalancer` 让它拿到 `10.1.1.62`
+2. `20_secure_app_gateway.yaml`
+   - 再告诉这个入口“监听哪个域名、哪个端口、用哪张证书”
+3. `21_virtualservice_baseline.yaml`
+   - 最后告诉入口“不同路径分别转发到哪个后端服务”
+
+如果用最短的话概括这三份文件的分工，就是：
+
+- `91_ingress_gateway_values.yaml`
+  - 创建入口组件
+- `20_secure_app_gateway.yaml`
+  - 定义入口监听规则
+- `21_virtualservice_baseline.yaml`
+  - 定义入口后的七层分流规则
+
+这里补一句命名理解：
+
+- 这一节里 `istio-ingressgateway`、`secure-app-gateway` 这类名字，沿用了 `Istio` 入口语义命名
+- 它们不是 Kubernetes 关键字，而是普通资源名
+- 目的不是炫技，而是让学员后面看官方文档时更容易对得上术语
+
 #### Ingress Gateway 的 Helm values
+
+来源文件：
+
+- `k8s/05-security-and-zero-trust/manifests/91_ingress_gateway_values.yaml`
+
+文件类型：
+
+- Helm values 文件
 
 ```yaml
 global:
@@ -102,6 +185,14 @@ service:
   - 明确固定第五章入口地址
 
 #### Istio Gateway
+
+来源文件：
+
+- `k8s/05-security-and-zero-trust/manifests/20_secure_app_gateway.yaml`
+
+对象类型：
+
+- `Gateway`
 
 ```yaml
 kind: Gateway
@@ -130,6 +221,14 @@ spec:
   - 指向本步脚本创建的 TLS Secret
 
 #### 基线路由 `VirtualService`
+
+来源文件：
+
+- `k8s/05-security-and-zero-trust/manifests/21_virtualservice_baseline.yaml`
+
+对象类型：
+
+- `VirtualService`
 
 ```yaml
 kind: VirtualService
@@ -304,6 +403,36 @@ secure-app.qytk8s.com  ->  10.1.1.62
 ```
 
 并确保已经导入 Harbor CA 根证书。
+
+访问时还要注意：
+
+- 浏览器验证建议直接打开：
+  - `https://secure-app.qytk8s.com/public`
+- 如果只访问根路径：
+  - `https://secure-app.qytk8s.com/`
+  - 很可能看到 `404`
+  - 这是因为当前基线路由先暴露的是 `/public`、`/hello`、`/get`、`/headers`、`/delay`、`/status`
+
+在 `win2019` 浏览器里，当前这一步可以直接打开测试的地址包括：
+
+- `https://secure-app.qytk8s.com/public`
+  - 验证入口、证书、HTTPS 与基础路由
+- `https://secure-app.qytk8s.com/hello`
+  - 验证 `helloworld`
+- `https://secure-app.qytk8s.com/get`
+  - 验证 `httpbin`
+- `https://secure-app.qytk8s.com/headers`
+  - 验证 `httpbin`
+- `https://secure-app.qytk8s.com/status/200`
+  - 验证 `httpbin`
+- `https://secure-app.qytk8s.com/delay/3`
+  - 验证 `httpbin`
+
+当前这一步里，下面这些地址出现 `404` 或不适合作为浏览器验证，都属于正常现象：
+
+- `https://secure-app.qytk8s.com/`
+- `https://secure-app.qytk8s.com/httpbin`
+- `https://secure-app.qytk8s.com/post`
 
 ## 通过标准
 
