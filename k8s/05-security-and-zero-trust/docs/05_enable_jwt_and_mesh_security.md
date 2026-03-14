@@ -222,7 +222,7 @@ istioctl waypoint apply --namespace mesh-demo --enroll-namespace --wait
 
 - 这一步会创建 `waypoint`
 - 同时把 `mesh-demo` 纳入 `waypoint` 管理
-- 后面 L7 授权和治理能力都建立在这一步之上
+- 后面需要经过 `waypoint` 的七层授权能力，都建立在这一步之上
 
 ### 动作 3：统一应用安全对象
 
@@ -704,7 +704,7 @@ sed -n '1,20p' /tmp/ch5_jwt_good_token.txt
 本小节强调的是能力边界，而不是立即展示拦截现象：
 
 - `ztunnel` 主要负责 L4
-- `waypoint` 才是后续承载 L7 治理能力的关键位置
+- `waypoint` 才是后续承载 L7 授权能力的关键位置
 
 ### 验证方法
 
@@ -761,12 +761,12 @@ service/waypoint        ClusterIP   10.97.132.53     <none>        15021/TCP,150
   - 是 Ambient / HBONE 相关通信端口
 
 > note
-> `waypoint` 本质上也是一个 Pod 形式的网格代理；当流量需要 L7 处理时，它会位于两端 `ztunnel` 之间，承担七层授权与治理逻辑。
+> `waypoint` 本质上也是一个 Pod 形式的网格代理；当流量需要 L7 处理时，它会位于两端 `ztunnel` 之间，承担七层授权逻辑。
 
 所以这一步真正确认的是：
 
 - `mesh-demo` 已经成功纳入 `waypoint`
-- 后续 L7 授权和流量治理已经有了承载点
+- 后续 L7 授权已经有了承载点
 - 本小节的重点不是立即观察拦截现象，而是先确认 `waypoint` 运行基础已经就绪
 
 ## 4.5 应用 PeerAuthentication STRICT
@@ -981,6 +981,6 @@ kubectl -n mesh-demo exec deploy/curl-untrusted -- \
 
 ## 下一步
 
-进入第 5 步，配置流量治理基线：
+进入第 5 步，执行第五章主线最终验收：
 
-- `docs/06_apply_traffic_management.md`
+- `docs/06_verify.md`

@@ -1,8 +1,8 @@
-# Istio 安全、零信任与流量治理理论导读
+# Istio 安全与零信任理论导读
 
 ## 本步目标
 
-在动手之前，先把第五章最容易混淆的概念讲清楚，避免“入口、网格、认证、授权、路由、流量治理”全部堆在一起。
+在动手之前，先把第五章最容易混淆的概念讲清楚，避免“入口、网格、认证、授权”全部堆在一起。
 
 ## 第五章为什么要新增 Istio 入口
 
@@ -20,10 +20,10 @@
 - 身份认证
 - 服务间 `mTLS`
 - L4/L7 授权
-- 流量治理
+- 服务间零信任
 - 故障演练
 
-如果继续把这一章全部压在第三章的 `Cilium Gateway API` 上，教学主线会分散；因此第五章单独新增 `Istio Ingress Gateway`，专门承载高级安全与治理能力。
+如果继续把这一章全部压在第三章的 `Cilium Gateway API` 上，教学主线会分散；因此第五章单独新增 `Istio Ingress Gateway`，专门承载安全与零信任能力。
 
 ## Cilium 和 Istio 的边界
 
@@ -47,7 +47,7 @@ flowchart LR
 
     istio[Istio] --> identity[服务身份]
     istio --> security[JWT<br/>mTLS<br/>AuthorizationPolicy]
-    istio --> governance[VirtualService<br/>DestinationRule]
+    istio --> governance[L7 扩展能力]
 
     network --> ingress[Istio Ingress Gateway]
     identity --> ztunnel[ztunnel]
@@ -198,7 +198,7 @@ flowchart LR
 | :--- | :--- | :--- |
 | 主要位置 | 内核网络层 | 服务网格数据面 |
 | 更擅长回答 | 流量到底有没有走、从哪到哪 | 流量按什么规则被治理 |
-| 典型能力 | 包、连接、DNS、部分 L7 观测 | `mTLS`、认证、授权、权重、重试、超时 |
+| 典型能力 | 包、连接、DNS、部分 L7 观测 | `mTLS`、认证、授权 |
 | 引入 Istio 后 Hubble 是否还能看 | 能 | 不冲突 |
 | 是否互相替代 | 不能 | 也不能 |
 
@@ -329,14 +329,14 @@ flowchart LR
 - `ztunnel` 和 `waypoint` 分层明显，更容易讲清 `L4` 与 `L7` 的边界
 - 更适合把第五章主线收成：
   - 先建立服务间可信通道
-  - 再逐步叠加认证、授权和流量治理
+  - 再逐步叠加认证和授权
 
 ## ztunnel 和 waypoint 各自负责什么
 
 | 组件 | 主要职责 | 本章中的演示重点 |
 | :--- | :--- | :--- |
 | `ztunnel` | `mTLS`、L4 身份、L4 授权 | `PeerAuthentication`、基础零信任 |
-| `waypoint` | L7 授权、流量治理、HTTP 级策略 | `AuthorizationPolicy`、权重、超时、重试 |
+| `waypoint` | L7 授权、HTTP 级策略 | `AuthorizationPolicy` |
 
 所以第五章要强调：
 
@@ -354,7 +354,7 @@ flowchart LR
 ```
 
 - 只看 `ztunnel`，可以把它理解成 Ambient 的基础 L4 安全通道
-- 需要 HTTP 级授权、灰度、超时、重试时，流量会在这条基础通道上额外经过 `waypoint`
+- 需要 HTTP 级授权时，流量会在这条基础通道上额外经过 `waypoint`
 - `waypoint` 不是绕开 `ztunnel`，而是插入到这条安全数据路径中的 L7 处理点
 - 所以 `Ambient` 是“分层数据面”，不是“单一代理做完全部事情”
 
@@ -366,9 +366,7 @@ flowchart LR
 2. `JWT`
 3. `mTLS`
 4. 服务间授权
-5. 权重路由和灰度
-6. 超时、重试
-7. 故障注入
+5. 最终验收
 
 这个顺序的核心逻辑是：
 

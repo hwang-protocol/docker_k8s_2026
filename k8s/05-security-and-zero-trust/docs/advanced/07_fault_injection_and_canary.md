@@ -20,7 +20,7 @@
 说明：
 
 - 这一页偏理论与演示设计，不是新的基线部署页
-- 真正逐条执行命令时，以 `08_manual_tests.md` 为主
+- 真正逐条执行命令时，以 `docs/advanced/08_manual_tests.md` 为主
 
 ## 为什么这一节要单独拆出来
 
@@ -224,4 +224,4 @@ bash /docker_k8s_2026/k8s/05-security-and-zero-trust/manual_tests/06_test_fault_
 
 进入课堂手动测试清单：
 
-- `docs/08_manual_tests.md`
+- `docs/advanced/08_manual_tests.md`

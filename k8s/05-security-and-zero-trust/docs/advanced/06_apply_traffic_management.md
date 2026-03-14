@@ -308,4 +308,4 @@ flowchart LR
 
 进入课堂手动测试阶段：
 
-- `docs/08_manual_tests.md`
+- `docs/advanced/08_manual_tests.md`

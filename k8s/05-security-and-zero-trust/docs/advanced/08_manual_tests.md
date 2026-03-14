@@ -155,4 +155,4 @@ bash /docker_k8s_2026/k8s/05-security-and-zero-trust/manual_tests/99_reset_basel
 
 进入第五章最终验收：
 
-- `docs/09_verify.md`
+- `docs/06_verify.md`

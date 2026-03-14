@@ -22,7 +22,7 @@
 - `PeerAuthentication`
 - `AuthorizationPolicy`
 - `waypoint`
-- 流量治理
+- 服务间零信任
 
 这些能力都不是凭空出现的，必须先有一套能够承载服务身份和安全通信的基础面。
 
