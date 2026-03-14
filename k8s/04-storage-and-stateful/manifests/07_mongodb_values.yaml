@@ -1,0 +1,53 @@
+global:
+  imageRegistry: harbor.qytk8s.com
+
+fullnameOverride: qytang-statefulset-mongodb-demo
+
+image:
+  repository: bitnamilegacy/mongodb
+
+architecture: replicaset
+replicaCount: 3
+replicaSetName: rs0
+
+auth:
+  enabled: true
+  rootUser: root
+  rootPassword: QytangMongo123456
+  replicaSetKey: QytangReplicaSet123456
+
+arbiter:
+  enabled: false
+
+hidden:
+  enabled: false
+
+metrics:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+podAntiAffinityPreset: soft
+
+persistence:
+  enabled: true
+  storageClass: longhorn
+  accessModes:
+    - ReadWriteOnce
+  size: 2Gi
+
+volumePermissions:
+  enabled: true
+  image:
+    repository: bitnamilegacy/os-shell
+
+resourcesPreset: none
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1
+    memory: 1Gi

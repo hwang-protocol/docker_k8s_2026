@@ -9,7 +9,6 @@ set -euo pipefail
 
 CHAPTER_DIR="/docker_k8s_2026/k8s/04-storage-and-stateful"
 PKI_DIR="${CHAPTER_DIR}/pki"
-LISTENERS_FILE="${CHAPTER_DIR}/manifests/20_gateway_longhorn_listeners.json"
 MANIFEST_URL="http://ops:9000/04-storage-and-stateful/manifests/21_gateway_longhorn_ui.yaml"
 
 DOMAIN="longhorn.qytk8s.com"
@@ -93,6 +92,74 @@ label_gateway_endpointslice() {
   return 1
 }
 
+reconcile_gateway_listeners() {
+  python3 - <<'PY'
+import json
+import subprocess
+
+raw = subprocess.check_output(
+    ["kubectl", "get", "gateway", "-n", "gateway-demo", "app-gateway", "-o", "json"],
+    text=True,
+)
+obj = json.loads(raw)
+obj["spec"]["listeners"] = [
+    {
+        "name": "http",
+        "hostname": "app.qytk8s.com",
+        "port": 80,
+        "protocol": "HTTP",
+        "allowedRoutes": {"namespaces": {"from": "Same"}},
+    },
+    {
+        "name": "https",
+        "hostname": "app.qytk8s.com",
+        "port": 443,
+        "protocol": "HTTPS",
+        "tls": {
+            "mode": "Terminate",
+            "certificateRefs": [
+                {"group": "", "kind": "Secret", "name": "app-qytk8s-com-tls"}
+            ],
+        },
+        "allowedRoutes": {"namespaces": {"from": "Same"}},
+    },
+    {
+        "name": "longhorn-http",
+        "hostname": "longhorn.qytk8s.com",
+        "port": 80,
+        "protocol": "HTTP",
+        "allowedRoutes": {"namespaces": {"from": "Same"}},
+    },
+    {
+        "name": "longhorn-https",
+        "hostname": "longhorn.qytk8s.com",
+        "port": 443,
+        "protocol": "HTTPS",
+        "tls": {
+            "mode": "Terminate",
+            "certificateRefs": [
+                {"group": "", "kind": "Secret", "name": "longhorn-qytk8s-com-tls"}
+            ],
+        },
+        "allowedRoutes": {"namespaces": {"from": "Same"}},
+    },
+]
+
+meta = obj["metadata"]
+for key in ["creationTimestamp", "generation", "resourceVersion", "uid", "managedFields"]:
+    meta.pop(key, None)
+obj.pop("status", None)
+
+subprocess.run(
+    ["kubectl", "replace", "-f", "-"],
+    input=json.dumps(obj),
+    text=True,
+    check=True,
+)
+print("已为 app-gateway 增加 longhorn 专用 http/https listener")
+PY
+}
+
 wait_for_gateway_address() {
   local attempts=30
   local current=""
@@ -117,58 +184,6 @@ wait_for_gateway_address() {
   return 1
 }
 
-upsert_gateway_listeners() {
-  python3 - "${LISTENERS_FILE}" <<'PY'
-import json
-import subprocess
-import sys
-
-listeners_path = sys.argv[1]
-with open(listeners_path, "r", encoding="utf-8") as fh:
-    desired = json.load(fh)
-desired_by_name = {item["name"]: item for item in desired}
-
-raw = subprocess.check_output(
-    ["kubectl", "get", "gateway", "-n", "gateway-demo", "app-gateway", "-o", "json"],
-    text=True,
-)
-obj = json.loads(raw)
-listeners = obj["spec"].get("listeners", [])
-new_listeners = []
-seen = set()
-
-for item in listeners:
-    name = item.get("name")
-    if name in desired_by_name:
-        new_listeners.append(desired_by_name[name])
-        seen.add(name)
-    else:
-        new_listeners.append(item)
-
-for item in desired:
-    if item["name"] not in seen:
-        new_listeners.append(item)
-
-if listeners == new_listeners:
-    print("Longhorn listeners 已存在，无需更新 app-gateway")
-    sys.exit(0)
-
-obj["spec"]["listeners"] = new_listeners
-meta = obj["metadata"]
-for key in ["creationTimestamp", "generation", "resourceVersion", "uid", "managedFields"]:
-    meta.pop(key, None)
-obj.pop("status", None)
-
-subprocess.run(
-    ["kubectl", "replace", "-f", "-"],
-    input=json.dumps(obj),
-    text=True,
-    check=True,
-)
-print("已将 Longhorn listeners 增量注入 app-gateway，现有其他 listeners 保持不变")
-PY
-}
-
 main() {
   echo "========================================================="
   echo "开始发布 Longhorn UI"
@@ -188,8 +203,8 @@ main() {
   echo "[3/9] 创建/更新 Kubernetes TLS Secret"
   create_tls_secret
 
-  echo "[4/9] 将 Longhorn listeners 增量注入 app-gateway"
-  upsert_gateway_listeners
+  echo "[4/9] 为 Longhorn UI 增加专用 Gateway listener"
+  reconcile_gateway_listeners
 
   echo "[5/9] 应用 Longhorn UI HTTPRoute/ReferenceGrant 清单"
   kubectl apply -f "${MANIFEST_URL}"

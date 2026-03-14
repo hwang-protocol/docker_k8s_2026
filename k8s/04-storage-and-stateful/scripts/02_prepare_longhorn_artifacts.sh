@@ -3,10 +3,10 @@ set -euo pipefail
 
 # ==============================================================================
 # 脚本名称：02_prepare_longhorn_artifacts.sh
-# 适用场景：第四章第 2 步，固化 Longhorn Chart 并把镜像推送到 Harbor
+# 适用场景：第四章第 2 步，固化 Longhorn 与 MongoDB Chart 并把镜像推送到 Harbor
 # 执行位置：ops 节点
 # 说明：
-# 1. Longhorn 安装继续采用“Chart 本地化 + 镜像 Harbor 化”
+# 1. Longhorn 与第四章 StatefulSet 实战案例都继续采用“Chart 本地化 + 镜像 Harbor 化”
 # 2. 所有后续安装都尽量不依赖课堂当下临时访问公网
 # ==============================================================================
 
@@ -17,16 +17,24 @@ HARBOR_PASSWORD="Harbor12345"
 
 HARBOR_PROJECT_LONGHORN="longhornio"
 HARBOR_PROJECT_DEMO="storage"
+HARBOR_PROJECT_BITNAMI="bitnamilegacy"
 
 CHAPTER_DIR="/docker_k8s_2026/k8s/04-storage-and-stateful"
 ARTIFACTS_DIR="${CHAPTER_DIR}/artifacts"
 VALUES_FILE="${CHAPTER_DIR}/manifests/01_longhorn_values.yaml"
+MONGODB_VALUES_FILE="${CHAPTER_DIR}/manifests/07_mongodb_values.yaml"
 
 LONGHORN_VERSION="1.11.0"
 CHART_PACKAGE="${ARTIFACTS_DIR}/longhorn-${LONGHORN_VERSION}.tgz"
 RENDERED_MANIFEST="${ARTIFACTS_DIR}/longhorn-rendered-${LONGHORN_VERSION}.yaml"
 SOURCE_IMAGE_LIST="${ARTIFACTS_DIR}/longhorn-source-images-${LONGHORN_VERSION}.txt"
 TARGET_IMAGE_LIST="${ARTIFACTS_DIR}/longhorn-harbor-images-${LONGHORN_VERSION}.txt"
+
+MONGODB_VERSION="15.6.0"
+MONGODB_CHART_PACKAGE="${ARTIFACTS_DIR}/mongodb-${MONGODB_VERSION}.tgz"
+MONGODB_RENDERED_MANIFEST="${ARTIFACTS_DIR}/mongodb-rendered-${MONGODB_VERSION}.yaml"
+MONGODB_SOURCE_IMAGE_LIST="${ARTIFACTS_DIR}/mongodb-source-images-${MONGODB_VERSION}.txt"
+MONGODB_TARGET_IMAGE_LIST="${ARTIFACTS_DIR}/mongodb-harbor-images-${MONGODB_VERSION}.txt"
 
 DEMO_SOURCE_IMAGE="docker.io/library/busybox:1.36.1"
 DEMO_TARGET_IMAGE="${HARBOR_DOMAIN}/${HARBOR_PROJECT_DEMO}/busybox:1.36.1"
@@ -85,6 +93,13 @@ download_longhorn_chart() {
   helm pull longhorn/longhorn --version "${LONGHORN_VERSION}" --destination "${ARTIFACTS_DIR}"
 }
 
+download_mongodb_chart() {
+  rm -f "${MONGODB_CHART_PACKAGE}"
+  helm pull oci://registry-1.docker.io/bitnamicharts/mongodb \
+    --version "${MONGODB_VERSION}" \
+    --destination "${ARTIFACTS_DIR}"
+}
+
 extract_source_images() {
   tar -xOf "${CHART_PACKAGE}" longhorn/values.yaml \
     | awk '
@@ -114,23 +129,41 @@ render_longhorn_manifest() {
     -f "${VALUES_FILE}" > "${RENDERED_MANIFEST}"
 }
 
+render_mongodb_manifest() {
+  helm template qytang-mongodb-demo "${MONGODB_CHART_PACKAGE}" \
+    --namespace qytang-mongodb-demo \
+    -f "${MONGODB_VALUES_FILE}" > "${MONGODB_RENDERED_MANIFEST}"
+}
+
+extract_mongodb_source_images() {
+  awk '/image:/{print $2}' "${MONGODB_RENDERED_MANIFEST}" \
+    | tr -d '"' \
+    | sed "s#^${HARBOR_DOMAIN}/#docker.io/#" \
+    | sort -u > "${MONGODB_SOURCE_IMAGE_LIST}"
+}
+
 build_target_image_list() {
-  : > "${TARGET_IMAGE_LIST}"
+  local source_list="$1"
+  local target_list="$2"
+  : > "${target_list}"
   while IFS= read -r image; do
     [[ -z "${image}" ]] && continue
     if [[ "${image}" == "${DEMO_SOURCE_IMAGE}" ]]; then
-      echo "${DEMO_TARGET_IMAGE}" >> "${TARGET_IMAGE_LIST}"
+      echo "${DEMO_TARGET_IMAGE}" >> "${target_list}"
       continue
     fi
+    image="${image#${HARBOR_DOMAIN}/}"
     image="${image#docker.io/}"
-    echo "${HARBOR_DOMAIN}/${image}" >> "${TARGET_IMAGE_LIST}"
-  done < "${SOURCE_IMAGE_LIST}"
+    echo "${HARBOR_DOMAIN}/${image}" >> "${target_list}"
+  done < "${source_list}"
 }
 
 push_images_on_harbor() {
+  local source_file="$1"
+  local target_file="$2"
   local source_lines target_lines remote_script
-  source_lines="$(sed 's/^/  "/; s/$/"/' "${SOURCE_IMAGE_LIST}")"
-  target_lines="$(sed 's/^/  "/; s/$/"/' "${TARGET_IMAGE_LIST}")"
+  source_lines="$(sed 's/^/  "/; s/$/"/' "${source_file}")"
+  target_lines="$(sed 's/^/  "/; s/$/"/' "${target_file}")"
 
   read -r -d '' remote_script <<EOF || true
 set -euo pipefail
@@ -166,8 +199,9 @@ EOF
 }
 
 pre_pull_images_on_nodes() {
+  local target_file="$1"
   local image_lines remote_script node
-  image_lines="$(sed 's/^/  "/; s/$/"/' "${TARGET_IMAGE_LIST}")"
+  image_lines="$(sed 's/^/  "/; s/$/"/' "${target_file}")"
 
   read -r -d '' remote_script <<EOF || true
 set -euo pipefail
@@ -196,13 +230,18 @@ verify_local_artifacts() {
   ls -lh "${RENDERED_MANIFEST}"
   ls -lh "${SOURCE_IMAGE_LIST}"
   ls -lh "${TARGET_IMAGE_LIST}"
+  ls -lh "${MONGODB_CHART_PACKAGE}"
+  ls -lh "${MONGODB_RENDERED_MANIFEST}"
+  ls -lh "${MONGODB_SOURCE_IMAGE_LIST}"
+  ls -lh "${MONGODB_TARGET_IMAGE_LIST}"
 }
 
 main() {
   echo "========================================================="
   echo "开始预热第四章存储制品"
   echo "Longhorn 版本：${LONGHORN_VERSION}"
-  echo "Harbor 项目：${HARBOR_PROJECT_LONGHORN} / ${HARBOR_PROJECT_DEMO}"
+  echo "MongoDB Chart 版本：${MONGODB_VERSION}"
+  echo "Harbor 项目：${HARBOR_PROJECT_LONGHORN} / ${HARBOR_PROJECT_DEMO} / ${HARBOR_PROJECT_BITNAMI}"
   echo "========================================================="
 
   echo "[0/8] 集群连通性检查与恢复"
@@ -217,20 +256,27 @@ main() {
   echo "[3/8] 创建 Harbor 项目"
   create_harbor_project "${HARBOR_PROJECT_LONGHORN}"
   create_harbor_project "${HARBOR_PROJECT_DEMO}"
+  create_harbor_project "${HARBOR_PROJECT_BITNAMI}"
 
-  echo "[4/8] 下载 Longhorn Chart"
+  echo "[4/8] 下载 Longhorn 与 MongoDB Chart"
   download_longhorn_chart
+  download_mongodb_chart
 
-  echo "[5/8] 生成 Longhorn 镜像列表与离线渲染清单"
+  echo "[5/8] 生成 Longhorn 与 MongoDB 镜像列表、离线渲染清单"
   extract_source_images
   render_longhorn_manifest
-  build_target_image_list
+  build_target_image_list "${SOURCE_IMAGE_LIST}" "${TARGET_IMAGE_LIST}"
+  render_mongodb_manifest
+  extract_mongodb_source_images
+  build_target_image_list "${MONGODB_SOURCE_IMAGE_LIST}" "${MONGODB_TARGET_IMAGE_LIST}"
 
   echo "[6/8] 在 harbor 节点拉取并推送镜像"
-  push_images_on_harbor
+  push_images_on_harbor "${SOURCE_IMAGE_LIST}" "${TARGET_IMAGE_LIST}"
+  push_images_on_harbor "${MONGODB_SOURCE_IMAGE_LIST}" "${MONGODB_TARGET_IMAGE_LIST}"
 
   echo "[7/8] 在所有 Kubernetes 节点预拉镜像"
-  pre_pull_images_on_nodes
+  pre_pull_images_on_nodes "${TARGET_IMAGE_LIST}"
+  pre_pull_images_on_nodes "${MONGODB_TARGET_IMAGE_LIST}"
 
   echo "[8/8] 本地制品检查"
   verify_local_artifacts

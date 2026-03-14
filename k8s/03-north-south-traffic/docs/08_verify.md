@@ -48,6 +48,16 @@ flowchart LR
 5. `hubble.qytk8s.com`
 6. `Hubble UI` 中的北向流量
 
+## 对应脚本
+
+第三章当前没有单独的“最终验收脚本”。
+
+原因是：
+
+- 这一页主要是只读检查
+- 其中还包含浏览器侧的 `Hubble UI` 观察
+- 因此更适合按文档逐项验收，而不是压成一条脚本
+
 ## 验证方法
 
 ### 验证 1：`MetalLB`
@@ -56,6 +66,8 @@ flowchart LR
 kubectl get pods -n metallb-system -o wide
 kubectl get ipaddresspool,l2advertisement -n metallb-system
 kubectl get servicel2statuses.metallb.io -n metallb-system
+kubectl -n gateway-demo get endpointslice -l io.cilium.gateway/owning-gateway=app-gateway -o yaml
+kubectl -n kube-system get endpointslice -l io.cilium.gateway/owning-gateway=hubble-ui-gateway -o yaml
 ```
 
 预期结果：
@@ -64,6 +76,7 @@ kubectl get servicel2statuses.metallb.io -n metallb-system
 - `speaker` 正常
 - `edge-pool` 存在
 - 能看到 `cilium-gateway-app-gateway` 和 `cilium-gateway-hubble-ui-gateway` 对应的 `ServiceL2Status`
+- 两组 Gateway 自动生成的 `EndpointSlice` 上都已补 `kubernetes.io/service-name` label
 
 ### 验证 2：`Gateway API`
 
@@ -71,6 +84,9 @@ kubectl get servicel2statuses.metallb.io -n metallb-system
 kubectl get gatewayclass
 kubectl get gateway -n gateway-demo
 kubectl get gateway -n kube-system | grep hubble-ui
+kubectl get gatewayclass cilium -o yaml
+kubectl get gateway -n gateway-demo app-gateway -o yaml
+kubectl get gateway -n kube-system hubble-ui-gateway -o yaml
 ```
 
 预期结果：
@@ -78,6 +94,8 @@ kubectl get gateway -n kube-system | grep hubble-ui
 - 存在 `cilium` GatewayClass
 - `app-gateway` 正常
 - `hubble-ui-gateway` 正常
+- `GatewayClass cilium` 应为 `Accepted=True`
+- 两个 `Gateway` 都应为 `Accepted=True` 且 `Programmed=True`
 
 ### 验证 3：HTTPS 证书
 
@@ -130,7 +148,9 @@ bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/07_trigger_north_south_
 
 预期结果：
 
-- `Hubble UI` 中能看到第三章北向访问链路产生的流量记录
+- `Hubble UI` 命名空间视角应选择 `gateway-demo`
+- 顶部过滤框应清空
+- 再触发脚本后，`Hubble UI` 中能看到第三章北向访问链路产生的流量记录
 
 ## 通过标准
 

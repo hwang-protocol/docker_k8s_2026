@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: volume-demo
-  namespace: stateful-demo
+  name: qytang-deployment-volume-demo
+  namespace: qytang-stateful-demo
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: volume-demo
+      app: qytang-deployment-volume-demo
   template:
     metadata:
       labels:
-        app: volume-demo
+        app: qytang-deployment-volume-demo
     spec:
       nodeSelector:
         node-role: app
@@ -25,9 +25,9 @@ spec:
               echo "volume demo container started"
               sleep infinity
           volumeMounts:
-            - name: data
+            - name: qytang-volumes-demo
               mountPath: /data
       volumes:
-        - name: data
+        - name: qytang-volumes-demo
           persistentVolumeClaim:
-            claimName: demo-pvc
+            claimName: qytang-pvc-demo

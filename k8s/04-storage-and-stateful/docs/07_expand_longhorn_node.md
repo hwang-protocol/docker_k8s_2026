@@ -1,12 +1,8 @@
-# 第 6 步：把第 4 个节点加入 Longhorn
+# 第 6 步：把 `wk-edge01` 初始化为第 4 个 Longhorn 存储节点
 
 ## 本步目标
 
-把：
-
-- `wk-edge01`
-
-作为第 4 个 Longhorn 节点加入集群。
+把 `wk-edge01` 初始化为带默认数据盘的第 4 个 Longhorn 存储节点。
 
 ## 执行标记
 
@@ -15,29 +11,29 @@
 说明：
 
 - 这一页的重点不是“再装一次 Longhorn”
-- 而是验证 Longhorn 节点可以在系统运行后继续扩容
+- 而是验证 Longhorn 可以在系统运行后，把一个已被识别的节点进一步初始化为真正可用的存储节点
 
 ## 问题背景
 
-如果一开始就把 4 个节点全部纳入 `Longhorn`，学员往往只能看到“装好了”。
+如果一开始就把 4 个节点的数据盘都直接初始化到 `Longhorn`，学员往往只能看到“装好了”。
 
-但把第 4 个节点放到后面单独加入，会更容易讲清楚：
+但把第 4 个节点的数据盘初始化动作放到后面单独展示，会更容易讲清楚：
 
-- Longhorn 节点不是一次性写死的
-- 存储节点可以后续扩容
-- Kubernetes 节点加入存储池，本质上是一个独立动作
+- Longhorn 存储池不是一次性写死的
+- 已存在的 Kubernetes 节点也可以后续再启用数据盘
+- “节点被识别”和“节点真正承载卷副本”不是同一个层次
 
 这对理解生产中的“容量扩展”很重要。
 
 ## 理论说明
 
-### 第 4 个节点加入前后关系图
+### 第 4 个存储节点启用前后关系图
 
 ```mermaid
 flowchart LR
   stage1[初始 3 节点<br/>wk-app01 wk-app02 wk-obs01]
   volume[Longhorn 卷]
-  stage2[扩容后 4 节点<br/>+ wk-edge01]
+  stage2[扩容后 4 节点<br/>wk-edge01 完成数据盘初始化]
 
   stage1 --> volume
   volume --> stage2
@@ -112,7 +108,7 @@ kubectl -n longhorn-system patch nodes.longhorn.io "${TARGET_NODE}" --type merge
 关键介绍：
 
 - 如果自动识别超时，脚本会补一个更直接的 `Node CR` 配置
-- 但目标仍然不变：让 `wk-edge01` 成为 Longhorn 可调度节点
+- 但目标仍然不变：让 `wk-edge01` 成为真正带默认数据盘的 Longhorn 可调度节点
 
 ## 执行命令
 
@@ -132,10 +128,9 @@ kubectl -n longhorn-system get nodes.longhorn.io
 
 关键看点：
 
-- 重点看 Longhorn 节点数量是否已经从前面的 3 个变成 4 个
-- 列表里应该新增：
-  - `wk-edge01`
-- 这一步最重要的是确认“扩容动作已经被 Longhorn 接住”，不是只看命令有没有执行完
+- `wk-edge01` 在这一步之前，可能已经出现在 `nodes.longhorn.io` 列表里
+- 所以这里重点不再是“它第一次出现没有”
+- 而是要确认它已经从“仅被识别的节点”变成“真正带默认数据盘的存储节点”
 
 预期结果：
 
@@ -144,8 +139,8 @@ kubectl -n longhorn-system get nodes.longhorn.io
   - `wk-app02`
   - `wk-obs01`
   - `wk-edge01`
-- Longhorn 节点总数达到 4
 - `wk-edge01` 处于可用、可调度状态
+- `wk-edge01` 已完成默认数据盘初始化
 
 ```bash
 kubectl -n longhorn-system get nodes.longhorn.io wk-edge01 -o yaml
@@ -167,16 +162,16 @@ kubectl -n longhorn-system get nodes.longhorn.io wk-edge01 -o yaml
 
 通过这一组验证后，应形成下面的判断：
 
-- `wk-edge01` 已经正式加入 Longhorn 存储池
-- 第四章“先 3 节点、再扩到第 4 个节点”的主线已经完成
+- `wk-edge01` 已经正式完成默认数据盘初始化，并进入 Longhorn 存储池
+- 第四章“先 3 节点跑稳，再启用第 4 个存储节点”的主线已经完成
 
 ## 通过标准
 
-- `wk-edge01` 已被 Longhorn 正常识别
-- 集群中的 Longhorn 节点数达到 4
+- `wk-edge01` 已完成默认数据盘初始化
+- `wk-edge01` 的 Longhorn Node 对象中能够看到 `/var/lib/longhorn`
 
 ## 下一步
 
-进入第 8 步，把 Longhorn UI 正式发布为 `win2019 + HTTPS + 域名` 访问方式：
+进入第 7 步，用真实 `MongoDB ReplicaSet` 案例理解 `StatefulSet`：
 
-- `docs/08_publish_longhorn_ui.md`
+- `docs/08_statefulset_intro.md`

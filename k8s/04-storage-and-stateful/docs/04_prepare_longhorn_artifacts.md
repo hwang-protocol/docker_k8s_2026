@@ -1,13 +1,16 @@
-# 第 3 步：准备 Longhorn Chart 与 Harbor 镜像
+# 第 3 步：准备 Longhorn、MongoDB Chart 与 Harbor 镜像
 
 ## 本步目标
 
 在正式安装 `Longhorn` 前，先把第四章所需关键制品准备到本地：
 
 - `Longhorn Helm Chart`
+- `MongoDB Helm Chart`
 - Longhorn 安装渲染清单
+- MongoDB 安装渲染清单
 - Longhorn 所需镜像
 - 有状态演示镜像
+- MongoDB 副本集案例所需镜像
 
 ## 执行标记
 
@@ -25,6 +28,7 @@
 - 安装 `Longhorn`
 - 验证 `PVC`
 - 部署有状态演示应用
+- 部署一个真实的 `MongoDB ReplicaSet` StatefulSet 案例
 
 如果每一步都临时去公网拉 Chart、镜像或渲染清单，课堂演示很容易受外网抖动影响。
 
@@ -39,9 +43,9 @@
 
 ```mermaid
 flowchart LR
-  upstream[上游源<br/>charts.longhorn.io<br/>docker.io<br/>ghcr.io]
+  upstream[上游源<br/>charts.longhorn.io<br/>registry-1.docker.io]
   ops[ops 本地 artifacts]
-  harbor[Harbor 项目<br/>longhornio 与 storage]
+  harbor[Harbor 项目<br/>longhornio、storage 与 bitnamilegacy]
   nodes[各 Kubernetes 节点]
   install[第四章后续安装步骤]
 
@@ -72,10 +76,11 @@ flowchart LR
 
 ### 第四章 Harbor 项目的角色
 
-本章专门使用两个 Harbor 项目：
+本章专门使用三个 Harbor 项目：
 
 - `harbor.qytk8s.com/longhornio`
 - `harbor.qytk8s.com/storage`
+- `harbor.qytk8s.com/bitnamilegacy`
 
 这样可以把 Longhorn 自身镜像和演示应用镜像区分开：
 
@@ -83,12 +88,18 @@ flowchart LR
   - Longhorn 组件镜像
 - `storage`
   - 第四章演示应用镜像
+- `bitnamilegacy`
+  - MongoDB Helm 案例镜像
 
 ### 本步关键配置
 
 第四章真正会被后续安装直接消费的关键配置是：
 
 - `manifests/01_longhorn_values.yaml`
+- `manifests/07_mongodb_values.yaml`
+
+- 来源文件：`manifests/01_longhorn_values.yaml`
+- 文件类型：`Helm values`
 
 关键字段如下：
 
@@ -100,6 +111,9 @@ defaultSettings:
 ```
 
 以及：
+
+- 来源文件：`manifests/01_longhorn_values.yaml`
+- 文件类型：`Helm values`
 
 ```yaml
 persistence:
@@ -119,6 +133,53 @@ persistence:
 - `defaultClass: true`
   - 让 `longhorn` 作为默认 `StorageClass`
 
+MongoDB Helm 案例真正会被后续安装直接消费的关键配置是：
+
+- `manifests/07_mongodb_values.yaml`
+
+- 来源文件：`manifests/07_mongodb_values.yaml`
+- 文件类型：`Helm values`
+
+关键字段如下：
+
+```yaml
+global:
+  imageRegistry: harbor.qytk8s.com
+
+fullnameOverride: qytang-statefulset-mongodb-demo
+architecture: replicaset
+replicaCount: 3
+```
+
+以及：
+
+- 来源文件：`manifests/07_mongodb_values.yaml`
+- 文件类型：`Helm values`
+
+```yaml
+auth:
+  rootUser: root
+  rootPassword: QytangMongo123456
+  replicaSetKey: QytangReplicaSet123456
+
+persistence:
+  storageClass: longhorn
+  size: 2Gi
+```
+
+关键字段说明：
+
+- `global.imageRegistry: harbor.qytk8s.com`
+  - 第四章 `MongoDB` 案例镜像统一从 Harbor 拉取
+- `architecture: replicaset`
+  - 这一页明确采用真实副本集，而不是单实例
+- `replicaCount: 3`
+  - 对应 3 个固定编号的数据库成员
+- `replicaSetKey`
+  - 用于副本集成员之间认证
+- `persistence.storageClass: longhorn`
+  - 明确把数据库卷落到第四章已经安装的 `Longhorn`
+
 ## 对应脚本
 
 本步对应脚本：
@@ -131,6 +192,10 @@ persistence:
 - `artifacts/longhorn-rendered-1.11.0.yaml`
 - `artifacts/longhorn-source-images-1.11.0.txt`
 - `artifacts/longhorn-harbor-images-1.11.0.txt`
+- `artifacts/mongodb-15.6.0.tgz`
+- `artifacts/mongodb-rendered-15.6.0.yaml`
+- `artifacts/mongodb-source-images-15.6.0.txt`
+- `artifacts/mongodb-harbor-images-15.6.0.txt`
 
 ## 脚本关键任务
 
@@ -141,25 +206,29 @@ persistence:
 ```bash
 create_harbor_project "${HARBOR_PROJECT_LONGHORN}"
 create_harbor_project "${HARBOR_PROJECT_DEMO}"
+create_harbor_project "${HARBOR_PROJECT_BITNAMI}"
 ```
 
 关键介绍：
 
-- 第四章镜像统一进入 `longhornio` 与 `storage`
+- 第四章镜像统一进入 `longhornio`、`storage` 与 `bitnamilegacy`
 - 如果项目已存在，脚本会把它视为正常状态继续执行
 
-### 关键任务 2：下载 Longhorn Chart
+### 关键任务 2：下载 Longhorn 与 MongoDB Chart
 
 脚本原始代码：
 
 ```bash
 helm pull longhorn/longhorn --version "${LONGHORN_VERSION}" --destination "${ARTIFACTS_DIR}"
+helm pull oci://registry-1.docker.io/bitnamicharts/mongodb \
+  --version "${MONGODB_VERSION}" \
+  --destination "${ARTIFACTS_DIR}"
 ```
 
 关键介绍：
 
-- 把第四章固定版本 `1.11.0` Chart 固化到本地
-- 后续安装直接消费这个本地 Chart
+- 把第四章固定版本 `Longhorn` 与 `MongoDB` Chart 都固化到本地
+- 后续安装直接消费这些本地 Chart
 
 ### 关键任务 3：渲染本地安装清单
 
@@ -169,12 +238,17 @@ helm pull longhorn/longhorn --version "${LONGHORN_VERSION}" --destination "${ART
 helm template longhorn "${CHART_PACKAGE}" \
   --namespace longhorn-system \
   -f "${VALUES_FILE}" > "${RENDERED_MANIFEST}"
+
+helm template qytang-mongodb-demo "${MONGODB_CHART_PACKAGE}" \
+  --namespace qytang-mongodb-demo \
+  -f "${MONGODB_VALUES_FILE}" > "${MONGODB_RENDERED_MANIFEST}"
 ```
 
 关键介绍：
 
 - 不只是保存 Chart
 - 还会把第四章最终会安装出来的大致对象结构提前渲染好
+- 其中 `mongodb-rendered-15.6.0.yaml` 会直接用于第 7 步讲解 `StatefulSet`、`Headless Service` 和 `volumeClaimTemplates`
 
 ### 关键任务 4：推送镜像到 Harbor 并预拉
 
@@ -196,6 +270,7 @@ crictl --runtime-endpoint unix:///run/containerd/containerd.sock pull "${image}"
 
 - 先把第四章镜像统一进入 Harbor
 - 再让各节点提前从 Harbor 预拉，保证后续安装稳定
+- 第 7 步 `MongoDB` 案例也不再临时直连公网仓库
 
 ## 执行命令
 
@@ -215,18 +290,22 @@ ls -lh /docker_k8s_2026/k8s/04-storage-and-stateful/artifacts/
 
 关键看点：
 
-- 重点看是否已经出现下面 4 类文件：
+- 重点看是否已经出现下面 8 类文件：
   - `longhorn-1.11.0.tgz`
   - `longhorn-rendered-1.11.0.yaml`
   - `longhorn-source-images-1.11.0.txt`
   - `longhorn-harbor-images-1.11.0.txt`
-- `longhorn-1.11.0.tgz` 说明本地 Chart 已固化完成
-- `longhorn-rendered-1.11.0.yaml` 说明 Helm 渲染清单已提前生成
-- 两个 `images` 清单说明第四章镜像来源和 Harbor 目标地址都已经整理出来
+  - `mongodb-15.6.0.tgz`
+  - `mongodb-rendered-15.6.0.yaml`
+  - `mongodb-source-images-15.6.0.txt`
+  - `mongodb-harbor-images-15.6.0.txt`
+- `longhorn-1.11.0.tgz` 和 `mongodb-15.6.0.tgz` 说明本地 Chart 已固化完成
+- 两份 `rendered` 清单说明 Helm 渲染结果已提前生成
+- 四份 `images` 清单说明第四章镜像来源和 Harbor 目标地址都已经整理出来
 
 预期结果：
 
-- `artifacts/` 目录中至少能看到上述 4 个关键文件
+- `artifacts/` 目录中至少能看到上述 8 个关键文件
 - 文件大小不是 `0`
 - 文件修改时间应接近本次执行脚本的时间
 

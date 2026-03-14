@@ -22,7 +22,7 @@
 
 第四章要补上的问题是：
 
-- Pod 重建后，数据放哪
+- 当前 Pod 被删除后，自动重建的新 Pod 继续挂同一 PVC 时，数据放哪
 - 应用需要持久化卷时，Kubernetes 怎么分配存储
 - 为什么 Kubernetes 不能只会跑无状态业务
 
@@ -131,7 +131,7 @@ flowchart LR
 - `Pod` 可以被删除、重建、漂移到其他节点
 - 但只要业务重新挂载的还是同一个 `PVC`，就仍然是在访问原来的那一块卷
 
-因此，在持久化存储模型下，即使某个 `Pod` 挂掉，并被重新调度到另一个节点，只要卷能够重新附加并挂载成功，它仍然可以继续读取之前已经写入的数据。
+因此，在持久化存储模型下，只要工作负载由 `Deployment` 或 `StatefulSet` 这类控制器管理，即使当前 `Pod` 挂掉并被系统自动重建到另一个节点，只要卷能够重新附加并挂载成功，它仍然可以继续读取之前已经写入的数据。
 
 ### `Longhorn vs Ceph`
 
@@ -213,11 +213,11 @@ flowchart LR
 - 卷调度
 - `StorageClass`
 - `PVC`
-- Pod 删除重建后数据仍保留
+- 当前 Pod 被删除后，自动重建的新 Pod 继续挂载原 PVC 时数据仍保留
 
 第二阶段：
 
-- 再把 `wk-edge01` 作为第 4 个节点加入
+- 再把 `wk-edge01` 初始化为第 4 个可用存储节点
 
 这样可以单独讲“存储扩容”，而不是把它混在安装动作里。
 
@@ -242,15 +242,18 @@ flowchart LR
 
 ```mermaid
 flowchart LR
+  ctrl[Deployment 1 副本]
   pvc[PVC]
   sc[StorageClass longhorn]
   volume[Longhorn 动态创建卷]
-  pod1[Pod 挂载卷]
+  pod1[当前 Pod 挂载卷]
   write[写入数据]
-  delete[删除 Pod]
-  pod2[新 Pod 重新挂载同一卷]
+  delete[删除当前 Pod]
+  pod2[控制器自动拉起新 Pod]
   data[数据仍然存在]
 
+  ctrl --> pod1
+  ctrl --> pod2
   pvc --> sc
   sc --> volume
   volume --> pod1
@@ -266,7 +269,7 @@ flowchart LR
 flowchart LR
   initial[初始 3 节点 Longhorn]
   stable[先完成基础部署与验证]
-  addnode[第 4 个节点加入]
+  addnode[启用第 4 个节点数据盘]
   expand[存储池容量扩展]
 
   initial --> stable

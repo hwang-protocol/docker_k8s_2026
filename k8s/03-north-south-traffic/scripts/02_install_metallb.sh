@@ -31,9 +31,8 @@ main() {
   echo "[2/6] 安装 MetalLB 原始组件"
   kubectl apply -f "${METALLB_MANIFEST_URL}"
 
-  echo "[3/6] 等待 MetalLB 控制器与 Speaker 就绪"
+  echo "[3/6] 等待 MetalLB 控制器就绪"
   kubectl -n metallb-system rollout status deploy/controller --timeout=180s
-  kubectl -n metallb-system rollout status ds/speaker --timeout=180s
 
   echo "[4/6] 应用业务 VIP 地址池"
   kubectl apply -f "${POOL_URL}"
@@ -41,6 +40,7 @@ main() {
   echo "[5/6] 为 wk-edge01 打入口标签并应用 L2Advertisement"
   kubectl label node wk-edge01 qytk8s.com/node-role=edge --overwrite
   kubectl apply -f "${ADV_URL}"
+  kubectl -n metallb-system rollout status ds/speaker --timeout=180s
 
   echo "[6/6] 查看 MetalLB 状态"
   kubectl get pods -n metallb-system -o wide

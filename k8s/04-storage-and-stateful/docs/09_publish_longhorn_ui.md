@@ -66,7 +66,7 @@ flowchart LR
 
 - 第四章没有单独再分配一个新 VIP
 - 而是继续复用第三章已经建立好的统一入口
-- Longhorn UI 只是新增了属于自己的域名、监听和转发规则
+- Longhorn UI 只是新增了属于自己的域名、专用 listener、路由和转发规则
 
 ### 为什么这一页复用第三章的 `app-gateway`
 
@@ -79,54 +79,62 @@ flowchart LR
 只是新增了：
 
 - `longhorn.qytk8s.com`
-- `longhorn-http` / `longhorn-https` 监听
+- `app-gateway` 下专门服务 `longhorn.qytk8s.com` 的 `longhorn-http/longhorn-https` listener
 - 对 `longhorn-frontend` 的转发规则
+- 跨命名空间访问 `longhorn-frontend` 所需的 `ReferenceGrant`
 
 这样课程整体风格才统一。
+
+这里要特别分清：
+
+- 对外入口 IP 仍然是同一个 `10.1.1.60`
+- 但进入 `Gateway` 之后，真正区分不同业务的依据已经不是 IP
+- 而是 `Gateway` 在七层根据域名进行路由转发
+
+也就是说：
+
+- `app.qytk8s.com` 会被转发到 `whoami`
+- `longhorn.qytk8s.com` 会被转发到 `longhorn-frontend`
 
 ### 本步关键清单
 
 本步会使用下面这份清单：
 
-- `manifests/20_gateway_longhorn_listeners.json`
 - `manifests/21_gateway_longhorn_ui.yaml`
 
-这一步现在分成两部分：
+但要注意：
 
-- `20_gateway_longhorn_listeners.json`
-  - 只定义 Longhorn 自己的两个 listener
-  - 由脚本增量注入现有 `app-gateway`
-- `21_gateway_longhorn_ui.yaml`
-  - 只定义 Longhorn 自己的 `HTTPRoute` 与 `ReferenceGrant`
+- `21_gateway_longhorn_ui.yaml` 只负责新增：
+  - Longhorn UI 的两个 `HTTPRoute`
+  - `ReferenceGrant`
+- `app-gateway` 上那 4 个最终 listener 结构，不是直接写死在这份清单里
+- 它来自脚本里的 `reconcile_gateway_listeners`
 
-这样做的目的，是避免第四章在后续章节里重新执行时，误覆盖未来新增的 `netdevops`、`grafana`、`jaeger` 等 listener。
+这一页继续复用第三章已经存在的：
 
-#### `Gateway` 中的 Longhorn 监听
+- 同一个 VIP：`10.1.1.60`
+- 同一个 Gateway：`gateway-demo/app-gateway`
 
-```yaml
-- name: longhorn-http
-  hostname: longhorn.qytk8s.com
-  port: 80
-  protocol: HTTP
-- name: longhorn-https
-  hostname: longhorn.qytk8s.com
-  port: 443
-  protocol: HTTPS
-  tls:
-    mode: Terminate
-    certificateRefs:
-      - kind: Secret
-        name: longhorn-qytk8s-com-tls
-```
+但不会再把 `longhorn.qytk8s.com` 塞进第三章原有的 `app.qytk8s.com` 那组 listener。
 
-关键字段说明：
+这里采用的是更稳定的做法：
 
+- `app.qytk8s.com`
+  - 继续使用原来的 `http/https` listener
 - `longhorn.qytk8s.com`
-  - 这是第四章固定的 GUI 域名
-- `longhorn-qytk8s-com-tls`
-  - 这是本页脚本会创建的 TLS Secret
+  - 新增自己的 `longhorn-http/longhorn-https` listener
+
+这样做的意义是：
+
+- 仍然只用同一个 VIP
+- 仍然只用同一个 Gateway
+- 但每个域名有自己独立的 `80/443` listener 和自己的证书
+- 这样更符合当前这套 `Cilium Gateway` 的实际行为，也更稳定
 
 #### `HTTP -> HTTPS` 跳转规则
+
+- 来源文件：`manifests/21_gateway_longhorn_ui.yaml`
+- 对象类型：`HTTPRoute`
 
 ```yaml
 kind: HTTPRoute
@@ -140,9 +148,13 @@ spec:
 
 关键字段说明：
 
-- Longhorn UI 也遵循“80 只负责跳转，443 才承载正式内容”的统一入口模型
+- Longhorn UI 使用自己的 `longhorn-http` listener
+- 并遵循“80 只负责跳转，443 才承载正式内容”的统一入口模型
 
 #### `HTTPS -> longhorn-frontend` 转发规则
+
+- 来源文件：`manifests/21_gateway_longhorn_ui.yaml`
+- 对象类型：`HTTPRoute`
 
 ```yaml
 kind: HTTPRoute
@@ -163,6 +175,7 @@ spec:
 
 - 后端 Service 位于 `longhorn-system`
 - 因此这一页必须补 `ReferenceGrant`
+- `ReferenceGrant` 必须创建在被访问的命名空间，也就是 `longhorn-system`
 
 ## 对应脚本
 
@@ -172,7 +185,6 @@ spec:
 
 本步会直接消费：
 
-- `manifests/20_gateway_longhorn_listeners.json`
 - `manifests/21_gateway_longhorn_ui.yaml`
 
 ## 脚本关键任务
@@ -192,21 +204,7 @@ SECRET_NAMESPACE="gateway-demo"
 - Longhorn UI 使用独立域名与独立证书
 - Secret 创建在 `gateway-demo`，供现有 `app-gateway` 引用
 
-### 关键任务 2：把 Longhorn listener 增量注入现有 `app-gateway`
-
-脚本原始代码：
-
-```bash
-python3 - "${LISTENERS_FILE}" <<'PY'
-```
-
-关键介绍：
-
-- 这里读取的是 `manifests/20_gateway_longhorn_listeners.json`
-- 脚本只会补齐或更新 `longhorn-http`、`longhorn-https`
-- 已存在的其他 listener 会保留，不会被第四章脚本覆盖
-
-### 关键任务 3：应用 Longhorn UI 清单
+### 关键任务 2：应用 Longhorn UI 清单
 
 脚本原始代码：
 
@@ -218,6 +216,49 @@ kubectl apply -f "${MANIFEST_URL}"
 
 - 这里应用的就是 `manifests/21_gateway_longhorn_ui.yaml`
 - Longhorn 相关的 `HTTPRoute` 和 `ReferenceGrant` 都在这份清单里
+- `HTTPRoute` 会明确绑定到：
+  - `longhorn-http`
+  - `longhorn-https`
+- `ReferenceGrant` 创建在 `longhorn-system`
+
+### 关键任务 3：为 Longhorn UI 增加专用 listener
+
+脚本原始代码：
+
+```bash
+reconcile_gateway_listeners
+```
+
+来源方式：
+
+- 来源文件：`scripts/07_publish_longhorn_ui.sh`
+- 说明：这里不是静态 YAML，而是脚本运行时动态改写 `gateway-demo/app-gateway`
+
+关键介绍：
+
+- 脚本会把 `app-gateway` 的 listener 收敛成固定 4 个：
+  - `http`
+  - `https`
+  - `longhorn-http`
+  - `longhorn-https`
+- 其中：
+  - `app.qytk8s.com` 继续使用 `http/https`
+  - `longhorn.qytk8s.com` 使用 `longhorn-http/longhorn-https`
+- 两个域名继续复用同一个 VIP，但不共用同一个 HTTPS listener
+
+脚本收敛后的最终 listener 结构可以概括成：
+
+```yaml
+listeners:
+  - name: http
+    hostname: app.qytk8s.com
+  - name: https
+    hostname: app.qytk8s.com
+  - name: longhorn-http
+    hostname: longhorn.qytk8s.com
+  - name: longhorn-https
+    hostname: longhorn.qytk8s.com
+```
 
 ### 关键任务 4：检查并修正 `EndpointSlice` 标签
 
@@ -314,6 +355,10 @@ curl -I --resolve longhorn.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8
 通过这一组验证后，应形成下面的判断：
 
 - Longhorn UI 的北向入口对象已创建完成
+- `app-gateway` 已同时承载：
+  - `app.qytk8s.com`
+  - `longhorn.qytk8s.com`
+- 且两个域名使用的是各自独立的 listener
 - 跨命名空间授权已生效
 - `HTTP -> HTTPS` 跳转正常
 - `longhorn.qytk8s.com` 已能作为第四章正式 GUI 入口使用
@@ -346,6 +391,6 @@ https://longhorn.qytk8s.com
 
 ## 下一步
 
-进入第四章最终验收：
+进入第 9 步，执行第四章最终验收：
 
-- `docs/09_verify.md`
+- `docs/10_verify.md`

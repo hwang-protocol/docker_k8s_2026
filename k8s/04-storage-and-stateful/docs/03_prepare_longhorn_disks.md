@@ -187,6 +187,6 @@ ssh root@wk-app01 'systemctl is-active iscsid'
 
 ## 下一步
 
-进入第 3 步，准备 Longhorn Chart 和 Harbor 镜像：
+进入第 3 步，准备 Longhorn、MongoDB Chart 与 Harbor 镜像：
 
 - `docs/04_prepare_longhorn_artifacts.md`

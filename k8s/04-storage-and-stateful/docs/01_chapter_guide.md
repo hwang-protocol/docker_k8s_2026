@@ -10,8 +10,9 @@
 - `Longhorn` 已安装完成
 - 首批 3 个节点已作为 Longhorn 存储节点工作
 - 应用可以通过 `PVC` 动态申请卷
-- Pod 删除重建后，卷内数据仍保留
-- `wk-edge01` 可以作为第 4 个 Longhorn 节点加入
+- 当前 Pod 被删除后，Deployment 自动拉起新 Pod，并继续挂载原来的 PVC
+- 能区分 `Deployment` 与 `StatefulSet` 的使用边界，并完成一个真实的 `MongoDB ReplicaSet` StatefulSet 案例
+- `wk-edge01` 可以进一步初始化为第 4 个 Longhorn 存储节点
 - `Longhorn UI` 可以通过 `win2019 + HTTPS + 域名` 访问
 
 ## 问题背景
@@ -28,7 +29,8 @@
 
 - 谁来为 Pod 提供持久卷
 - 卷如何动态分配
-- Pod 删除重建后数据为什么还能保留
+- 当前 Pod 被删除后，Deployment 自动拉起新 Pod，并继续挂载原来的 PVC，数据为什么还能保留
+- 什么时候应该继续使用 `Deployment`，什么时候应该改用 `StatefulSet`
 - 存储节点后续如何扩容
 
 因此第四章的重点不是“再装一套组件”，而是“把前面已经稳定的集群推进到能承载有状态工作负载”。
@@ -54,7 +56,8 @@
 - `StorageClass`
 - `Longhorn`
 - 有状态卷
-- Pod 重建后的数据保留
+- Deployment 自动重建后的数据保留
+- `Deployment` 与 `StatefulSet` 的边界
 - Longhorn 节点扩容
 
 暂不展开：
@@ -75,6 +78,7 @@ flowchart LR
   install[安装 Longhorn]
   pvc[PVC 动态供给]
   expand[第 4 个节点扩容]
+  sts[MongoDB ReplicaSet<br/>StatefulSet 实战]
   ui[发布 Longhorn UI]
   verify[第四章验收]
 
@@ -82,7 +86,8 @@ flowchart LR
   prep --> install
   install --> pvc
   pvc --> expand
-  expand --> ui
+  expand --> sts
+  sts --> ui
   ui --> verify
 ```
 
@@ -93,6 +98,7 @@ flowchart LR
 - 然后安装 `Longhorn`
 - 再用一个最小有状态演示验证 `PVC -> PV -> 数据保留`
 - 之后再单独讲第 4 个节点扩容
+- 再用真实 MongoDB 案例讲 `StatefulSet` 的稳定身份、独立卷和自动恢复
 - 最后把 `Longhorn UI` 也统一纳入课程的北向 HTTPS 访问方式
 
 ## 本章学习方式
@@ -122,9 +128,15 @@ flowchart LR
 | 3 | `04_prepare_longhorn_artifacts.md` | `scripts/02_prepare_longhorn_artifacts.sh` | 必须执行 | 固化 Longhorn Chart，推送镜像到 Harbor |
 | 4 | `05_install_longhorn.md` | `scripts/03_install_longhorn.sh` | 必须执行 | 安装 Longhorn，初始化首批 3 个存储节点 |
 | 5 | `06_default_storageclass_and_test_pvc.md` | `scripts/04_deploy_stateful_demo.sh` | 必须执行 | 验证 PVC 动态供给与数据保留 |
-| 6 | `07_expand_longhorn_node.md` | `scripts/05_expand_longhorn_node.sh` | 必须执行 | 将 `wk-edge01` 作为第 4 个 Longhorn 节点加入 |
-| 8 | `08_publish_longhorn_ui.md` | `scripts/07_publish_longhorn_ui.sh` | 必须执行 | 把 Longhorn UI 正式发布为 `https://longhorn.qytk8s.com` |
-| 9 | `09_verify.md` | `scripts/06_verify_storage.sh` | 只读验证 | 第四章最终验收 |
+| 6 | `07_expand_longhorn_node.md` | `scripts/05_expand_longhorn_node.sh` | 必须执行 | 将 `wk-edge01` 初始化为第 4 个 Longhorn 存储节点 |
+| 7 | `08_statefulset_intro.md` | `scripts/08_deploy_statefulset_demo.sh` | 必须执行 | 使用 Helm 部署并验证一个真实的 `MongoDB ReplicaSet` StatefulSet 案例 |
+| 8 | `09_publish_longhorn_ui.md` | `scripts/07_publish_longhorn_ui.sh` | 必须执行 | 把 Longhorn UI 正式发布为 `https://longhorn.qytk8s.com` |
+| 9 | `10_verify.md` | `scripts/06_verify_storage.sh` | 只读验证 | 第四章最终验收 |
+
+说明：
+
+- 第 7 步会通过 `MongoDB ReplicaSet` 这个真实案例，把 `StatefulSet` 的稳定身份、独立 PVC、Headless Service 和自动恢复讲清
+- 但第四章当前“自动恢复 + 数据保留”的第一主线，仍然以 `Deployment + PVC` 为准
 
 ## 本章执行顺序
 
@@ -137,8 +149,9 @@ flowchart LR
 4. `05_install_longhorn.md`
 5. `06_default_storageclass_and_test_pvc.md`
 6. `07_expand_longhorn_node.md`
-7. `08_publish_longhorn_ui.md`
-8. `09_verify.md`
+7. `08_statefulset_intro.md`
+8. `09_publish_longhorn_ui.md`
+9. `10_verify.md`
 
 ## 第四章起点状态
 
@@ -164,7 +177,7 @@ flowchart LR
 
 - 第四章主线选 `Longhorn`，不切到 `Ceph`
 - 首批 Longhorn 节点固定为 `wk-app01`、`wk-app02`、`wk-obs01`
-- `wk-edge01` 不在安装时直接纳入，而是单独作为扩容演示节点
+- `wk-edge01` 在安装阶段不初始化默认数据盘，而是单独作为扩容演示节点
 - 新增数据盘统一固定为 `/dev/sdb`
 - Longhorn 数据路径统一固定为 `/var/lib/longhorn`
 - Longhorn UI 统一通过第三章已经建立的 `Gateway API + HTTPS + Harbor CA` 方式向 `win2019` 发布
