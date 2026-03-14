@@ -52,8 +52,9 @@
 ### 制品流转关系图
 
 ```mermaid
-flowchart LR
+flowchart TD
   github[GitHub Release]
+  dockerhub[Docker Hub]
   ops[ops 本地 artifacts]
   cli[istioctl]
   harbor[Harbor 项目<br/>istio]
@@ -63,17 +64,20 @@ flowchart LR
 
   github --> ops
   ops --> cli
-  ops --> harbor
+  ops --> install
+
+  dockerhub --> harbor
   harbor --> nodes
-  cli --> install
   nodes --> install
   nodes --> demo
 ```
 
 这张图说明：
 
-- `ops` 既是离线包落地点，也是 CLI 安装点
-- Harbor 负责统一承载第五章镜像
+- `GitHub Release` 只负责 `Istio` 离线包和 `istioctl`
+- `Harbor` 这条链路来自镜像同步，不来自 `GitHub Release`
+- `ops` 既是离线包落地点，也是 `istioctl` 安装点
+- `Harbor` 负责统一承载第五章镜像
 - 节点预拉镜像后，后面安装与演示都会更顺
 
 ## 对应脚本
@@ -108,7 +112,7 @@ HARBOR_PROJECT="istio"
 关键介绍：
 
 - 第五章镜像统一进入 `harbor.qytk8s.com/istio`
-- 后续 `IstioOperator`、Gateway Chart、演示应用都依赖这个项目
+- 后续 `Istio` 安装、入口发布和演示应用都依赖这个项目
 
 ### 关键任务 3：整理源镜像与目标镜像映射
 
