@@ -212,6 +212,27 @@ flowchart LR
 
 这样后面再回头对比“外部 LB + Ingress”，学员会更容易理解两者边界。
 
+### 传统 `Ingress` 和 `Gateway API` 有什么区别
+
+这里比较的是 Kubernetes 里的两套北向入口对象模型：
+
+- `Ingress`
+- `Gateway API`
+
+它们的区别可以先用下面这张表抓住：
+
+| 对比项 | 传统 `Ingress` | `Gateway API` |
+| --- | --- | --- |
+| 入口对象模型 | 主要围绕单个 `Ingress` 对象展开 | 拆成 `GatewayClass`、`Gateway`、`HTTPRoute` 等对象 |
+| 角色边界 | 入口设施与转发规则常写在一起 | 入口设施与路由规则明确分开 |
+| 规则表达方式 | 够用，但复杂能力常依赖 annotation | 路由、监听、TLS 等能力表达更清楚 |
+| 与实现绑定程度 | 更容易和某个 Ingress Controller 的私有写法绑定 | 更强调标准化对象和可扩展性 |
+| 教学上的感受 | 上手快，但容易把职责讲混 | 更适合把 VIP、监听、路由、TLS 分层讲清楚 |
+
+如果只记一句话，可以先记成：
+
+> `Ingress` 更像“单对象入口声明”，`Gateway API` 更像“拆分角色后的新一代入口模型”。
+
 ### 为什么第三章主线选 `Gateway API`
 
 第三章没有继续把重点放在传统 `NodePort` 或单一 `Ingress` 对象上，而是转向：
