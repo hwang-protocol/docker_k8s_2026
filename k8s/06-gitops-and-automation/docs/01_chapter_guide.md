@@ -1,4 +1,4 @@
-# 第六章导读：GitOps 与自动化主线
+# 第六章总览：GitOps 与自动化
 
 ## 本章目标
 
@@ -13,32 +13,13 @@
 - 正式业务入口
 - 课堂现场演示
 
-这一章现在已经重构为少量主线文档，避免在课堂上来回切换 20 多页碎片说明。
-
-## 学习方式
-
-这一章建议始终按下面节奏学习：
-
-1. 先看理论与流程图
-2. 再执行 `!!! 必刷脚本`
-3. 再做测试与校验
-4. 最后用“完成标准”判断这一节是否真正刷通
-
-## 本章稳定原则
-
-第六章和前几章不同，天然更容易被外部仓库、构建节点和发布链路影响。
-
-这一章当前已经按下面原则收口：
-
-- 业务镜像构建优先使用 `Harbor` 里的基础镜像
-- `Gitea` 与 `Postgres` 的运行镜像优先使用 `Harbor`
-- `Argo CD` 安装清单已经本地化，不再在主线里临时拉取远端 raw YAML
-- 正式域名发布只使用第六章自己的 manifests，不跨章节复用旧清单
-
 ## 第六章主线图
+
+如果你要从头到尾顺刷，第六章主线就是下面这条链路：
 
 ```mermaid
 flowchart LR
+  theory[GitOps 与 Helm 理论]
   overview[总览与 GitOps 主线]
   preview[应用设计 本地联调 工程化资产]
   gitea[Gitea与仓库初始化]
@@ -46,6 +27,7 @@ flowchart LR
   entry[域名账户与正式入口]
   demo[课堂测试与演示]
 
+  theory --> overview
   overview --> preview
   preview --> gitea
   gitea --> release
@@ -57,35 +39,35 @@ flowchart LR
 
 请按下面顺序阅读与执行：
 
-1. `docs/02_overview_and_gitops_flow.md`
-2. `docs/03_app_design_and_local_preview.md`
-3. `docs/04_gitea_setup_and_repo_bootstrap.md`
-4. `docs/05_harbor_argocd_and_e2e_verification.md`
-5. `docs/06_domains_accounts_and_classroom_demo.md`
-6. `docs/07_gitops_demo_and_testing.md`
-
-## 刷课顺序总览
-
-如果你要从头到尾顺刷，第六章的最短主线就是：
-
-```text
-理论总览 -> 应用与工程化资产 -> Gitea -> Harbor/Argo CD -> 正式入口 -> 课堂演示
-```
+1. `docs/00_gitops_theory.md`
+2. `docs/02_overview_and_gitops_flow.md`
+3. `docs/03_app_design_and_local_preview.md`
+4. `docs/04_gitea_setup_and_repo_bootstrap.md`
+5. `docs/05_harbor_argocd_and_e2e_verification.md`
+6. `docs/06_domains_accounts_and_classroom_demo.md`
+7. `docs/07_gitops_demo_and_testing.md`
 
 ## 主线说明
 
-### 1. 总览与 GitOps 主线
+### 1. GitOps 与 Helm 理论
 
-这一节讲：
+- 对应文档：[00_gitops_theory.md](/docker_k8s_2026/k8s/06-gitops-and-automation/docs/00_gitops_theory.md)
+- 什么是 `GitOps`
+- 什么是 `Helm`
+- 什么是 `values.yaml`
+- 什么是 `Argo CD`
+- 第六章最终要打通的完整交付链路
 
+### 2. 总览与 GitOps 主线
+
+- 对应文档：[02_overview_and_gitops_flow.md](/docker_k8s_2026/k8s/06-gitops-and-automation/docs/02_overview_and_gitops_flow.md)
 - 第六章到底解决什么问题
-- GitOps 的核心概念
 - 主仓、`Gitea`、`Harbor`、`Argo CD` 的角色边界
+- 第六章这条实际交付链路如何闭环
 
-### 2. 应用设计、本地联调与工程化资产
+### 3. 应用设计、本地联调与工程化资产
 
-这一节讲：
-
+- 对应文档：[03_app_design_and_local_preview.md](/docker_k8s_2026/k8s/06-gitops-and-automation/docs/03_app_design_and_local_preview.md)
 - `QYT NetDevOps` 为什么这样设计
 - 微服务职责边界
 - 本地联调与第一阶段验收
@@ -95,147 +77,35 @@ flowchart LR
 - `values`
 - `Argo CD Application`
 
-### 3. Gitea 落地与仓库初始化
+### 4. Gitea 落地与仓库初始化
 
-这一节讲：
-
+- 对应文档：[04_gitea_setup_and_repo_bootstrap.md](/docker_k8s_2026/k8s/06-gitops-and-automation/docs/04_gitea_setup_and_repo_bootstrap.md)
 - `git.qytk8s.com` 的安装与信任链
 - 应用仓库创建
 - 首次把应用目录同步到 `Gitea`
 
-### 4. Harbor、Argo CD 与发布闭环
+### 5. Harbor、Argo CD 与发布闭环
 
-这一节讲：
-
+- 对应文档：[05_harbor_argocd_and_e2e_verification.md](/docker_k8s_2026/k8s/06-gitops-and-automation/docs/05_harbor_argocd_and_e2e_verification.md)
 - 远程构建镜像
 - 推送到 `Harbor`
-- 预拉 `Argo CD` Harbor 镜像
 - 安装 `Argo CD`
 - 同步应用
 - 端到端验收
 
-### 5. 域名、账户与正式入口
+### 6. 域名、账户与正式入口
 
-这一节讲：
-
+- 对应文档：[06_domains_accounts_and_classroom_demo.md](/docker_k8s_2026/k8s/06-gitops-and-automation/docs/06_domains_accounts_and_classroom_demo.md)
 - 正式业务入口
 - 域名与账户速查
 - Git 边界
 
-### 6. GitOps 课堂测试与演示
+### 7. GitOps 课堂测试与演示
 
-这一节讲：
-
+- 对应文档：[07_gitops_demo_and_testing.md](/docker_k8s_2026/k8s/06-gitops-and-automation/docs/07_gitops_demo_and_testing.md)
 - 改代码发布
 - 改 YAML 扩缩容
 - 课堂现场观察点
-
-这一节开始前要记住：
-
-- `16_release_frontend_gitops.sh` 之前必须先手工改代码，再改 `VERSION`
-- `17_scale_frontend_gitops.sh` 之前必须先手工改 `values-lab.yaml` 里的副本数
-
-## 主线必刷脚本
-
-下面这组脚本就是当前第六章主线：
-
-### 标记说明
-
-- `P0`：必须执行，直接决定是否能继续往下刷
-- `P1`：建议执行，用于补强验证或课堂演示
-
-### 本地联调与第一阶段验收
-
-```bash
-# P0
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/01_run_local_preview.sh
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/02_verify_local_preview.sh
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/03_verify_chapter6.sh
-```
-
-### 工程化资产准备
-
-```bash
-# P0
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/04_verify_docker_assets.sh
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/05_verify_gitops_assets.sh
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/06_verify_phase2_assets.sh
-```
-
-### Gitea 与应用仓初始化
-
-```bash
-# P0
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/07_install_gitea_remote.sh
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/08_create_gitea_repo.sh
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/09_verify_gitea.sh
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/10_push_qytang_netdevops_repo.sh
-```
-
-### 发布闭环
-
-```bash
-# P0
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/11_build_and_push_images_remote.sh
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/12_install_argocd_and_sync.sh
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/13_verify_gitops_e2e.sh
-```
-
-### 正式入口与课堂演示
-
-```bash
-# P0/P1
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/14_publish_netdevops_https_domain.sh
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/16_release_frontend_gitops.sh
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/17_scale_frontend_gitops.sh
-```
-
-说明：
-
-- `14_publish_netdevops_https_domain.sh` 属于主线 `P0`
-- `16_release_frontend_gitops.sh`、`17_scale_frontend_gitops.sh` 属于课堂演示 `P1`
-- `scripts/15_configure_argocd_domain.sh` 现在是遗留补救脚本，不再作为当前主线步骤单独执行
-
-## 当前教学事实
-
-### 已经解决的事实
-
-- `12_install_argocd_and_sync.sh` 已经直接处理 `argocd.qytk8s.com` 正式证书
-- `13_verify_gitops_e2e.sh` 当前验证的是前端 Service，不提前验证正式业务域名
-- `16_release_frontend_gitops.sh` 的课堂动作已收成：改代码、改 `VERSION`、执行脚本
-
-### 必须讲清楚的边界
-
-- 主仓才是真实源码维护与备份边界
-- `Gitea` 仓库是第六章 GitOps 发布目标
-- 当前是“脚本化拆解版 GitOps”
-- 还不是“人只 push 一次 + CI 全自动”
-
-## 历史细分页说明
-
-旧的编号页仍然保留在 `docs/` 中，方便回溯历史内容，但它们不再是当前主线教材。
-
-当前主线以本页列出的 6 篇大文档为准。
-
-其中下面这页已经退出主线：
-
-- `docs/archive/19_configure_argocd_domain.md`
-
-原因是：
-
-- 其核心内容已经并入 `scripts/12_install_argocd_and_sync.sh`
-
-## 一把梭脚本说明
-
-仓库里仍保留：
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/99_bootstrap_chapter6.sh
-```
-
-但这属于“快速铺环境”入口，不是当前主线教材推荐的授课方式。
-
-正式教学建议仍按 7 篇主线文档顺刷，这样每一段的理论、图、脚本、测试和完成标准都更完整。
 
 ## 第六章起点状态
 
@@ -252,6 +122,6 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/99_bootstrap_chapter6
 
 ## 下一步
 
-从总览与 GitOps 主线开始：
+先读理论页，再进入总览页：
 
-- `docs/02_overview_and_gitops_flow.md`
+- `docs/00_gitops_theory.md`

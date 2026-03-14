@@ -208,6 +208,14 @@ kubectl -n qytang-netdevops get deploy frontend
 
 - `frontend.replicaCount: 1`
 
+来源文件：
+
+- `apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml`
+
+文件类型：
+
+- Helm values 文件
+
 改成：
 
 ```yaml
