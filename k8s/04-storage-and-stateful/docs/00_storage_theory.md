@@ -81,13 +81,12 @@ flowchart LR
 
 ### 为什么本章主线选 `Longhorn`
 
-第四章主线不选 `Ceph`，也不选传统集中式 `iSCSI`，而是先选 `Longhorn`，原因很明确：
+第四章主线先选 `Longhorn`，而不先展开 `Ceph` 或传统集中式 `iSCSI`，是因为它与本章的教学目标更匹配：
 
-- 更贴近 Kubernetes 原生使用方式
-- 学习曲线更平滑
-- 组件规模更适合课堂演示
-- 更容易做“一把过”复现
-- 更容易直观看到卷、副本、节点和调度关系
+- 与 `StorageClass`、`PVC`、`Pod` 的使用链路衔接更直接
+- 更便于讲清卷、副本、节点与调度之间的关系
+- 组件层次相对集中，更适合作为云原生持久化存储的入门模型
+- 在不引入过多额外复杂度的前提下，仍然能够覆盖动态供给、故障切换与副本重建这些核心主题
 
 ### `Longhorn` 的核心思路
 
@@ -126,6 +125,14 @@ flowchart LR
 - Kubernetes 看到的是 `StorageClass`
 - Longhorn 真正做的是卷创建和副本分布
 
+这里要特别建立一个关键认识：
+
+- `Pod` 的生命周期和数据生命周期不是同一层
+- `Pod` 可以被删除、重建、漂移到其他节点
+- 但只要业务重新挂载的还是同一个 `PVC`，就仍然是在访问原来的那一块卷
+
+因此，在持久化存储模型下，即使某个 `Pod` 挂掉，并被重新调度到另一个节点，只要卷能够重新附加并挂载成功，它仍然可以继续读取之前已经写入的数据。
+
 ### `Longhorn vs Ceph`
 
 两者都能做分布式存储，但定位并不一样。
@@ -148,6 +155,21 @@ flowchart LR
 - 副本
 - 节点
 - 故障恢复
+
+从课程表达上，可以把它们先区分成两类：
+
+- `Ceph` 更适合讲“完整的大型分布式存储平台”
+- `Longhorn` 更适合先把 Kubernetes 里的有状态主线讲清楚
+
+这里还要注意一个表述边界：
+
+- `Longhorn` 不是 Kubernetes 内建组件
+- 但它的设计和使用方式更贴近 Kubernetes 场景
+- `Ceph` 也可以很好地服务 Kubernetes，只是它本身的目标范围更大，不只面向 Kubernetes
+
+因此，如果以课堂入门和第四章主线为目标，`Longhorn` 更适合作为第一套实践模型；而 `Ceph` 往往更适合在学员已经建立起卷、副本、故障恢复这些基础概念之后，再去展开更完整的分布式存储体系。
+
+从运维角度看，`Ceph` 通常也会比 `Longhorn` 更重一些，因为它的组件层次、功能覆盖面和故障处理面都更大。
 
 也就是说：
 
@@ -218,24 +240,38 @@ flowchart LR
 
 这一章结束后，学员应该能看到下面这条完整链路：
 
-```text
-PVC
-  -> StorageClass(longhorn)
-  -> Longhorn 动态创建卷
-  -> Pod 挂载卷
-  -> 写入数据
-  -> 删除 Pod
-  -> 新 Pod 重新挂载同一卷
-  -> 数据仍然存在
+```mermaid
+flowchart LR
+  pvc[PVC]
+  sc[StorageClass longhorn]
+  volume[Longhorn 动态创建卷]
+  pod1[Pod 挂载卷]
+  write[写入数据]
+  delete[删除 Pod]
+  pod2[新 Pod 重新挂载同一卷]
+  data[数据仍然存在]
+
+  pvc --> sc
+  sc --> volume
+  volume --> pod1
+  pod1 --> write
+  write --> delete
+  delete --> pod2
+  pod2 --> data
 ```
 
-然后还能继续说明：
+然后还能继续看到这一章的扩容演进路径：
 
-```text
-初始 3 节点 Longhorn
-  -> 先跑稳
-  -> 第 4 个节点再加入
-  -> 存储池容量扩展
+```mermaid
+flowchart LR
+  initial[初始 3 节点 Longhorn]
+  stable[先完成基础部署与验证]
+  addnode[第 4 个节点加入]
+  expand[存储池容量扩展]
+
+  initial --> stable
+  stable --> addnode
+  addnode --> expand
 ```
 
 ## 通过标准
