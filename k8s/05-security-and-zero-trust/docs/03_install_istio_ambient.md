@@ -33,15 +33,29 @@
 ### Ambient 基础能力关系图
 
 ```mermaid
-flowchart LR
-    istiod[istiod] --> ztunnel[各节点 ztunnel]
-    istiod --> istioCni[istio-cni]
+flowchart TD
+    subgraph base[底层网络底座]
+        cilium[Cilium]
+    end
 
-    workloadA[工作负载 A] --> ztunnel
-    workloadB[工作负载 B] --> ztunnel
+    subgraph ambient[Istio Ambient 基础组件]
+        istiod[istiod]
+        ztunnel[各节点 ztunnel]
+        istioCni[istio-cni]
+    end
 
-    cilium[Cilium] --> workloadA
+    subgraph apps[业务工作负载]
+        workloadA[工作负载 A]
+        workloadB[工作负载 B]
+    end
+
+    cilium --> workloadA
     cilium --> workloadB
+
+    istiod --> ztunnel
+    istiod --> istioCni
+    ztunnel --> workloadA
+    ztunnel --> workloadB
     istioCni --> cilium
 ```
 
@@ -60,6 +74,96 @@ flowchart LR
 - 把 `cilium-config` 里的 `cni-exclusive` 改成 `false`
 
 这个动作不是可选优化，而是第五章能在现有集群上叠加 `Istio Ambient` 的必要条件。
+
+这里要特别说明：
+
+- 这不是仓库里的静态 YAML 清单
+- 它来自脚本运行时对现有集群对象的直接修改
+
+来源如下：
+
+- 来源文件：`k8s/05-security-and-zero-trust/scripts/02_install_istio_ambient.sh`
+- 对象类型：`ConfigMap/cilium-config`
+- 命名空间：`kube-system`
+
+对应脚本原文如下：
+
+```bash
+current="$(kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.cni-exclusive}')"
+kubectl -n kube-system patch configmap cilium-config --type merge -p '{"data":{"cni-exclusive":"false"}}'
+kubectl -n kube-system rollout restart daemonset/cilium
+```
+
+这段命令的含义是：
+
+- 先读取当前 `cni-exclusive` 的值
+- 如果仍是 `true`，就把它改成 `false`
+- 然后重启 `cilium` DaemonSet，让新配置生效
+
+这里还要特别区分一件事：
+
+- 把 `cni-exclusive` 改成 `false`
+  - 不等于“整个集群所有流量都改走 `ztunnel`”
+- 它只表示：
+  - 允许 `Istio CNI` 和 `Cilium` 一起参与
+  - 让 Ambient 有能力叠加到现有集群上
+
+### 哪些流量会进入 ztunnel
+
+```mermaid
+flowchart LR
+    subgraph cluster[当前 Kubernetes 集群]
+        subgraph ambientNs[已纳入 Ambient 的命名空间]
+            meshPodA[工作负载 A]
+            meshPodB[工作负载 B]
+        end
+
+        subgraph normalNs[未纳入 Ambient 的命名空间]
+            normalPodA[普通工作负载 C]
+            normalPodB[普通工作负载 D]
+        end
+    end
+
+    cilium[Cilium 网络底座] --> meshPodA
+    cilium --> meshPodB
+    cilium --> normalPodA
+    cilium --> normalPodB
+
+    ztunnel[各节点 ztunnel] --> meshPodA
+    ztunnel --> meshPodB
+```
+
+这张图要表达的核心是：
+
+- `Cilium` 仍然为整个集群提供底层网络
+- 只有已经纳入 Ambient 的工作负载，才会进入 `ztunnel`
+- 没纳入 Ambient 的工作负载，仍然只是普通 `Cilium` 网络流量
+
+所以当前集群里会同时存在两类流量：
+
+- 纯 `Cilium` 流量
+- `Cilium` 底座之上再叠加 `ztunnel` 的 Ambient 流量
+
+### 工作负载如何纳入 Ambient
+
+第五章里最常见的做法，是按命名空间纳入。
+
+例如给目标命名空间打上 Ambient 标签后，该命名空间里的工作负载就会进入 Ambient 网格：
+
+```bash
+kubectl label namespace mesh-demo istio.io/dataplane-mode=ambient --overwrite
+```
+
+这条命令的含义是：
+
+- `mesh-demo` 被声明为 Ambient 命名空间
+- 这个命名空间里的工作负载，后续会按 Ambient 模式进入 `ztunnel`
+- 没打这个标签的命名空间，仍然保持普通网络路径
+
+一句话总结：
+
+- `cni-exclusive=false` 是“让 Ambient 能接进来”
+- `namespace 打 ambient 标签` 是“决定哪些工作负载真的进入 Ambient”
 
 ### 本步关键清单
 
@@ -90,6 +194,12 @@ spec:
 ## 对应脚本
 
 - `k8s/05-security-and-zero-trust/scripts/02_install_istio_ambient.sh`
+
+执行前请确认：
+
+- 第 1 步已完成
+- `istioctl` 已可在 `ops` 上直接使用
+- 当前集群状态正常
 
 ## 脚本关键任务
 
@@ -179,6 +289,10 @@ kubectl -n istio-system get pods -o wide
 - `istiod` 为 `Running`
 - `ztunnel` 以 DaemonSet 形式覆盖各节点
 - `istio-cni-node` 正常
+
+> note
+> `ztunnel` 在 Kubernetes 里本质上也是 `Pod`，只是它不是业务 Pod，而是由 `DaemonSet` 铺在各节点上的节点级系统代理。  
+> 所以这里看到“每个节点都有一个 `ztunnel-*`”，正是 Ambient 模式 `1 Node 1 proxy` 的体现。
 
 ```bash
 kubectl get crd | grep istio.io
