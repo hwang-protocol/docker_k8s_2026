@@ -65,6 +65,37 @@ flowchart LR
 - `app.qytk8s.com` 负责产生真实的北向业务流量
 - `hubble.qytk8s.com` 负责把这条流量以图形方式展示出来
 
+### 本步对象关系图
+
+对新手来说，可以先把这一页涉及的对象关系理解成下面这样：
+
+```mermaid
+flowchart LR
+  cert["06_publish_hubble_ui.sh<br/>动态生成 TLS Secret"]
+  gwyaml["21_hubble_ui_gateway.yaml<br/>Gateway + HTTPRoute"]
+  gw["Gateway: hubble-ui-gateway"]
+  route1["HTTPRoute: hubble-ui-http-redirect"]
+  route2["HTTPRoute: hubble-ui-https-backend"]
+  svc["Service: kube-system/hubble-ui"]
+  trigger["07_trigger_north_south_traffic.sh<br/>触发 app.qytk8s.com 流量"]
+  ui["浏览器打开 hubble.qytk8s.com"]
+
+  cert --> gw
+  gwyaml --> gw
+  gw --> route1
+  gw --> route2
+  route2 --> svc
+  trigger --> ui
+```
+
+这张图只说明配置和观察关系：
+
+- `21_hubble_ui_gateway.yaml` 负责定义 Hubble UI 的入口对象
+- 发布脚本会动态生成 `hubble-qytk8s-com-tls` 这个 TLS Secret
+- `Gateway` 用这个 Secret 终止 HTTPS
+- `HTTPRoute` 决定是跳转还是转发到 `kube-system/hubble-ui`
+- 最后再用单独脚本触发 `app.qytk8s.com` 流量，回到 `Hubble UI` 中观察
+
 ### 为什么这一页值得独立成一步
 
 如果只在第二章看 `hubble observe`，学员看到的更多还是集群内部实验流量。
@@ -82,6 +113,9 @@ flowchart LR
 - `manifests/21_hubble_ui_gateway.yaml`
 
 #### `Hubble UI Gateway`
+
+- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
+- 对象类型：`Gateway`
 
 ```yaml
 kind: Gateway
@@ -107,6 +141,9 @@ spec:
 
 #### `HTTPS listener` 与证书
 
+- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
+- 对象类型：`Gateway.spec.listeners[]`
+
 ```yaml
 - name: https
   hostname: hubble.qytk8s.com
@@ -127,6 +164,9 @@ spec:
   - 本页脚本会为这个域名生成并导入对应 TLS Secret
 
 #### `HTTPRoute` 后端转发
+
+- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
+- 对象类型：`HTTPRoute`
 
 ```yaml
 kind: HTTPRoute
@@ -180,6 +220,29 @@ kubectl -n "${NAMESPACE}" create secret tls "${SECRET_NAME}" \
 - Hubble UI 使用独立域名与独立证书
 - Secret 直接创建在 `kube-system`
 
+对应 YAML 关键内容：
+
+- 来源方式：由 `scripts/06_publish_hubble_ui.sh` 运行时动态生成
+- 对象类型：`Secret`
+- 说明：这里没有独立静态 YAML 文件，对象来自上面的 `kubectl create secret tls ... --dry-run=client -o yaml`
+
+```yaml
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: hubble-qytk8s-com-tls
+  namespace: kube-system
+```
+
+关键字段说明：
+
+- `type: kubernetes.io/tls`
+  - 明确这是标准 TLS Secret
+- `name: hubble-qytk8s-com-tls`
+  - 后续 `Gateway` 的 HTTPS listener 会直接引用这个名字
+- `namespace: kube-system`
+  - 要和 `hubble-ui-gateway` 所在命名空间一致
+
 ### 关键任务 2：发布 `Hubble UI` 对应的 `Gateway` 与 `HTTPRoute`
 
 发布脚本原始代码：
@@ -192,6 +255,42 @@ kubectl apply -f "${GATEWAY_URL}"
 
 - 应用的就是 `manifests/21_hubble_ui_gateway.yaml`
 - 一次性下发 `Gateway`、HTTP 跳转路由和 HTTPS 后端路由
+
+对应 YAML 关键内容：
+
+- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
+- 对象类型：`Gateway`
+
+```yaml
+kind: Gateway
+metadata:
+  name: hubble-ui-gateway
+  namespace: kube-system
+```
+
+以及：
+
+- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
+- 对象类型：`HTTPRoute`
+
+```yaml
+kind: HTTPRoute
+metadata:
+  name: hubble-ui-http-redirect
+  namespace: kube-system
+```
+
+以及：
+
+- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
+- 对象类型：`HTTPRoute`
+
+```yaml
+kind: HTTPRoute
+metadata:
+  name: hubble-ui-https-backend
+  namespace: kube-system
+```
 
 ### 关键任务 3：处理 `EndpointSlice` 兼容标签并等待 VIP
 
@@ -336,17 +435,16 @@ bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/07_trigger_north_south_
 这里的选择规则是：
 
 - 第三章主线优先选择 `gateway-demo`
-- 如果想回看第二章的东西向实验流量，再选择 `net-demo`
 
 选中命名空间后，界面会展示服务关系图与最近流量表：
 
-<img src="../images/hubble2.png" alt="Hubble UI 服务关系图与流量表" width="60%" />
+<img src="../images/hubble2.png" alt="Hubble UI 在 gateway-demo 命名空间下的服务关系图与流量表" width="60%" />
 
 说明：
 
-- 第二张图展示的是“选中命名空间后界面长什么样”的操作示意
-- 它的重点是告诉你去哪里看服务关系图、去哪里看最近流量
-- 第三章真正观察时，仍然以 `gateway-demo` 中的新北向流量为准
+- 第二张图现在展示的是第三章主线推荐视角，也就是 `gateway-demo` 命名空间
+- 重点是让学员直接看到第三章北向发布链路所在的命名空间界面长什么样
+- 后续触发 `app.qytk8s.com` 流量后，应优先在这个视角下观察最近产生的新流量
 
 ## 关键看点
 

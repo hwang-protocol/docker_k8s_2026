@@ -64,6 +64,35 @@ flowchart LR
 - 一个 `HTTPRoute` 负责 `HTTP -> HTTPS` 跳转
 - 另一个 `HTTPRoute` 负责把 HTTPS 流量转发到后端 `whoami Service`
 
+### 本步清单关系图
+
+对新手来说，可以先把本步涉及的几个对象理解成下面这层关系：
+
+```mermaid
+flowchart LR
+  ns["00_gateway_demo_namespace.yaml<br/>Namespace: gateway-demo"]
+  app["10_demo_whoami.yaml<br/>Deployment + Service: whoami"]
+  gw["20_gateway_https_demo.yaml<br/>Gateway: app-gateway"]
+  route1["20_gateway_https_demo.yaml<br/>HTTPRoute: app-http-redirect"]
+  route2["20_gateway_https_demo.yaml<br/>HTTPRoute: app-https-backend"]
+  tls["05_issue_tls_certs.md 上一步生成<br/>Secret: app-qytk8s-com-tls"]
+
+  ns --> app
+  ns --> gw
+  gw --> route1
+  gw --> route2
+  gw --> tls
+  route2 --> app
+```
+
+这张图只说明配置关系：
+
+- `gateway-demo` 是这些对象统一所在的命名空间
+- `whoami Service` 是最终后端
+- `Gateway` 负责入口监听
+- 两个 `HTTPRoute` 分别负责跳转和转发
+- TLS Secret 不是本步新建，但会在本步被 `Gateway` 引用
+
 ### 为什么这里同时创建两个 `HTTPRoute`
 
 第三章不是只做到“443 能打开”，而是要把正式发布的入口行为做完整：
@@ -83,6 +112,9 @@ flowchart LR
 
 #### `whoami` 演示应用
 
+- 来源文件：`manifests/10_demo_whoami.yaml`
+- 对象类型：`Service`
+
 ```yaml
 kind: Service
 metadata:
@@ -101,6 +133,9 @@ spec:
 - `whoami Service` 是 `Gateway` 最终要转发到的目标
 
 #### `Gateway` 关键字段
+
+- 来源文件：`manifests/20_gateway_https_demo.yaml`
+- 对象类型：`Gateway`
 
 ```yaml
 kind: Gateway
@@ -125,6 +160,9 @@ spec:
 
 #### `HTTPS listener` 与证书
 
+- 来源文件：`manifests/20_gateway_https_demo.yaml`
+- 对象类型：`Gateway.spec.listeners[]`
+
 ```yaml
 - name: https
   hostname: app.qytk8s.com
@@ -145,6 +183,9 @@ spec:
   - 直接引用上一页已经创建好的 TLS Secret
 
 #### `HTTP -> HTTPS` 跳转规则
+
+- 来源文件：`manifests/20_gateway_https_demo.yaml`
+- 对象类型：`HTTPRoute`
 
 ```yaml
 kind: HTTPRoute
@@ -174,6 +215,9 @@ spec:
   - 用标准永久重定向表达正式发布入口行为
 
 #### `HTTPS -> 后端 Service` 转发规则
+
+- 来源文件：`manifests/20_gateway_https_demo.yaml`
+- 对象类型：`HTTPRoute`
 
 ```yaml
 kind: HTTPRoute
@@ -248,6 +292,9 @@ kubectl apply -f "${NAMESPACE_URL}"
 
 对应 YAML 关键内容：
 
+- 来源文件：`manifests/00_gateway_demo_namespace.yaml`
+- 对象类型：`Namespace`
+
 ```yaml
 apiVersion: v1
 kind: Namespace
@@ -277,6 +324,9 @@ kubectl -n gateway-demo rollout status deploy/whoami --timeout=180s
 
 对应 YAML 关键内容：
 
+- 来源文件：`manifests/10_demo_whoami.yaml`
+- 对象类型：`Deployment`
+
 ```yaml
 kind: Deployment
 metadata:
@@ -292,6 +342,9 @@ metadata:
   name: whoami
   namespace: gateway-demo
 ```
+
+- 来源文件：`manifests/10_demo_whoami.yaml`
+- 对象类型：`Service`
 
 关键字段说明：
 
@@ -315,6 +368,42 @@ kubectl apply -f "${GATEWAY_URL}"
 - `HTTPS -> whoami` 后端路由
 - `GATEWAY_URL` 实际对应的是：
   - `manifests/20_gateway_https_demo.yaml`
+
+对应 YAML 关键内容：
+
+- 来源文件：`manifests/20_gateway_https_demo.yaml`
+- 对象类型：`Gateway`
+
+```yaml
+kind: Gateway
+metadata:
+  name: app-gateway
+  namespace: gateway-demo
+```
+
+以及：
+
+- 来源文件：`manifests/20_gateway_https_demo.yaml`
+- 对象类型：`HTTPRoute`
+
+```yaml
+kind: HTTPRoute
+metadata:
+  name: app-http-redirect
+  namespace: gateway-demo
+```
+
+以及：
+
+- 来源文件：`manifests/20_gateway_https_demo.yaml`
+- 对象类型：`HTTPRoute`
+
+```yaml
+kind: HTTPRoute
+metadata:
+  name: app-https-backend
+  namespace: gateway-demo
+```
 
 ### 关键任务 3：处理 `Cilium Gateway` 与 `MetalLB` 的兼容标签
 

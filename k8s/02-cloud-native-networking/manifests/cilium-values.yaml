@@ -46,12 +46,12 @@ hubble:
     backend:
       image:
         repository: "harbor.qytk8s.com/cilium/hubble-ui-backend"
-        tag: "v0.13.3"
+        tag: "v0.13.3-qyfix"
         useDigest: false
     frontend:
       image:
         repository: "harbor.qytk8s.com/cilium/hubble-ui"
-        tag: "v0.13.3"
+        tag: "v0.13.3-qyfix"
         useDigest: false
   tls:
     auto:

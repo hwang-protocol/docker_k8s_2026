@@ -29,6 +29,8 @@ TMP_DIR="${CHAPTER_DIR}/tmp"
 CILIUM_VERSION="1.19.1"
 CILIUM_CLI_VERSION="v0.19.1"
 HUBBLE_CLI_VERSION="v1.18.6"
+HUBBLE_UI_VERSION="v0.13.3"
+HUBBLE_UI_QYFIX_TAG="v0.13.3-qyfix"
 ARCH="amd64"
 
 K8S_NODES=(
@@ -105,13 +107,13 @@ HARBOR_DOMAIN="harbor.qytk8s.com"
 HARBOR_PROJECT="cilium"
 HARBOR_USERNAME="admin"
 HARBOR_PASSWORD="Harbor12345"
+HUBBLE_UI_VERSION="v0.13.3"
+HUBBLE_UI_QYFIX_TAG="v0.13.3-qyfix"
 
 SOURCE_IMAGES=(
   "quay.io/cilium/cilium:v1.19.1"
   "quay.io/cilium/operator-generic:v1.19.1"
   "quay.io/cilium/hubble-relay:v1.19.1"
-  "quay.io/cilium/hubble-ui-backend:v0.13.3"
-  "quay.io/cilium/hubble-ui:v0.13.3"
   "quay.io/cilium/certgen:v0.3.2"
   "docker.io/traefik/whoami:v1.10.3"
   "docker.io/curlimages/curl:8.12.1"
@@ -121,8 +123,6 @@ TARGET_IMAGES=(
   "harbor.qytk8s.com/cilium/cilium:v1.19.1"
   "harbor.qytk8s.com/cilium/operator-generic:v1.19.1"
   "harbor.qytk8s.com/cilium/hubble-relay:v1.19.1"
-  "harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3"
-  "harbor.qytk8s.com/cilium/hubble-ui:v0.13.3"
   "harbor.qytk8s.com/cilium/certgen:v0.3.2"
   "harbor.qytk8s.com/cilium/whoami:v1.10.3"
   "harbor.qytk8s.com/cilium/curl:8.12.1"
@@ -142,6 +142,55 @@ harbor_artifact_exists() {
     "https://${HARBOR_DOMAIN}/api/v2.0/projects/${HARBOR_PROJECT}/repositories/${repo}/artifacts/${tag}")
 
   [[ "${http_code}" == "200" ]]
+}
+
+build_qyfix_hubble_ui_images() {
+  local frontend_target="harbor.qytk8s.com/cilium/hubble-ui:${HUBBLE_UI_QYFIX_TAG}"
+  local backend_target="harbor.qytk8s.com/cilium/hubble-ui-backend:${HUBBLE_UI_QYFIX_TAG}"
+  local archive="/tmp/hubble-ui-${HUBBLE_UI_VERSION}.tar.gz"
+  local workdir="/tmp/hubble-ui-qyfix-build"
+
+  if harbor_artifact_exists "${frontend_target}" && harbor_artifact_exists "${backend_target}"; then
+    echo "========================================================="
+    echo "课程修复版 Hubble UI 镜像已存在，跳过重建"
+    echo "前端镜像：${frontend_target}"
+    echo "后端镜像：${backend_target}"
+    echo "========================================================="
+    echo
+    return 0
+  fi
+
+  echo "========================================================="
+  echo "开始构建课程修复版 Hubble UI 镜像"
+  echo "上游版本：${HUBBLE_UI_VERSION}"
+  echo "目标标签：${HUBBLE_UI_QYFIX_TAG}"
+  echo "========================================================="
+
+  rm -rf "${workdir}"
+  mkdir -p "${workdir}"
+
+  curl -fsSL \
+    "https://github.com/cilium/hubble-ui/archive/refs/tags/${HUBBLE_UI_VERSION}.tar.gz" \
+    -o "${archive}"
+  tar -xzf "${archive}" -C "${workdir}" --strip-components=1
+
+  # 修正 JSON 自定义协议消息解析，避免 backend 在数据流接口上 panic。
+  perl -0pi -e 's@return &message.Message\\{\\n\\t\\tProto: &cpMessage,\\n\\t\\}, nil@return message.NewFromProto\\(&cpMessage, nil\\), nil@' \
+    "${workdir}/backend/internal/customprotocol/utils/utils.go"
+
+  # 生产环境强制走 JSON 协议，降低浏览器 / 代理链路上的协议不确定性。
+  perl -0pi -e 's/customProtocolMessagesInJSON: env\\.isDev,/customProtocolMessagesInJSON: true,/' \
+    "${workdir}/src/index.tsx"
+
+  # Harbor 节点使用传统 docker builder，不支持 Dockerfile 中的 --platform 语法。
+  perl -0pi -e 's/^FROM --platform=[^ ]+ /FROM /mg' \
+    "${workdir}/Dockerfile" "${workdir}/backend/Dockerfile"
+
+  docker build -t "${frontend_target}" "${workdir}"
+  docker build -t "${backend_target}" -f "${workdir}/backend/Dockerfile" "${workdir}/backend"
+
+  docker push "${frontend_target}"
+  docker push "${backend_target}"
 }
 
 echo "${HARBOR_PASSWORD}" | docker login "${HARBOR_DOMAIN}" -u "${HARBOR_USERNAME}" --password-stdin >/dev/null
@@ -165,6 +214,8 @@ for index in "${!SOURCE_IMAGES[@]}"; do
   docker tag "${src}" "${dst}"
   docker push "${dst}"
 done
+
+build_qyfix_hubble_ui_images
 EOF
 }
 
@@ -183,8 +234,8 @@ IMAGES=(
   "harbor.qytk8s.com/cilium/cilium:v1.19.1"
   "harbor.qytk8s.com/cilium/operator-generic:v1.19.1"
   "harbor.qytk8s.com/cilium/hubble-relay:v1.19.1"
-  "harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3"
-  "harbor.qytk8s.com/cilium/hubble-ui:v0.13.3"
+  "harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix"
+  "harbor.qytk8s.com/cilium/hubble-ui:v0.13.3-qyfix"
   "harbor.qytk8s.com/cilium/certgen:v0.3.2"
   "harbor.qytk8s.com/cilium/whoami:v1.10.3"
   "harbor.qytk8s.com/cilium/curl:8.12.1"

@@ -133,6 +133,14 @@ flowchart LR
 - `cilium CLI`：`v0.19.1`
 - `hubble CLI`：`v1.18.6`
 
+补充说明：
+
+- `Hubble UI` 的上游基础版本仍然是 `v0.13.3`
+- 但课程里实际安装的前后端镜像标签固定为 `v0.13.3-qyfix`
+- 第二章执行时统一从 Harbor 拉取这组课程固定镜像：
+  - `harbor.qytk8s.com/cilium/hubble-ui:v0.13.3-qyfix`
+  - `harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix`
+
 ## Harbor 项目规划
 
 第二章统一使用 Harbor 公共项目：
@@ -305,7 +313,7 @@ install_hubble_cli() {
 
 - 后续 `hubble observe` 等命令是否可直接使用
 
-### 重要任务 7：在 Harbor 节点拉取并推送镜像
+### 重要任务 7：在 Harbor 节点同步镜像，并重建课程修复版 `Hubble UI`
 
 脚本原始代码：
 
@@ -314,8 +322,6 @@ SOURCE_IMAGES=(
   "quay.io/cilium/cilium:v1.19.1"
   "quay.io/cilium/operator-generic:v1.19.1"
   "quay.io/cilium/hubble-relay:v1.19.1"
-  "quay.io/cilium/hubble-ui-backend:v0.13.3"
-  "quay.io/cilium/hubble-ui:v0.13.3"
   "quay.io/cilium/certgen:v0.3.2"
   "docker.io/traefik/whoami:v1.10.3"
   "docker.io/curlimages/curl:8.12.1"
@@ -325,8 +331,6 @@ TARGET_IMAGES=(
   "harbor.qytk8s.com/cilium/cilium:v1.19.1"
   "harbor.qytk8s.com/cilium/operator-generic:v1.19.1"
   "harbor.qytk8s.com/cilium/hubble-relay:v1.19.1"
-  "harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3"
-  "harbor.qytk8s.com/cilium/hubble-ui:v0.13.3"
   "harbor.qytk8s.com/cilium/certgen:v0.3.2"
   "harbor.qytk8s.com/cilium/whoami:v1.10.3"
   "harbor.qytk8s.com/cilium/curl:8.12.1"
@@ -344,13 +348,18 @@ for index in "${!SOURCE_IMAGES[@]}"; do
   docker tag "${src}" "${dst}"
   docker push "${dst}"
 done
+
+build_qyfix_hubble_ui_images
 ```
 
 这一段完成的是：
 
-- 从上游拉取第二章核心镜像和 demo 镜像
-- 重新打标签
-- 推送到 `harbor.qytk8s.com/cilium`
+- 普通镜像继续按“拉取 -> 重新打标签 -> 推送 Harbor”的方式同步
+- `Hubble UI` 统一使用课程固定镜像标签：
+  - `harbor.qytk8s.com/cilium/hubble-ui:v0.13.3-qyfix`
+  - `harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix`
+- 脚本会在 `harbor` 节点完成这两张镜像的构建与推送
+- 后续第二章安装与第三章发布，统一复用这组镜像
 
 ### 重要任务 8：在所有节点预拉镜像
 

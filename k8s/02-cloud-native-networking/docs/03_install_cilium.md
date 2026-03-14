@@ -206,6 +206,13 @@ hubble:
 - `hubble.enabled: true`
   - 同步启用第二章需要的可观测能力
 
+补充说明：
+
+- 这份 `manifests/cilium-values.yaml` 里，`Hubble UI` 前后端镜像已经固定到课程统一标签：
+  - `harbor.qytk8s.com/cilium/hubble-ui:v0.13.3-qyfix`
+  - `harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix`
+- 这样第二章安装完成后，后续无论 `port-forward` 还是第三章正式发布，都会统一使用同一套 `Hubble UI` 镜像
+
 ## 对应脚本
 
 本步对应脚本：
@@ -366,8 +373,8 @@ Helm chart version:    1.19.1
 Image versions         cilium             harbor.qytk8s.com/cilium/cilium:v1.19.1: 7
                        cilium-operator    harbor.qytk8s.com/cilium/operator-generic:v1.19.1: 2
                        hubble-relay       harbor.qytk8s.com/cilium/hubble-relay:v1.19.1: 1
-                       hubble-ui          harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3: 1
-                       hubble-ui          harbor.qytk8s.com/cilium/hubble-ui:v0.13.3: 1
+                       hubble-ui          harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix: 1
+                       hubble-ui          harbor.qytk8s.com/cilium/hubble-ui:v0.13.3-qyfix: 1
 ```
 
 预期结果：
