@@ -254,9 +254,9 @@ kubectl -n qytang-netdevops get pods -o wide
 
 ## 常见误区
 
-### 误区 1：运行 `16` 或 `17` 就等于主仓已经自动备份
+### 误区 1：运行 `16` 或 `17` 就等于本地目录已经自动备份
 
-不是。它们只是把应用目录同步到 `Gitea`，不等于替你自动 `commit/push` 主仓到你的远端。
+不是。它们只是把应用目录同步到 `Gitea`，不等于替你自动 `commit/push` 本地目录到你的远端。
 
 ### 误区 2：扩缩容演示应该去改 GitOps 目录里的 `values-lab.yaml`
 

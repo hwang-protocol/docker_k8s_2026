@@ -17,23 +17,24 @@
 
 ## 为什么这一节很关键
 
-`Argo CD` 不是直接从你的主仓工作目录读取文件，而是从 Git 仓库读取目标状态。
+`Argo CD` 不是直接从你当前机器上的工作目录读取文件，而是从 Git 仓库读取目标状态。
 
 所以在第六章里，必须先把企业内 Git 服务与应用发布仓准备好。
 
-这里要明确区分两类仓库角色：
+这里要明确区分 2 个对象：
 
-- 主仓：`/docker_k8s_2026`
-- GitOps 发布仓：`https://git.qytk8s.com/gitadmin/qytang-netdevops.git`
+- 本地应用目录：`/docker_k8s_2026/apps/qytang-netdevops`
+- `Gitea` 发布仓：`https://git.qytk8s.com/gitadmin/qytang-netdevops.git`
 
-### 主仓负责什么
+### 本地应用目录负责什么
 
-- 长期维护课程全量素材
-- 作为真实源码维护与备份边界
+- 承载第六章真正参与发布的应用内容
+- 包含源码、`Docker` 资产、`Helm` 资产、`GitOps` 资产
+- 后续同步脚本只会导出这部分内容
 
 ### `Gitea` 发布仓负责什么
 
-- 承载第六章 GitOps 发布所需的应用目录
+- 承载从本地应用目录同步过去的发布内容
 - 被后续构建节点与 `Argo CD` 拉取
 
 ## 统一信任链
@@ -52,14 +53,12 @@
 
 ```mermaid
 flowchart LR
-  mainRepo[主仓]
-  appDir[应用目录]
+  appDir[本地应用目录]
   tempRepo[临时导出仓]
   giteaRepo[Gitea 发布仓]
   buildNode[构建节点]
   argocd[Argo CD]
 
-  mainRepo --> appDir
   appDir --> tempRepo
   tempRepo --> giteaRepo
   giteaRepo --> buildNode
@@ -68,6 +67,8 @@ flowchart LR
 
 这里要特别强调：
 
+- `Argo CD` 读取的是 `Gitea` 发布仓
+- 第六章真正参与发布的，只是其中的 `apps/qytang-netdevops`
 - 课堂脚本不是在 `apps/qytang-netdevops` 里直接做嵌套 Git 仓库
 - 当前采用的是“导出应用目录 -> 临时仓库 -> 同步到 Gitea”的方式
 
@@ -80,57 +81,39 @@ flowchart LR
 - 管理员密码：`Gitea12345`
 - 应用发布仓：`https://git.qytk8s.com/gitadmin/qytang-netdevops.git`
 
-## 这一套仓库结构为什么适合做 GitOps 事实源
-
-当前应用目录里同时包含：
+## 这一套目录里分别放了什么
 
 - `frontend/`
+  - 前端页面代码
 - `backend/`
+  - 后端服务代码
 - `deploy/docker/`
+  - 各服务的 `Dockerfile` 与本地 `docker compose` 资产
 - `deploy/helm/`
+  - `Helm Chart`、`values`、`templates`
 - `deploy/gitops/`
+  - 给 `Argo CD` 使用的发布清单
 - `scripts/`
+  - 本地辅助脚本与演示数据脚本
 
-这套结构适合教学，是因为学员能在同一个上下文中同时看到：
+所以这一节最重要的不是记目录名字，而是理解：
 
-- 源码
-- 镜像构建资产
-- Helm 模板
-- GitOps 清单
-
-这样更容易理解“GitOps 并不是只维护几份 YAML”，而是要依托一套完整工程化仓库。
+- 源码在这里
+- 镜像构建资产也在这里
+- `Helm` 资产也在这里
+- `GitOps` 发布清单也在这里
 
 ## 本节必刷脚本
 
-### 安装 Gitea
+这一节建议按下面顺序执行：
+
+### 1. 安装 Gitea
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/07_install_gitea_remote.sh
 ```
 
-### 创建应用仓库
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/08_create_gitea_repo.sh
-```
-
-### 验证 Gitea
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/09_verify_gitea.sh
-```
-
-### 首次同步应用目录
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/10_push_qytang_netdevops_repo.sh
-```
-
-## 每个脚本在做什么
-
-### `07_install_gitea_remote.sh`
-
-负责：
+脚本主要任务：
 
 - 检查统一 CA
 - 为 `git.qytk8s.com` 签发证书
@@ -139,28 +122,124 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/10_push_qytang_netdev
 - 启动 `gitea` 与 `gitea-postgres`
 - 创建 `gitadmin`
 
-### `08_create_gitea_repo.sh`
+### 2. 创建应用仓库
 
-负责：
+```bash
+bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/08_create_gitea_repo.sh
+```
+
+脚本主要任务：
 
 - 使用 Gitea API 创建 `qytang-netdevops` 仓库
 
-### `09_verify_gitea.sh`
+### 3. 验证 Gitea
 
-负责：
+```bash
+bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/09_verify_gitea.sh
+```
+
+脚本主要任务：
 
 - 验证首页
 - 验证版本接口
 - 验证容器状态
 - 验证管理员用户是否存在
 
-### `10_push_qytang_netdevops_repo.sh`
+### 4. 首次同步应用目录
 
-负责：
+```bash
+bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/10_push_qytang_netdevops_repo.sh
+```
 
-- 从主仓中的 `apps/qytang-netdevops` 导出应用目录
+脚本主要任务：
+
+- 从本地目录中的 `apps/qytang-netdevops` 导出应用目录
 - 生成临时仓库提交
 - 同步到 `Gitea`
+
+这一段最容易让学员困惑的是：
+
+- 什么叫“临时仓库”
+- 为什么这样做不会影响本地目录
+
+这里要先明确：
+
+- 脚本并不会在 `apps/qytang-netdevops` 里面直接执行 `git init`
+- 它会在：
+  - `/tmp/qytang-netdevops-publish`
+  - 这个临时目录里准备一个独立 Git 仓库
+- 然后把本地应用目录里的内容复制进去，再提交到 `Gitea`
+
+来源文件：
+
+- [10_push_qytang_netdevops_repo.sh](/docker_k8s_2026/k8s/06-gitops-and-automation/scripts/10_push_qytang_netdevops_repo.sh)
+- [lib_sync_qytang_netdevops_to_gitea.sh](/docker_k8s_2026/k8s/06-gitops-and-automation/scripts/lib_sync_qytang_netdevops_to_gitea.sh)
+
+脚本原始代码里最关键的是这一组：
+
+```bash
+TMP_REPO_DIR="/tmp/qytang-netdevops-publish"
+
+prepare_temp_repo() {
+  rm -rf "${TMP_REPO_DIR}"
+  if git -c http.sslCAInfo="${CA_CERT}" ls-remote "${REPO_URL}" >/dev/null 2>&1; then
+    git -c http.sslCAInfo="${CA_CERT}" clone "${PUSH_URL}" "${TMP_REPO_DIR}" >/dev/null 2>&1
+  else
+    mkdir -p "${TMP_REPO_DIR}"
+    git -C "${TMP_REPO_DIR}" init -b main >/dev/null
+    git -C "${TMP_REPO_DIR}" remote add origin "${REPO_URL}"
+  fi
+}
+```
+
+这段的意思是：
+
+- 先准备一个临时目录：
+  - `/tmp/qytang-netdevops-publish`
+- 如果远端仓库已经存在内容
+  - 就先把远端仓库 clone 到这个临时目录
+- 如果远端还是空仓
+  - 就在这个临时目录里执行 `git init`
+  - 再把远端 `origin` 指过去
+
+所以这里的“临时仓库”本质上就是：
+
+- 一个只用于发布的中转 Git 工作目录
+
+然后脚本再执行这组逻辑：
+
+```bash
+clean_export_tree
+copy_app_tree
+
+git -C "${TMP_REPO_DIR}" add .
+git -C "${TMP_REPO_DIR}" commit -m "..."
+git -C "${TMP_REPO_DIR}" -c http.sslCAInfo="${CA_CERT}" push -u "${PUSH_URL}" main
+```
+
+这里真正发生的是：
+
+1. 先把临时仓库里的旧文件清理掉
+2. 再把 `apps/qytang-netdevops` 里的内容复制进去
+3. 然后只在临时仓库里做：
+   - `git add`
+   - `git commit`
+   - `git push`
+
+所以为什么不会影响本地目录？
+
+因为：
+
+- 本地应用目录只是“复制源”
+- 真正执行 Git 提交和推送的是：
+  - `/tmp/qytang-netdevops-publish`
+- 脚本不会往 `apps/qytang-netdevops` 里写 `.git`
+- 也不会把本地应用目录改造成嵌套仓库
+
+一句最短的话：
+
+- 本地应用目录负责提供内容
+- 临时仓库负责提交和推送
 
 ## 本节测试与校验
 
@@ -193,25 +272,12 @@ ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@git "docker ps --format 't
 - 用户名：`gitadmin`
 - 密码：`Gitea12345`
 
-### 验证应用仓存在
+### 浏览器确认应用仓
 
-```bash
-curl --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt https://git.qytk8s.com/api/v1/repos/gitadmin/qytang-netdevops
-```
+在浏览器登录 `https://git.qytk8s.com` 后，直接确认：
 
-## 为什么当前同步方式不会破坏主仓
-
-这套同步方式的核心是：
-
-- 主仓保持普通目录结构
-- 同步脚本把应用目录导出到临时仓库
-- 有变更才提交并 push
-
-这样可以避免：
-
-- 应用目录嵌套 `.git`
-- 主仓与子仓边界混乱
-- 快照恢复后误以为代码已经自动双重备份
+- `gitadmin` 名下已经出现 `qytang-netdevops`
+- 仓库首页能看到应用目录内容
 
 ## 本节完成标准
 
@@ -221,7 +287,7 @@ curl --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt 
 - `gitadmin` 可登录
 - `qytang-netdevops` 仓库存在
 - 仓库里已有完整应用内容
-- 已理解主仓与 `Gitea` 发布仓的职责分离
+- 已理解本地应用目录与 `Gitea` 发布仓的职责分离
 
 ## 常见误区
 
@@ -231,11 +297,11 @@ curl --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt 
 
 ### 误区 2：应用目录自己应该带独立 `.git`
 
-当前课程已经明确不采用这种做法，避免主仓边界被破坏。
+当前课程已经明确不采用这种做法，避免本地目录边界被破坏。
 
 ### 误区 3：`Gitea` 仓库就是唯一源码备份
 
-不是。主仓才是课程全量源码的真实维护边界。
+不是。第六章里真正参与发布的是本地应用目录；`Gitea` 只是它的发布仓。
 
 ## 下一步
 

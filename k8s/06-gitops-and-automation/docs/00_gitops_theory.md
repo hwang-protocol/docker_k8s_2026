@@ -294,7 +294,7 @@ flowchart LR
 ```mermaid
 flowchart TD
   user[操作者]
-  local[主仓中的应用目录<br/>源码 Helm Chart values]
+  local[本地应用目录<br/>源码 Helm Chart values]
   script[发布脚本]
   gitea[Gitea 发布仓<br/>保存源码 Chart values Application]
   gitnode[git 节点构建环境]
@@ -318,11 +318,11 @@ flowchart TD
 
 这张图可以直接按图中的序号来理解：
 
-1. 操作者先修改主仓里的内容  
+1. 操作者先修改本地应用目录里的内容  
    这里可能改的是业务代码，也可能改的是 `Helm Chart` 或 `values`
 2. 操作者手工执行发布脚本  
    当前第六章不是全自动 `CI`，而是人手工触发脚本
-3. 脚本读取主仓中的源码与部署配置  
+3. 脚本读取本地应用目录中的源码与部署配置  
    也就是读取本地应用目录里的代码、`Chart` 和 `values`
 4. 脚本先把源码或配置变更提交到 `Gitea`  
    `Gitea` 里保存的是发布所需的声明式内容
