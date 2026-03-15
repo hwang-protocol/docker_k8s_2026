@@ -85,4 +85,4 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/01_prepare_observ
 
 进入第 3 步，理解业务服务接入指标与 Trace 的方式：
 
-- `docs/03_instrument_qytang_netdevops.md`
+- `docs/02_instrument_qytang_netdevops.md`

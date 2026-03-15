@@ -140,4 +140,4 @@ flowchart LR
 
 进入第 2 步，准备第七章的资产与版本冻结：
 
-- `docs/02_prepare_observability_assets.md`
+- `docs/02_instrument_qytang_netdevops.md`

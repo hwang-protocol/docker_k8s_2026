@@ -101,22 +101,20 @@ flowchart LR
 | 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
 | :--- | :--- | :--- | :--- | :--- |
 | 0 | `00_observability_theory.md` | 无 | 建议先读 | 先理清 Metrics、Trace 与 K8s 观测主线 |
-| 1 | `02_prepare_observability_assets.md` | `scripts/01_prepare_observability_assets.sh` | 必须执行 | 准备 Grafana 资产并确认第七章执行入口 |
-| 2 | `03_instrument_qytang_netdevops.md` | 无 | 只读理解 | 说明业务代码已接入指标与 Trace |
-| 3 | `04_install_prometheus_grafana_jaeger.md` | `scripts/02_install_observability_stack.sh` | 必须执行 | 先升级业务应用到第七章版本，再安装 Prometheus、Grafana、Jaeger、OTel Collector |
-| 4 | `05_publish_grafana_and_verify.md` | `scripts/03_verify_observability.sh` | 只读验收 | 验证 Grafana、Jaeger、Targets 与大盘 |
-| 5 | `06_trace_demo_and_fault_location.md` | 无 | 课堂演示 | 从 Grafana 指标跳到 Jaeger 瀑布图定位问题 |
+| 1 | `02_instrument_qytang_netdevops.md` | 无 | 只读理解 | 说明业务代码已接入指标与 Trace |
+| 2 | `03_install_prometheus_grafana_jaeger.md` | `scripts/02_install_observability_stack.sh` | 必须执行 | 先升级业务应用到第七章版本，再安装 Prometheus、Grafana、Jaeger、OTel Collector |
+| 3 | `04_publish_grafana_and_verify.md` | `scripts/03_verify_observability.sh` | 只读验收 | 验证 Grafana、Jaeger、Targets 与大盘 |
+| 4 | `05_trace_demo_and_fault_location.md` | 无 | 课堂演示 | 从 Grafana 指标跳到 Jaeger 瀑布图定位问题 |
 
 ## 本章执行顺序
 
 请严格按下面顺序执行：
 
 0. `00_observability_theory.md`
-1. `02_prepare_observability_assets.md`
-2. `03_instrument_qytang_netdevops.md`
-3. `04_install_prometheus_grafana_jaeger.md`
-4. `05_publish_grafana_and_verify.md`
-5. `06_trace_demo_and_fault_location.md`
+1. `02_instrument_qytang_netdevops.md`
+2. `03_install_prometheus_grafana_jaeger.md`
+3. `04_publish_grafana_and_verify.md`
+4. `05_trace_demo_and_fault_location.md`
 
 ## 第七章起点状态
 
