@@ -45,6 +45,21 @@
 VERSION="${VERSION:-v0.1.3}"
 ```
 
+这里的 `VERSION` 主要不是去替你修改页面源码里的文字，而是作为这次发布的版本号，被脚本用在下面几处：
+
+1. 构建前端镜像时，生成：
+   - `harbor.qytk8s.com/qytang-netdevops/frontend:${VERSION}`
+2. 回写前端镜像 `tag` 时，写入：
+   - `deploy/helm/qytang-netdevops/values.yaml`
+   - `deploy/helm/qytang-netdevops/values-lab.yaml`
+   - `deploy/gitops/lab/values-lab.yaml`
+3. 生成两次 Git 提交说明时，也会带上这个版本号
+
+也就是说：
+
+- 页面内容改动，来自你手工修改前端代码
+- `VERSION` 改动，决定这次发布产出的镜像版本号，以及 GitOps 最终要切换到哪个镜像 `tag`
+
 ### 明确不要手工改哪些文件
 
 在“改代码发布”这条演示链路里，不要再手工去改下面 3 个文件：
@@ -58,7 +73,7 @@ VERSION="${VERSION:-v0.1.3}"
 - `16_release_frontend_gitops.sh` 会自动回写这 3 处前端镜像 tag
 - 课堂上只需要改代码，再改 `VERSION`
 
-## !!! 本节必刷脚本
+## !!! 演示 A 必刷脚本
 
 ### 改代码发布
 
@@ -66,57 +81,80 @@ VERSION="${VERSION:-v0.1.3}"
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/16_release_frontend_gitops.sh
 ```
 
-### 改 YAML 扩缩容
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/17_scale_frontend_gitops.sh
-```
-
-### 这个脚本会自动做什么
-
-它会自动完成下面 7 步：
-
-1. 把应用目录同步到 `Gitea`
-2. 到 `git` 节点拉最新代码并构建 `frontend:${VERSION}`
-3. 把新镜像 push 到 `Harbor`
-4. 自动回写前端镜像 tag
-5. 再次同步更新后的应用目录到 `Gitea`
-6. 等待 `Argo CD` 同步
-7. 输出控制面与页面观察结果
-
 ### 当前课堂流程图
 
-```mermaid
-flowchart LR
-  teacher[Teacher]
-  code[ChangeCode]
-  version[ChangeVersion]
-  syncRepo[SyncToGitea]
-  build[BuildImage]
-  harbor[Harbor]
-  values[RewriteValues]
-  argocd[ArgoCD]
-  browser[Browser]
+这一节直接沿用 [00_gitops_theory.md](/docker_k8s_2026/k8s/06-gitops-and-automation/docs/00_gitops_theory.md) 里的完整交付链路图。
 
-  teacher --> code
-  code --> version
-  version --> syncRepo
-  syncRepo --> build
-  build --> harbor
-  syncRepo --> values
-  values --> argocd
-  harbor --> argocd
-  argocd --> browser
+课堂上不需要再记一套新的抽象流程，只需要在这张图里重点观察：
+
+- `8`
+  - `Argo CD` 什么时候发现 Git 变化
+- `9`
+  - `Argo CD` 什么时候把目标状态同步到集群
+- `11`
+  - 浏览器什么时候看到最终结果
+
+```mermaid
+flowchart TD
+  user[操作者]
+  local[本地应用目录<br/>源码 Helm Chart values]
+  script[发布脚本]
+  gitea[Gitea 发布仓<br/>保存源码 Chart values Application]
+  gitnode[git 节点构建环境]
+  harbor[Harbor 镜像仓库]
+  argocd[Argo CD]
+  cluster[Kubernetes 集群]
+  browser[浏览器访问]
+
+  user -->|1. 手工修改代码或 Chart values| local
+  user -->|2. 手工执行脚本| script
+  local -->|3. 脚本读取源码与部署配置| script
+  script -->|4. 提交源码或配置变更| gitea
+  script -->|5. 在 git 节点构建镜像| gitnode
+  gitnode -->|6. docker push 到 Harbor| harbor
+  script -->|7. 回写 values 中的镜像 tag 并再次提交| gitea
+  gitea -->|8. Webhook 或轮询发现 Git 变化| argocd
+  argocd -->|9. 同步目标状态到集群| cluster
+  harbor -->|10. 节点按镜像地址拉取镜像| cluster
+  cluster -->|11. 浏览器访问最终结果| browser
 ```
+
+### 这个脚本在图里对应哪些步骤
+
+`16_release_frontend_gitops.sh` 在课堂上最主要会落到下面这些动作：
+
+1. `2`
+   - 你手工执行脚本
+2. `4`
+   - 脚本先把应用目录同步到 `Gitea`
+3. `5`
+   - 脚本到 `git` 节点构建 `frontend:${VERSION}`
+4. `6`
+   - 新镜像 push 到 `Harbor`
+5. `7`
+   - 自动回写前端镜像 `tag`，再提交到 `Gitea`
+6. `8` 和 `9`
+   - 等待 `Argo CD` 发现变化并同步
+7. `11`
+   - 最后在浏览器里看到新结果
 
 ### 在哪里观察
 
-可以同时看两个地方：
+课堂上最值得同时看两个地方：
 
 - `https://argocd.qytk8s.com`
 - `https://netdevops.qytk8s.com`
 
-`Argo CD` 中建议重点看：
+也就是对应图里的：
+
+- `8`
+  - Git 变化是否已经被 `Argo CD` 发现
+- `9`
+  - 集群是否已经收敛到新目标状态
+- `11`
+  - 浏览器里是否已经看到新结果
+
+`Argo CD` 页面里建议重点看：
 
 - `Sync Status`
 - `Health Status`
@@ -124,17 +162,72 @@ flowchart LR
 
 命令行也可以直接看：
 
+#### 观察 1：Argo CD 当前同步状态
+
 ```bash
 kubectl -n argocd get application qytang-netdevops -o wide
 ```
+
+原始输出示例：
+
+```text
+root@ops:/docker_k8s_2026# kubectl -n argocd get application qytang-netdevops -o wide
+NAME               SYNC STATUS   HEALTH STATUS   REVISION                                   PROJECT
+qytang-netdevops   Synced        Healthy         aa1ab0bf5fdf5a40b453b5cb4f9c086ac0057b52   default
+```
+
+关键看点：
+
+- `SYNC STATUS=Synced`
+  - 说明 `Argo CD` 看到的 Git 目标状态已经和集群一致
+- `HEALTH STATUS=Healthy`
+  - 说明应用当前资源状态正常
+- `REVISION`
+  - 说明当前同步到的是哪一个 Git 提交版本
+
+#### 观察 2：frontend 当前实际镜像版本
 
 ```bash
 kubectl -n qytang-netdevops get deploy frontend -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
 ```
 
+原始输出示例：
+
+```text
+root@ops:/docker_k8s_2026# kubectl -n qytang-netdevops get deploy frontend -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+harbor.qytk8s.com/qytang-netdevops/frontend:v0.1.4
+```
+
+关键看点：
+
+- 重点看镜像名和 `tag`
+- 这里的 `v0.1.4`
+  - 说明集群里 `frontend` 当前准备运行的就是这次发布的新镜像版本
+
+#### 观察 3：frontend 滚动更新是否完成
+
 ```bash
 kubectl -n qytang-netdevops get deploy frontend
 ```
+
+原始输出示例：
+
+```text
+root@ops:/docker_k8s_2026# kubectl -n qytang-netdevops get deploy frontend
+NAME       READY   UP-TO-DATE   AVAILABLE   AGE
+frontend   1/1     1            1           9h
+```
+
+关键看点：
+
+- `READY`
+  - 当前已经就绪的 Pod 数量
+- `UP-TO-DATE`
+  - 当前使用最新模板创建出来的 Pod 数量
+- `AVAILABLE`
+  - 当前可对外提供服务的 Pod 数量
+- 这里 `1/1 1 1`
+  - 说明这次更新后的 `frontend` 已经正常滚动完成
 
 ### 这一段最重要的话
 
@@ -148,36 +241,25 @@ kubectl -n qytang-netdevops get deploy frontend
 
 这一点要和“未来 CI 接管后的真正单次 push 流程”区分开。
 
-## 当前实现与理想形态的区别
-
-当前第六章已经真实落地的是：
-
-- 脚本化拆解版 GitOps
-
-也就是：
-
-- 人改代码
-- 人执行脚本
-- 脚本同步源码
-- 脚本构建镜像
-- 脚本回写 values
-- `Argo CD` 自动同步
-
-更理想的顺滑版流程则是：
-
-- 人只 `push` 一次
-- `CI` 自动构建镜像
-- `CI` 自动推送 `Harbor`
-- `CI` 自动回写 values
-- `Argo CD` 自动收敛
-
 ## 演示 B：改 YAML 扩缩容
 
 这一段不改代码，不重建镜像，只改目标状态。
 
+### 演示 B 必刷脚本
+
+```bash
+bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/17_scale_frontend_gitops.sh
+```
+
 ### 直接改哪个文件
 
 - `apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml`
+
+### 这一段最短动作
+
+1. 修改 `values-lab.yaml`
+2. 执行脚本
+3. 观察 `Argo CD` 和副本数变化
 
 ### 哪些服务可以改 `replicaCount`
 
@@ -232,15 +314,30 @@ frontend:
 - `frontendDesired`
 - `frontendAvailable`
 
-你也可以手工执行：
+你也可以手工执行下面两条命令：
+
+#### 观察 1：Deployment 期望副本数是否已经变化
 
 ```bash
 kubectl -n qytang-netdevops get deploy frontend device-service resource-service audit-service
 ```
 
+关键看点：
+
+- 重点看 `frontend`
+- 如果你把 `frontend.replicaCount` 从 `1` 改成 `2`
+  - 这里应能看到 `frontend` 的期望副本数和可用副本数都变成 `2`
+
+#### 观察 2：Pod 数量是否已经实际扩出来
+
 ```bash
 kubectl -n qytang-netdevops get pods -o wide
 ```
+
+关键看点：
+
+- 重点看 `frontend` 相关 Pod
+- 应能看到对应数量的 `frontend` Pod 已经运行起来
 
 ## 本节测试通过标准
 
@@ -270,4 +367,4 @@ kubectl -n qytang-netdevops get pods -o wide
 
 ## 下一步
 
-第六章主线已经完整闭环，后续可以继续进入可观测性与更顺滑的自动化交付演示。
+第六章主线已经完整闭环，下一章进入可观测性与追踪。
