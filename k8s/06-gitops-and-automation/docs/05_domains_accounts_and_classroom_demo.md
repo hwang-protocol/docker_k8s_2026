@@ -124,17 +124,41 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/14_publish_netdevops_
 
 ## 正式业务入口验证
 
+### 1. 验证 HTTP 是否会跳转到 HTTPS
+
 ```bash
 curl -I --resolve netdevops.qytk8s.com:80:10.1.1.60 http://netdevops.qytk8s.com/
 ```
+
+这条命令主要验证：
+
+- 域名 `netdevops.qytk8s.com` 是否已经正确指向 `10.1.1.60`
+- 网关的 `80` 端口是否已经生效
+- `HTTP` 是否会按预期跳转到 `HTTPS`
+
+### 2. 验证 HTTPS 首页是否正常
 
 ```bash
 curl --resolve netdevops.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt https://netdevops.qytk8s.com/
 ```
 
+这条命令主要验证：
+
+- `443` 端口是否已经生效
+- `TLS` 证书是否正确
+- 前端首页是否已经通过正式域名正常返回
+
+### 3. 验证后端健康接口是否也能经由正式域名访问
+
 ```bash
 curl --resolve netdevops.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt https://netdevops.qytk8s.com/api/device/healthz
 ```
+
+这条命令主要验证：
+
+- 业务正式域名不仅能打开首页
+- 还能够继续把 `/api/device/healthz` 正确转发到后端服务
+- 说明网关到前后端的正式入口链路已经打通
 
 ## 本节完成标准
 
