@@ -180,17 +180,6 @@ flowchart TD
 - `Span`
   - 这条调用链中的一个步骤
 
-例如一条请求链可能是：
-
-```text
-frontend -> device-service -> resource-service -> audit-service
-```
-
-那么：
-
-- 整条链就是一个 `Trace`
-- 其中每一段处理过程就是一个 `Span`
-
 ```mermaid
 flowchart LR
   browser[浏览器请求]
@@ -201,6 +190,12 @@ flowchart LR
 
   browser --> frontend --> device --> resource --> audit
 ```
+
+在这张图里：
+
+- 从浏览器请求开始到最后一个服务结束，这整条链就是一个 `Trace`
+- `frontend span`、`device-service span`、`resource-service span`、`audit-service span`
+  各自都是这条链路里的一个 `Span`
 
 第一次看 `Jaeger` 时，最重要的不是把所有细节都看懂，而是先抓住：
 
@@ -284,6 +279,52 @@ flowchart LR
 - 指标流和 Trace 流是两条不同的数据流
 - `Prometheus` 不存 Trace
 - `Jaeger` 不存指标
+
+## 第七章里的业务 Trace 是怎么来的
+
+这一章不会让学员现场手工去改一堆 SDK 代码。
+
+第七章当前的前提是：
+
+- `QYT NetDevOps` 的业务代码已经按第七章要求接好了指标与 Trace
+- 真正进入集群生效，是后面的安装步骤负责发布
+
+对课堂来说，先抓住下面两点就够了：
+
+- 业务指标
+  - 由服务自己暴露 `/metrics`
+- 业务 Trace
+  - 由服务代码里的 `OpenTelemetry` 埋点自动产生
+
+### 第七章里的 Trace 数据流
+
+```mermaid
+flowchart LR
+  browser[Browser]
+  frontend[frontend]
+  device[device-service]
+  resource[resource-service]
+  audit[audit-service]
+  collector[OTel Collector]
+  jaeger[Jaeger]
+
+  browser --> frontend
+  frontend --> device
+  device --> resource
+  device --> audit
+  device --> collector
+  resource --> collector
+  audit --> collector
+  collector --> jaeger
+```
+
+这张图表达的核心是：
+
+- 浏览器先打到业务服务
+- 业务服务在处理请求时自动产生 Trace
+- `frontend`、`device-service`、`resource-service`、`audit-service`
+  都会把 Trace 发给 `OTel Collector`
+- 最后由 `Jaeger` 负责展示整条调用链
 
 ## 什么是 /metrics
 
