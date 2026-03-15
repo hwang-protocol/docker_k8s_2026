@@ -2,21 +2,11 @@
 
 ## 本节目标
 
-这一节的目标不是直接讲 `Gitea` 或 `Argo CD`，而是先把样板应用本身讲透，并确认它已经同时具备：
+这一节先把样板应用本身讲清楚，并确认它已经同时具备：
 
 - 本地联调能力
 - Docker 工程化骨架
 - Helm 与 GitOps 资产骨架
-
-这里要补一句教学事实：
-
-- 第六章当前构建链已经收成 `Harbor-first`
-- 业务镜像构建默认使用 `harbor.qytk8s.com/library/python:3.12-slim` 作为基础镜像
-- 本地 `docker-compose` 示例中的 `Postgres` 也已切到 `harbor.qytk8s.com/library/postgres:17`
-
-## 执行标记
-
-- **执行标记：必须执行**
 
 完成这一节后，应能回答：
 
@@ -66,6 +56,27 @@
 - `interfaces` 是设备的子资源
 - `audit_logs` 是所有管理动作留下的记录
 
+```mermaid
+flowchart TD
+  subgraph pages[页面视角]
+    dashboard[Dashboard]
+    devicesPage[Devices]
+    auditPage[Audit Center]
+  end
+
+  subgraph objects[业务对象]
+    devices[(devices)]
+    interfaces[(interfaces)]
+    auditLogs[(audit_logs)]
+  end
+
+  dashboard --> devices
+  dashboard --> auditLogs
+  devicesPage --> devices
+  devices --> interfaces
+  auditPage --> auditLogs
+```
+
 ## 微服务拆分
 
 当前样板应用拆为 4 个主要组件：
@@ -82,14 +93,6 @@
 - 负责页面展示
 - 负责把浏览器请求统一代理到后端服务
 
-## 工程化资产的稳定化约束
-
-这一节后半段不只是“有没有 `Dockerfile` 和 `Chart`”，还要说明为什么这些资产现在更稳：
-
-- 四个 `Dockerfile` 统一使用 `Harbor` 中的 Python 基础镜像
-- 本地 compose 与集群发布都统一使用 `Postgres`
-- 后续 `Gitea -> Harbor -> Argo CD` 的交付链会继续沿用统一镜像源
-
 ### `device-service`
 
 - 负责设备 CRUD
@@ -105,43 +108,98 @@
 
 - 负责审计日志写入与查询
 
+这里最容易混的是：
+
+- `device-service`
+  - 更像设备主业务服务
+  - 它关心“设备本身”
+  - 例如设备列表、设备详情、设备增删改、Dashboard 汇总
+- `resource-service`
+  - 更像设备资源查询服务
+  - 它关心“设备下面的资源”
+  - 例如接口列表、接口状态、资源统计
+
+可以先记成一句最短的话：
+
+- `device-service` 管设备
+- `resource-service` 管设备下面的资源
+
 ## 典型调用链
 
 这一页最值得讲清楚的是“页面动作如何落到微服务调用链”。
 
 ```mermaid
-flowchart LR
+flowchart TD
   browser[浏览器]
-  frontend[前端]
-  deviceService[device-service]
-  resourceService[resource-service]
-  auditService[audit-service]
-  db[数据库]
+
+  subgraph entry[页面与入口]
+    frontend[frontend]
+  end
+
+  subgraph services[后端服务]
+    deviceService[device-service]
+    resourceService[resource-service]
+    auditService[audit-service]
+  end
+
+  subgraph data[数据对象]
+    devices[(devices)]
+    resources[(interfaces / resources)]
+    audits[(audit_logs)]
+  end
 
   browser --> frontend
   frontend --> deviceService
-  frontend --> resourceService
-  frontend --> auditService
-  deviceService --> resourceService
-  deviceService --> auditService
-  deviceService --> db
-  resourceService --> db
-  auditService --> db
+  deviceService --> devices
+  deviceService -.聚合查询.-> resourceService
+  resourceService --> resources
+  deviceService -.写入审计.-> auditService
+  auditService --> audits
 ```
 
 课堂上最适合举这 3 类动作：
 
 1. `Dashboard`
 - `frontend -> device-service`
-- `device-service -> resource-service + audit-service`
+- `device-service` 汇总全局设备信息
+- `device-service -> resource-service`
+  - 取全局接口与资源统计
+- `device-service -> audit-service`
+  - 取全局审计统计或最近操作记录
 
 2. 设备详情
 - `frontend -> device-service`
-- `device-service -> resource-service + audit-service`
+- `device-service` 先返回某一台设备的主体信息
+- `device-service -> resource-service`
+  - 补充这台设备的接口与资源详情
+- `device-service -> audit-service`
+  - 补充这台设备相关的审计记录
 
 3. 增删改设备
 - `frontend -> device-service`
+- `device-service` 直接处理设备变更
 - `device-service -> audit-service`
+  - 记录审计日志
+
+这里最关键的区别可以先记成一句话：
+
+- `Dashboard`
+  - 看全局总览
+- 设备详情
+  - 看单台设备下钻
+
+也就是说，这两条链路虽然都会经过：
+
+- `device-service`
+- `resource-service`
+- `audit-service`
+
+但它们查询的粒度并不一样：
+
+- `Dashboard`
+  - 返回的是全局汇总与统计结果
+- 设备详情
+  - 返回的是单台设备的明细结果
 
 ## 为什么要先做本地联调
 
@@ -195,195 +253,132 @@ flowchart LR
 - 课堂演示更接近后续网关统一入口的思路
 - 不需要在页面里到处写死不同后端地址
 
-## !!! 本节必刷脚本
+## 本节脚本顺序
 
-### 启动本地联调
+这一节建议按下面顺序执行：
+
+1. 先启动本地联调环境
+2. 再验证本地联调是否正常
+
+### 1. 启动本地联调
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/01_run_local_preview.sh
 ```
 
-### 验证本地联调
+这一步的作用是：
+
+- 启动本地 `docker compose` 联调环境
+- 拉起前端、三个后端和本地 `Postgres`
+- 让样板应用先在本地跑起来
+
+课堂上要先讲清楚：
+
+- 这一节不是直接发布到 Kubernetes
+- 而是先证明应用本身可以在本地跑通
+
+### 2. 验证本地联调
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/02_verify_local_preview.sh
 ```
 
-### 第一阶段统一验收
+这一步的作用是：
 
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/03_verify_chapter6.sh
-```
+- 检查页面入口是否可访问
+- 检查三个后端健康状态
+- 检查 Dashboard 汇总接口和指标接口
 
-## 本节测试与校验
+也就是说，这一步重点验证的是：
 
-### 页面可达性
+- 本地联调环境已经可用
+- 当前问题如果存在，更可能是应用本身问题，而不是后面的交付问题
 
-```bash
-curl -I http://127.0.0.1:8080
-```
+所以这 2 个脚本的关系可以先记成：
 
-### 三个后端健康检查
+- `01`
+  - 负责把环境拉起来
+- `02`
+  - 负责验证本地联调是否正常
 
-```bash
-curl http://127.0.0.1:8001/healthz
-curl http://127.0.0.1:8002/healthz
-curl http://127.0.0.1:8003/healthz
-```
+## 本节测试方式
 
-### Dashboard 汇总接口
+这一节的接口与健康检查，默认由：
 
-```bash
-curl http://127.0.0.1:8001/api/v1/dashboard/summary
-```
+- `02_verify_local_preview.sh`
 
-### 指标接口
+自动完成。
 
-```bash
-curl http://127.0.0.1:8001/metrics
-```
+也就是说，下面这些检查不需要学员手工逐条执行：
 
-### 目录存在性
+- 页面入口是否可达
+- 三个后端健康检查是否正常
+- `Dashboard` 汇总接口是否可用
+- 指标接口是否可用
+- 应用目录是否存在
 
-```bash
-ls -la /docker_k8s_2026/apps/qytang-netdevops
-```
+这一节更适合保留给学员手工观察的，是 `win2019` 远程打开页面后的实际效果。
 
-## 课堂观察点
+## 建议人工观察
 
-建议把“能不能访问”与“为什么这样设计”一起讲。
+建议在 `win2019` 浏览器中直接打开：
 
-### 页面层
+- `http://10.1.1.201:8080`
 
-- `Dashboard` 是否能加载
+课堂上重点观察：
+
+- `Dashboard` 是否能正常加载
 - `Devices` 是否能显示设备列表
 - `Audit Center` 是否能看到审计时间线
 - 设备详情区域是否能显示接口列表与最近审计
-- 服务矩阵是否能显示当前服务状态
 
-### 接口层
+## 本节通过标准
 
-- 三个后端 `healthz` 是否正常
-- Dashboard 汇总接口是否返回 JSON
-- `/metrics` 是否能正常输出
-- 设备 CRUD 动作是否正常
-- 设备详情聚合接口是否正常
+这一节不要求把应用本身讲得很深。
 
-### 结构层
+更重要的是确认两件事：
 
-- 学员是否能说清 4 个组件的职责
-- 学员是否能说清 3 类核心数据对象
-- 学员是否能说明 `devices`、`interfaces`、`audit_logs` 的关键字段作用
+- 这个样板应用现在能够正常工作
+- 它已经具备后续进入容器化、`Helm` 和 `GitOps` 的基础
 
-## 建议在课堂上点出的关键字段
+满足下面条件即可继续下一节：
 
-为了让“资源建模”更具体，建议至少让学员看到下面这些字段：
+- `win2019` 可以正常打开页面
+- 页面里的核心视图能够正常加载
+- 本地联调验证脚本通过
+- 已经知道这套应用由哪些服务组成
 
-- `devices`
-  - `hostname`
-  - `mgmt_ip`
-  - `vendor`
-  - `site`
-- `interfaces`
-  - `name`
-  - `ip_address`
-  - `status`
-  - `speed_mbps`
-- `audit_logs`
-  - `action`
-  - `operator`
-  - `created_at`
+## 本地联调通过后要不要一直保留
 
-## 本节第一阶段完成标准
+不用。
 
-满足下面条件即可继续进入本节后半段的工程化资产部分：
+这一节里的本地联调，只是先证明样板应用本身可以正常工作。
 
-- 本地页面可正常访问
-- 三个后端服务健康检查正常
-- Dashboard 汇总接口可用
-- 指标接口可用
-- 设备 CRUD 可正常操作
-- 设备详情里的接口与最近审计可正常展示
-- 已理解应用职责边界与调用链
+验证通过后，这套本地预览环境就不再是后面主线的长期依赖。后面的重点会切换到：
 
-## 常见误区
+- `Gitea`
+- `Harbor`
+- `Argo CD`
+- 正式业务入口
 
-### 误区 1：前端页面能打开，就代表应用已经没问题
+也就是说：
 
-不够。必须同时验证：
+- 本地联调是一个前置验证步骤
+- 不是第六章后半段需要长期维持的发布环境
 
-- 后端健康
-- 聚合接口
-- 指标接口
+如果这一阶段验证已经完成，也可以主动收掉本地预览进程：
 
-### 误区 2：设备详情是单独的主页面
-
-不是。当前实现中，它属于 `Devices` 视图里的详情区域。
-
-### 误区 3：本地联调只是“简单跑一下”
-
-不是。这一步是在为后面的容器化与 GitOps 切断干扰项。
-
-## 工程化资产为什么要紧跟在本地联调后面
-
-如果应用本地已经能跑，但还没有：
-
-- `Dockerfile`
-- `docker-compose.yaml`
-- `Helm Chart`
-- `values`
-- `Argo CD Application`
-
-那它仍然只是“一个能演示的应用”，还不是“一个能进入 GitOps 的交付对象”。
-
-所以这一节后半段要继续回答：
-
-- 应用如何被拆成多个镜像
-- 本地多服务编排怎样映射到后续 Kubernetes
-- `Chart -> values -> Application` 之间是什么关系
-
-## 为什么要把应用拆成多个镜像
-
-把 `frontend`、`device-service`、`resource-service`、`audit-service` 分成独立镜像，教学意义在于：
-
-- 职责边界清楚
-- 可以独立构建
-- 可以独立发布
-- 后续容易映射到 Kubernetes 的 `Deployment` 与 `Service`
-
-## `docker compose` 在这一节里的角色
-
-这里的 `docker compose` 不是最终部署手段，而是教学过渡层。
-
-它帮助学员建立下面这些认知：
-
-- 多服务编排
-- 服务名互访
-- 环境变量注入
-- 数据库依赖
-- 数据持久化
-
-## `Chart`、`values`、`Application` 的关系
-
-这一层必须先讲透：
-
-```mermaid
-flowchart LR
-  chart[Helm Chart]
-  values[values 文件]
-  app[Argo CD Application]
-  cluster[Kubernetes]
-
-  chart --> values
-  values --> app
-  app --> cluster
+```bash
+bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/18_stop_local_preview.sh
 ```
 
-可以这样理解：
+## 本节后半段看什么
 
-- `Chart`：资源模板
-- `values`：参数
-- `Application`：从哪个仓库、哪个目录、用哪组参数同步到哪个集群
+这一节后半段不再继续展开业务功能，而是直接看后续发布要用到的三类资产：
+
+- `Docker` 资产
+- `Helm` 资产
+- `GitOps` 资产
 
 ## 当前关键目录
 
@@ -393,9 +388,14 @@ flowchart LR
 
 这里应包含：
 
-- 前端 Dockerfile
-- 三个后端服务 Dockerfile
+- `frontend` 的 `Dockerfile`
+- 3 个后端服务的 `Dockerfile`
 - `docker-compose.yaml`
+
+这一层的作用是：
+
+- 把应用拆成可独立构建的镜像
+- 保留本地多服务联调入口
 
 ### Helm 资产
 
@@ -408,6 +408,11 @@ flowchart LR
 - `values-lab.yaml`
 - `templates/`
 
+这一层的作用是：
+
+- 把应用整理成可部署到 Kubernetes 的 `Chart`
+- 把实验环境参数单独放进 `values` 文件
+
 ### GitOps 资产
 
 - `apps/qytang-netdevops/deploy/gitops/lab/`
@@ -417,57 +422,10 @@ flowchart LR
 - `application.yaml`
 - `values-lab.yaml`
 
-## 本节第二阶段必刷脚本
+这一层的作用是：
 
-### Docker 资产验证
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/04_verify_docker_assets.sh
-```
-
-### Helm 与 GitOps 资产验证
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/05_verify_gitops_assets.sh
-```
-
-### 第二阶段统一验收
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/06_verify_phase2_assets.sh
-```
-
-## 本节第二阶段测试与校验
-
-### Docker 目录检查
-
-```bash
-ls -la /docker_k8s_2026/apps/qytang-netdevops/deploy/docker
-```
-
-### Helm 目录检查
-
-```bash
-ls -la /docker_k8s_2026/apps/qytang-netdevops/deploy/helm/qytang-netdevops
-```
-
-### GitOps 目录检查
-
-```bash
-ls -la /docker_k8s_2026/apps/qytang-netdevops/deploy/gitops/lab
-```
-
-### 重点观察点
-
-建议至少看清楚下面几类文件：
-
-- 4 个业务镜像 Dockerfile
-- `docker-compose.yaml`
-- `Chart.yaml`
-- `values.yaml`
-- `values-lab.yaml`
-- `templates/`
-- `application.yaml`
+- 把 `Argo CD` 真正要同步的入口单独整理出来
+- 让后面发布时不需要再从应用目录里临时拼装对象
 
 ## 从应用到 GitOps 资产的过渡图
 
@@ -490,13 +448,10 @@ flowchart TD
 满足下面条件即可进入 Git 服务与发布仓初始化阶段：
 
 - 本地页面可正常访问
-- 三个后端服务健康检查正常
-- Dashboard 汇总接口可用
 - Docker 目录存在且结构齐全
 - Helm Chart 目录存在且结构齐全
 - GitOps 目录存在且结构齐全
-- 第二阶段验收脚本通过
-- 已理解 `Chart -> values -> Application` 的关系
+- 已知道这三类资产分别是做什么的
 
 ## 下一步
 
