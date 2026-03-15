@@ -4,8 +4,8 @@
 
 第六章主线教材已经重构为 7 篇大文档：
 
-1. `docs/02_overview_and_gitops_flow.md`
-2. `docs/03_app_design_and_local_preview.md`
+1. `docs/archive/22_overview_and_gitops_flow.md`
+2. `docs/02_app_design_and_local_preview.md`
 3. `docs/04_containerize_and_gitops_assets.md`
 4. `docs/05_gitea_setup_and_repo_bootstrap.md`
 5. `docs/06_harbor_argocd_and_e2e_verification.md`

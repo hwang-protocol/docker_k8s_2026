@@ -502,4 +502,4 @@ flowchart TD
 
 进入 Git 事实源准备阶段，在 `git` 节点落地 `Gitea`，创建仓库并把应用目录同步进去：
 
-- `docs/04_gitea_setup_and_repo_bootstrap.md`
+- `docs/03_gitea_setup_and_repo_bootstrap.md`

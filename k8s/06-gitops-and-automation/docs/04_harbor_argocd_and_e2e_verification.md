@@ -243,4 +243,4 @@ curl --resolve argocd.qytk8s.com:443:10.1.1.50 --cacert /docker_k8s_2026/k8s/01-
 
 进入正式业务入口、账户速查与 Git 边界说明：
 
-- `docs/06_domains_accounts_and_classroom_demo.md`
+- `docs/05_domains_accounts_and_classroom_demo.md`

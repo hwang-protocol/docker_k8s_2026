@@ -241,4 +241,4 @@ curl --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt 
 
 进入镜像构建、`Argo CD` 同步与端到端验收阶段：
 
-- `docs/05_harbor_argocd_and_e2e_verification.md`
+- `docs/04_harbor_argocd_and_e2e_verification.md`

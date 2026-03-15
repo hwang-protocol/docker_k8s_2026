@@ -403,6 +403,6 @@ flowchart TD
 
 ## 下一步
 
-进入第六章总览页：
+进入应用设计、本地联调与工程化资产：
 
-- `docs/01_chapter_guide.md`
+- `docs/02_app_design_and_local_preview.md`

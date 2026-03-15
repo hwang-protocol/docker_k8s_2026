@@ -155,4 +155,4 @@ curl --resolve netdevops.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8s/
 
 进入单独的课堂测试与演示页：
 
-- `docs/07_gitops_demo_and_testing.md`
+- `docs/06_gitops_demo_and_testing.md`

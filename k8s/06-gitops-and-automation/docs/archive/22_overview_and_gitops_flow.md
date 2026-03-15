@@ -9,10 +9,6 @@
 3. 当前第六章已经真实落地的 GitOps 流程是什么。
 4. 主仓、`Gitea`、`Harbor`、`Argo CD` 分别扮演什么角色。
 
-## 执行标记
-
-- **执行标记：建议先读**
-
 ## 为什么第六章要这样讲
 
 前五章的重点是平台能力：
@@ -32,60 +28,40 @@
 所以这一章不能只讲某个工具怎么安装，而必须讲清楚一条完整链路：
 
 ```mermaid
-flowchart LR
-  sourceCode[业务源码]
-  mainRepo[主仓]
-  giteaRepo[Gitea 发布仓]
-  buildNode[构建节点]
-  harbor[Harbor]
-  values[Helm values 与 Application]
+flowchart TD
+  user[操作者]
+  local[主仓中的应用目录<br/>源码 Helm Chart values]
+  script[发布脚本]
+  gitea[Gitea 发布仓<br/>保存源码 Chart values Application]
+  gitnode[git 节点构建环境]
+  harbor[Harbor 镜像仓库]
   argocd[Argo CD]
-  cluster[Kubernetes]
-  browser[浏览器]
+  cluster[Kubernetes 集群]
+  browser[浏览器访问]
 
-  sourceCode --> mainRepo
-  mainRepo --> giteaRepo
-  giteaRepo --> buildNode
-  buildNode --> harbor
-  giteaRepo --> values
-  values --> argocd
-  harbor --> cluster
-  argocd --> cluster
-  cluster --> browser
+  user -->|1. 手工修改代码或 Chart values| local
+  user -->|2. 手工执行脚本| script
+  local -->|3. 脚本读取源码与部署配置| script
+  script -->|4. 提交源码或配置变更| gitea
+  script -->|5. 在 git 节点构建镜像| gitnode
+  gitnode -->|6. docker push 到 Harbor| harbor
+  script -->|7. 回写 values 中的镜像 tag 并再次提交| gitea
+  gitea -->|8. Webhook 或轮询发现 Git 变化| argocd
+  argocd -->|9. 同步目标状态到集群| cluster
+  harbor -->|10. 节点按镜像地址拉取镜像| cluster
+  cluster -->|11. 浏览器访问最终结果| browser
 ```
 
-## GitOps 的核心概念
+这一页不再重复解释 `GitOps`、`Helm`、`values.yaml`、`Argo CD` 的基础定义。
 
-### 什么是目标状态
+这些基础概念已经在上一页 [00_gitops_theory.md](/docker_k8s_2026/k8s/06-gitops-and-automation/docs/00_gitops_theory.md) 里集中说明。
 
-在这一章里，Git 里保存的不是“刚刚做过什么动作”，而是“集群最终应该长成什么样”。
+从这一页开始，重点改成：
 
-例如：
-
-- 前端镜像应该是哪个 tag
-- 每个服务应该有几个副本
-- 应用应该部署到哪个命名空间
-
-### `Argo CD` 负责什么
-
-`Argo CD` 只负责一件事：
-
-- 把 Git 中声明的目标状态，持续同步到 Kubernetes
-
-它不负责：
-
-- 改业务代码
-- 构建镜像
-- 推送镜像
-
-### `Harbor` 负责什么
-
-`Harbor` 负责保存镜像本体。
-
-也就是说：
-
-- Git 里保存“我要什么镜像”
-- Harbor 里保存“这个镜像文件本身”
+- 第六章为什么这样展开
+- 为什么要选 `QYT NetDevOps`
+- 当前主仓、发布仓、镜像仓库和集群之间怎么配合
+- 这条主线在课堂里到底会走到什么程度
 
 ### 为什么要先用样板应用承载这一章
 
@@ -119,13 +95,11 @@ flowchart LR
 - 每一步都能观察
 - 学员容易理解源码、镜像、配置、集群状态之间的关系
 
-它还不是：
+但这一章当前还不是：
 
 - 人只 `push` 一次
 - `CI` 自动构建并回写
 - 完整企业流水线版本
-
-这一点必须在课堂上讲清楚，避免把“推荐目标态”和“当前已实现态”混为一谈。
 
 ## 当前仓库边界
 
@@ -147,16 +121,6 @@ flowchart LR
 - 你通过脚本把应用目录同步到 `Gitea`
 - `Argo CD` 再从 `Gitea` 拉取状态
 
-## 第六章主线结构
-
-当前第六章主线收口为 5 个大文档：
-
-1. 本页：总览、理论、边界、执行主线
-2. 应用设计、本地联调与工程化资产
-3. Gitea 落地与仓库初始化
-4. Harbor、Argo CD 与端到端发布验证
-5. 域名、账户与课堂现场演示
-
 ## 课堂统一关系图
 
 ```mermaid
@@ -177,29 +141,6 @@ flowchart TD
   argocd --> release
 ```
 
-## 本节测试与观察
-
-建议至少确认下面几项：
-
-```bash
-kubectl get nodes -o wide
-```
-
-```bash
-git -C /docker_k8s_2026 status --short --branch
-```
-
-```bash
-ls -la /docker_k8s_2026/apps/qytang-netdevops
-```
-
-观察重点：
-
-- 所有节点应为 `Ready`
-- 主仓路径应存在
-- 应用目录应存在
-- 当前主仓应能正常读写
-
 ## 本节完成标准
 
 满足下面条件即可进入下一节：
@@ -207,24 +148,10 @@ ls -la /docker_k8s_2026/apps/qytang-netdevops
 - 已理解第六章不是“装工具”，而是“打通交付链路”
 - 已理解主仓、`Gitea`、`Harbor`、`Argo CD` 的角色分工
 - 已理解当前真实落地的是“脚本化拆解版 GitOps”
-- 当前环境与应用目录已处于可继续推进状态
-
-## 常见误区
-
-### 误区 1：`Argo CD` 会自动帮我构建镜像
-
-不会。`Argo CD` 只负责同步声明式状态，不负责编译源码。
-
-### 误区 2：`Gitea` 仓库就是主仓的唯一备份
-
-不是。当前课程里，主仓才是真正的源码维护边界；`Gitea` 是 GitOps 发布仓。
-
-### 误区 3：只要 GitOps 概念讲清楚，就可以不需要样板应用
-
-不合适。没有一个可见的业务样板，GitOps 会变成纯配置教学，课堂可感知度很差。
+- 已理解当前第六章主线的边界与落地方式
 
 ## 下一步
 
 进入样板应用本身，先把应用设计、本地联调与工程化资产彻底讲清楚：
 
-- `docs/03_app_design_and_local_preview.md`
+- `docs/02_app_design_and_local_preview.md`
