@@ -36,14 +36,13 @@
 
 正式操作前，建议先阅读：
 
-- `docs/02_observability_theory.md`
+- `docs/00_observability_theory.md`
 
 它负责先把下面几件事讲清楚：
 
 - 监控和可观测性的边界
 - Kubernetes 指标到底看什么
 - `Prometheus / Grafana / Jaeger / OpenTelemetry` 分别做什么
-- 为什么本章不把重点放在日志
 - 为什么业务 Trace 和 K8s 指标要分层理解
 
 ## 本章重点边界
@@ -101,39 +100,23 @@ flowchart LR
 
 | 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
 | :--- | :--- | :--- | :--- | :--- |
-| 0 | `02_observability_theory.md` | 无 | 建议先读 | 先理清 Metrics、Trace 与 K8s 观测主线 |
-| 1 | `03_prepare_observability_assets.md` | `scripts/01_prepare_observability_assets.sh` | 必须执行 | 准备 Grafana 资产并确认第七章执行入口 |
-| 2 | `04_instrument_qytang_netdevops.md` | 无 | 只读理解 | 说明业务代码已接入指标与 Trace |
-| 3 | `05_install_prometheus_grafana_jaeger.md` | `scripts/02_install_observability_stack.sh` | 必须执行 | 先升级业务应用到第七章版本，再安装 Prometheus、Grafana、Jaeger、OTel Collector |
-| 4 | `06_publish_grafana_and_verify.md` | `scripts/03_verify_observability.sh` | 只读验收 | 验证 Grafana、Jaeger、Targets 与大盘 |
-| 5 | `07_trace_demo_and_fault_location.md` | 无 | 课堂演示 | 从 Grafana 指标跳到 Jaeger 瀑布图定位问题 |
+| 0 | `00_observability_theory.md` | 无 | 建议先读 | 先理清 Metrics、Trace 与 K8s 观测主线 |
+| 1 | `02_prepare_observability_assets.md` | `scripts/01_prepare_observability_assets.sh` | 必须执行 | 准备 Grafana 资产并确认第七章执行入口 |
+| 2 | `03_instrument_qytang_netdevops.md` | 无 | 只读理解 | 说明业务代码已接入指标与 Trace |
+| 3 | `04_install_prometheus_grafana_jaeger.md` | `scripts/02_install_observability_stack.sh` | 必须执行 | 先升级业务应用到第七章版本，再安装 Prometheus、Grafana、Jaeger、OTel Collector |
+| 4 | `05_publish_grafana_and_verify.md` | `scripts/03_verify_observability.sh` | 只读验收 | 验证 Grafana、Jaeger、Targets 与大盘 |
+| 5 | `06_trace_demo_and_fault_location.md` | 无 | 课堂演示 | 从 Grafana 指标跳到 Jaeger 瀑布图定位问题 |
 
 ## 本章执行顺序
 
 请严格按下面顺序执行：
 
-0. `02_observability_theory.md`
-1. `03_prepare_observability_assets.md`
-2. `04_instrument_qytang_netdevops.md`
-3. `05_install_prometheus_grafana_jaeger.md`
-4. `06_publish_grafana_and_verify.md`
-5. `07_trace_demo_and_fault_location.md`
-
-## 一把过执行顺序
-
-在 `ops` 上按下面顺序执行即可：
-
-```bash
-bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/01_prepare_observability_assets.sh
-```
-
-```bash
-bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/02_install_observability_stack.sh
-```
-
-```bash
-bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observability.sh
-```
+0. `00_observability_theory.md`
+1. `02_prepare_observability_assets.md`
+2. `03_instrument_qytang_netdevops.md`
+3. `04_install_prometheus_grafana_jaeger.md`
+4. `05_publish_grafana_and_verify.md`
+5. `06_trace_demo_and_fault_location.md`
 
 ## 第七章起点状态
 
@@ -148,21 +131,17 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observa
 
 ## 正式入口设计
 
-第七章沿用前面章节已经建立好的 `app-gateway`，但这一章的入口对象必须由第七章自己管理：
+第七章继续沿用前面章节已经建立好的 `app-gateway`，但只新增本章自己的入口对象：
 
 - `grafana.qytk8s.com`
 - `jaeger.qytk8s.com`
 
-这一章的脚本不会再复用第四章或第六章的 Gateway 清单，而是采用和前两章一致的做法：
+这一章采用和前两章一致的做法：
 
 - 用 `20_gateway_observability_listeners.json` 增量补 `listener`
 - 用 `21_gateway_observability_https.yaml` 单独管理 `HTTPRoute` 与 `ReferenceGrant`
 
-这样做的意义是：
-
-- 第七章只修改第七章自己的域名入口
-- 不覆盖 `longhorn.qytk8s.com` 与 `netdevops.qytk8s.com`
-- 后续重刷时不会因为整份替换 `Gateway` 而误伤前面章节
+也就是说，第七章只增加自己的观测入口，不替换前面章节已经存在的入口对象。
 
 ## 版本冻结
 
@@ -186,4 +165,4 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observa
 
 先进入理论导读，理清本章技术边界：
 
-- `docs/02_observability_theory.md`
+- `docs/00_observability_theory.md`

@@ -83,4 +83,4 @@ flowchart LR
 
 进入第 4 步，安装 `Prometheus`、`Grafana`、`Jaeger` 和 `OpenTelemetry Collector`：
 
-- `docs/05_install_prometheus_grafana_jaeger.md`
+- `docs/04_install_prometheus_grafana_jaeger.md`

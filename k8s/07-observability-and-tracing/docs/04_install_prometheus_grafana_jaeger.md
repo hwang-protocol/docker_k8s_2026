@@ -218,4 +218,4 @@ curl --resolve jaeger.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8s/01-
 
 进入第 5 步，做正式入口、Targets、Dashboard 和 Trace 验收：
 
-- `docs/06_publish_grafana_and_verify.md`
+- `docs/05_publish_grafana_and_verify.md`

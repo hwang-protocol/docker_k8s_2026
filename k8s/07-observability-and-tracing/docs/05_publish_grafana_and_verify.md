@@ -80,4 +80,4 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observa
 
 进入第 6 步，做课堂上的 Trace 与故障定位演示：
 
-- `docs/07_trace_demo_and_fault_location.md`
+- `docs/06_trace_demo_and_fault_location.md`
