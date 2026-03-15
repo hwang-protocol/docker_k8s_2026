@@ -125,38 +125,14 @@ curl --resolve netdevops.qytk8s.com:443:10.1.1.60 \
 - 第 3 条请求更适合看单设备下钻型 Trace
 - 三条请求连起来后，后面看 `Grafana` 和 `Jaeger` 会更直观
 
-## 建议演示顺序
-
-1. 打开 `Grafana`
-2. 先看 `QYT NetDevOps` 总览大盘
-3. 再看 Kubernetes 基础监控大盘
-4. 触发一次业务访问
-5. 打开 `Jaeger`
-6. 在 `Jaeger` 中检索请求链路并查看瀑布图
-
-## 推荐观察点
-
-### 指标侧
-
-- 某个服务请求量突然增加
-- 某个接口延迟升高
-- 某个 Pod 重启次数增加
-- 某个节点资源吃紧
-
-### Trace 侧
-
-- `device-service` 是否最慢
-- 下游调用是 `resource-service` 慢还是 `audit-service` 慢
-- 数据库访问 span 是否异常
-- 某个 span 是否把总耗时拉长
-
-## GUI 操作建议
+## 课堂演示顺序
 
 ### Grafana
 
 - 访问 `https://grafana.qytk8s.com`
 - 先打开 `QYT NetDevOps` 总览大盘
 - 再打开 Kubernetes 平台大盘
+- 重点看请求量、接口延迟、错误率和节点 / Pod 状态
 
 先看业务总览大盘：
 
@@ -165,6 +141,16 @@ curl --resolve netdevops.qytk8s.com:443:10.1.1.60 \
 再看 Kubernetes 平台大盘：
 
 <img src="../images/grafana_k8s.png" alt="Grafana Kubernetes 平台大盘" width="960" />
+
+这一段最适合先回答两个问题：
+
+- 是业务接口变慢了，还是平台资源先出现异常
+- 是单个服务有问题，还是整个集群状态已经异常
+
+### 触发业务流量
+
+- 依次执行前面的 3 条请求
+- 先让指标发生变化，再让 `Jaeger` 中出现新的 Trace
 
 ### Jaeger
 
@@ -180,6 +166,11 @@ curl --resolve netdevops.qytk8s.com:443:10.1.1.60 \
 再进入单条 Trace 的瀑布图详情页：
 
 <img src="../images/jaeger-trace-detail.png" alt="Jaeger Trace 瀑布图详情界面" width="960" />
+
+这一段最适合继续回答两个问题：
+
+- 慢点是在 `device-service` 自己，还是在下游调用
+- 慢的是 `resource-service`、`audit-service`，还是数据库相关 span
 
 ## 通过标准
 
