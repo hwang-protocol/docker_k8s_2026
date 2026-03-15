@@ -4,9 +4,7 @@
 
 这一节要把发布闭环真正打通：
 
-## 执行标记
-
-- **执行标记：必须执行**
+完成这一节后，应能确认：
 
 - `Gitea` 里有仓库
 - `Harbor` 里有镜像
@@ -33,42 +31,43 @@
 ## 角色分工
 
 ```mermaid
-flowchart LR
-  gitea[Gitea]
-  buildNode[git 节点构建]
-  harbor[Harbor]
+flowchart TD
+  user[操作者]
+  local[本地应用目录<br/>源码 Helm Chart values]
+  script[发布脚本]
+  gitea[Gitea 发布仓<br/>保存源码 Chart values Application]
+  gitnode[git 节点构建环境]
+  harbor[Harbor 镜像仓库]
   argocd[Argo CD]
-  cluster[Kubernetes]
-  verify[验收]
+  cluster[Kubernetes 集群]
+  browser[浏览器访问]
 
-  gitea --> buildNode
-  buildNode --> harbor
-  gitea --> argocd
-  harbor --> cluster
-  argocd --> cluster
-  cluster --> verify
+  user -->|1. 手工修改代码或 Chart values| local
+  user -->|2. 手工执行脚本| script
+  local -->|3. 脚本读取源码与部署配置| script
+  script -->|4. 提交源码或配置变更| gitea
+  script -->|5. 在 git 节点构建镜像| gitnode
+  gitnode -->|6. docker push 到 Harbor| harbor
+  script -->|7. 回写 values 中的镜像 tag 并再次提交| gitea
+  gitea -->|8. Webhook 或轮询发现 Git 变化| argocd
+  argocd -->|9. 同步目标状态到集群| cluster
+  harbor -->|10. 节点按镜像地址拉取镜像| cluster
+  cluster -->|11. 浏览器访问最终结果| browser
 ```
 
-这一节要特别强调下面 3 个职责边界：
+到了这一节，课堂上最应该重新强调的还是下面 3 个职责边界：
 
 - `Gitea` 保存源码与声明式配置
 - `Harbor` 保存镜像
 - `Argo CD` 负责把 Git 中的目标状态同步到集群
 
-## 为什么镜像构建放在 `git` 节点
+## 当前构建位置
 
-这里的设计不是“所有环境都必须这样做”，而是为了贴近企业里常见的构建节点模式。
+这一节里：
 
-当前教学路径是：
-
-- 在 `ops` 发起脚本
-- 在 `git` 节点远程构建镜像
-- 推送到 `Harbor`
-
-这样做的教学价值是：
-
-- 学员更容易理解“源码位置”和“构建位置”可以分离
-- 后续更容易过渡到 CI/CD 概念
+- 脚本在 `ops` 上执行
+- 真正的 `docker build` 在 `git` 节点完成
+- 构建后的镜像再从 `git` 节点推送到 `Harbor`
 
 ## 为什么这一节现在要坚持 Harbor-first
 
@@ -97,118 +96,116 @@ flowchart LR
 - 固定 VIP
 - Application 自动同步
 
-## 当前实验环境事实
-
-这里以当前已验证路径为准：
-
-- `11_build_and_push_images_remote.sh` 默认构建基础镜像 tag
-- `12_install_argocd_and_sync.sh` 已直接完成 `argocd.qytk8s.com` 正式证书配置
-- `13_verify_gitops_e2e.sh` 当前验证的是前端 Service 与整条链路，不提前验证业务正式域名
-
-也就是说：
-
-- `argocd.qytk8s.com` 的证书问题，已经在 `12` 解决
-- `netdevops.qytk8s.com` 的正式业务域名发布，属于下一节
-
 ## 本节必刷脚本
 
-### 远程构建并推送业务镜像
+### 1. 远程构建并推送业务镜像
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/11_build_and_push_images_remote.sh
 ```
 
-### 安装 Argo CD 并同步应用
+脚本主要任务：
+
+- 确保 `Harbor` 项目存在
+- 在 `git` 节点配置 Docker 对统一 CA 的信任
+- 从 `Gitea` 拉取应用仓
+- 在 `git` 节点构建 4 个业务镜像
+- 把镜像推送到 `Harbor`
+
+脚本原始代码里最关键的是这一段：
+
+```bash
+ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@git \
+  "cd /opt/qytang-netdevops-src && \
+   docker build -f deploy/docker/frontend/Dockerfile -t harbor.qytk8s.com/qytang-netdevops/frontend:${IMAGE_TAG} . && \
+   docker build -f deploy/docker/device-service/Dockerfile -t harbor.qytk8s.com/qytang-netdevops/device-service:${IMAGE_TAG} . && \
+   docker build -f deploy/docker/resource-service/Dockerfile -t harbor.qytk8s.com/qytang-netdevops/resource-service:${IMAGE_TAG} . && \
+   docker build -f deploy/docker/audit-service/Dockerfile -t harbor.qytk8s.com/qytang-netdevops/audit-service:${IMAGE_TAG} . && \
+   docker push harbor.qytk8s.com/qytang-netdevops/frontend:${IMAGE_TAG} && \
+   docker push harbor.qytk8s.com/qytang-netdevops/device-service:${IMAGE_TAG} && \
+   docker push harbor.qytk8s.com/qytang-netdevops/resource-service:${IMAGE_TAG} && \
+   docker push harbor.qytk8s.com/qytang-netdevops/audit-service:${IMAGE_TAG}"
+```
+
+这段要表达的核心就是：
+
+- 构建发生在 `git` 节点
+- 推送也发生在 `git` 节点
+
+### 2. 安装 Argo CD 并同步应用
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/12_install_argocd_and_sync.sh
 ```
 
-### 端到端只读验收
-
-```bash
-bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/13_verify_gitops_e2e.sh
-```
-
-## 每个脚本在做什么
-
-### `11_build_and_push_images_remote.sh`
-
-负责：
-
-- 确保 `Harbor` 项目存在
-- 在 `git` 节点配置 Docker 对统一 CA 的信任
-- 预拉 `Harbor` 中的 Python 基础镜像
-- 从 `Gitea` 拉取应用仓
-- 构建并推送 4 个业务镜像
-
-### `12_install_argocd_and_sync.sh`
-
-负责：
+脚本主要任务：
 
 - 使用第六章本地 Harbor 版安装清单安装 `Argo CD`
-- 预拉 `argocd/dex/redis` 的 Harbor 镜像
 - 让 `Argo CD` 信任 `git.qytk8s.com`
 - 为 `argocd.qytk8s.com` 签发并配置正式证书
 - 固定 `argocd-server` VIP 为 `10.1.1.50`
 - 创建 `Application`
 - 等待 `Synced` 与 `Healthy`
 
-### `13_verify_gitops_e2e.sh`
+脚本原始代码里最关键的是这一组：
 
-负责：
+```bash
+kubectl apply -n "${ARGOCD_NS}" --server-side --force-conflicts -f "${INSTALL_FILE}"
 
-- 看 `Gitea` 仓库
-- 看 `Harbor` 项目与制品
-- 看 `Argo CD Application`
-- 看业务命名空间资源
+kubectl -n "${ARGOCD_NS}" create configmap argocd-tls-certs-cm \
+  --from-file=git.qytk8s.com="${CA_CERT}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl apply -f "${APP_FILE}"
+```
+
+这几行对应的就是：
+
+- 安装 `Argo CD`
+- 配置私有 Git 信任
+- 创建 `Application`
+
+当前课堂登录信息：
+
+- 地址：`https://argocd.qytk8s.com`
+- 用户名：`admin`
+- 密码：`Cisc0123`
+
+### 3. 端到端只读验收
+
+```bash
+bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/13_verify_gitops_e2e.sh
+```
+
+脚本主要任务：
+
+- 查看 `Gitea` 仓库
+- 查看 `Harbor` 项目与制品
+- 查看 `Argo CD Application`
+- 查看业务命名空间资源
 - 通过 `port-forward` 验证前端 Service 返回业务数据
 - 输出 `Argo CD` 访问验证信息
 
+脚本原始代码里最关键的是这一段：
+
+```bash
+kubectl -n "${APP_NS}" port-forward svc/frontend "${LOCAL_FRONTEND_PORT}:8080" >/tmp/qytang_netdevops_frontend_pf.log 2>&1 &
+curl -s "http://127.0.0.1:${LOCAL_FRONTEND_PORT}/api/device/api/v1/dashboard/summary"
+```
+
+这段的意思是：
+
+- 先把集群里的 `frontend Service` 转发到本地
+- 再直接访问业务接口
+- 用返回结果证明这条 GitOps 发布链已经真正打通
+
 ## 本节测试与校验
 
-### 查看 Gitea 仓库 API
+这一节的检查，主要由：
 
-```bash
-curl --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt -s https://git.qytk8s.com/api/v1/repos/gitadmin/qytang-netdevops
-```
+- `13_verify_gitops_e2e.sh`
 
-### 查看 Harbor 项目与制品
-
-```bash
-curl -k -s -u 'admin:Harbor12345' https://harbor.qytk8s.com/api/v2.0/projects/qytang-netdevops/repositories?page_size=20
-```
-
-### 查看 Harbor 基础镜像仓
-
-```bash
-curl -k -s -u 'admin:Harbor12345' https://harbor.qytk8s.com/api/v2.0/projects/library/repositories?page_size=50
-```
-
-### 查看 Argo CD 应用状态
-
-```bash
-kubectl -n argocd get application qytang-netdevops -o wide
-```
-
-### 查看业务命名空间资源
-
-```bash
-kubectl -n qytang-netdevops get pods,svc -o wide
-```
-
-### 验证前端 Service 返回业务数据
-
-这一项由 `13_verify_gitops_e2e.sh` 自动完成，当前验证方式是：
-
-- `kubectl port-forward svc/frontend`
-- 访问本地转发后的 dashboard summary 接口
-
-### 验证 Argo CD 正式入口
-
-```bash
-curl --resolve argocd.qytk8s.com:443:10.1.1.50 --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt https://argocd.qytk8s.com/healthz
-```
+自动完成。
 
 ## 本节完成标准
 
