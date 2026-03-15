@@ -17,6 +17,28 @@ HARBOR_PROJECT="k8s"
 HARBOR_USERNAME="admin"
 HARBOR_PASSWORD="Harbor12345"
 
+wait_for_harbor_ready() {
+  local max_attempts=20
+  local attempt http_code
+
+  for ((attempt=1; attempt<=max_attempts; attempt++)); do
+    http_code=$(curl -k -s -o /tmp/harbor_health.json -w '%{http_code}' \
+      "https://${HARBOR_DOMAIN}/api/v2.0/health" || true)
+
+    if [[ "${http_code}" == "200" ]]; then
+      echo "Harbor 已就绪"
+      return 0
+    fi
+
+    echo "Harbor 尚未就绪（第 ${attempt}/${max_attempts} 次，HTTP ${http_code:-000}），5 秒后重试"
+    sleep 5
+  done
+
+  echo "等待 Harbor 就绪超时"
+  cat /tmp/harbor_health.json || true
+  exit 1
+}
+
 create_harbor_project() {
   local http_code
 
@@ -90,6 +112,7 @@ main() {
   echo "========================================================="
 
   echo "[1/2] 创建 Harbor 项目"
+  wait_for_harbor_ready
   create_harbor_project
 
   echo "[2/2] 在 harbor 节点拉取并推送核心镜像"

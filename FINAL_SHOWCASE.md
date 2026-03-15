@@ -8,12 +8,12 @@
 
 ## 一、 核心 Web 平台访问清单 (GUI)
 
-整个集群暴露了多个核心 Web 界面，全部通过 HTTPS 提供服务，并由 Cilium Gateway API 或 Ingress 统一接管。
+整个集群暴露了多个核心 Web 界面，全部通过 HTTPS 提供服务，并由 `Cilium Gateway API` 或 `Istio Ingress Gateway` 对外发布。
 
 | 平台名称 | 访问地址 | 默认账号 | 默认密码 | 核心作用说明 |
 | :--- | :--- | :--- | :--- | :--- |
 | **Harbor** | `https://harbor.qytk8s.com` | `admin` | `Harbor12345` | **企业级镜像仓库**。存储了我们构建的 QYT NetDevOps 业务镜像。 |
-| **Gitea** | `https://git.qytk8s.com` | `gitadmin` | `Gitea12345` | **私有 Git 仓库**。GitOps 的“唯一事实来源”，存放应用源码与 Helm 配置。 |
+| **Gitea** | `https://git.qytk8s.com` | `gitadmin` | `Gitea12345` | **私有 Git 仓库**。GitOps 的事实源，存放发布用应用目录、Helm Chart、values 与 Application。 |
 | **Argo CD** | `https://argocd.qytk8s.com` | `admin` | `Cisc0123` | **持续交付平台**。监听 Gitea 变更，自动将最新状态同步到 K8s 集群。 |
 | **Longhorn** | `https://longhorn.qytk8s.com` | 无 | 无 | **分布式块存储 UI**。管理集群的持久化卷 (PV/PVC)，查看数据副本与节点分布。 |
 | **QYT NetDevOps** | `https://netdevops.qytk8s.com` | 无 | 无 | **核心业务系统**。包含前端页面与后端微服务，演示业务流量入口。 |
@@ -60,30 +60,32 @@ kubectl get ns
 
 **真实输出：**
 ```text
-NAME               STATUS   AGE
-argocd             Active   13h
-cilium-secrets     Active   40h
-default            Active   43h
-gateway-demo       Active   36h
-istio-ingress      Active   19h
-istio-system       Active   19h
-kube-node-lease    Active   43h
-kube-public        Active   43h
-kube-system        Active   43h
-longhorn-system    Active   23h
-mesh-demo          Active   19h
-metallb-system     Active   36h
-monitoring         Active   12m
-net-demo           Active   39h
-observability      Active   12m
-qytang-netdevops   Active   13h
-stateful-demo      Active   23h
+NAME                  STATUS   AGE
+argocd                Active   13h
+cilium-secrets        Active   40h
+default               Active   43h
+gateway-demo          Active   36h
+istio-ingress         Active   19h
+istio-system          Active   19h
+kube-node-lease       Active   43h
+kube-public           Active   43h
+kube-system           Active   43h
+longhorn-system       Active   23h
+mesh-demo             Active   19h
+metallb-system        Active   36h
+monitoring            Active   12m
+net-demo              Active   39h
+observability         Active   12m
+qytang-mongodb-demo   Active   23h
+qytang-netdevops      Active   13h
+qytang-stateful-demo  Active   23h
 ```
 
 **关键看点：**
 除了系统默认的 NS 外，重点关注我们按架构规划的专属命名空间是否 `Active`：
 - `cilium-secrets` / `metallb-system` (网络底层)
 - `longhorn-system` (分布式存储)
+- `qytang-stateful-demo` / `qytang-mongodb-demo` (第四章有状态实验)
 - `argocd` (CI/CD 基础设施)
 - `gateway-demo` (网关路由)
 - `qytang-netdevops` (业务应用)
@@ -228,6 +230,8 @@ flowchart TD
     %% 业务流量
     User -- HTTPS --> Gateway
     Gateway -- HTTP --> Frontend
+    Gateway -- HTTP --> Grafana
+    Gateway -- HTTP --> Jaeger
     Frontend -- HTTP --> Device
     Device -- HTTP --> Resource
     Device -- HTTP --> Audit
@@ -236,6 +240,7 @@ flowchart TD
     Audit -- TCP --> DB
 
     %% 观测数据流
+    Frontend -. Trace .-> OTel
     Device -. Trace .-> OTel
     Resource -. Trace .-> OTel
     Audit -. Trace .-> OTel
@@ -245,7 +250,6 @@ flowchart TD
     Resource -. Scrape Metrics .-> Prometheus
     Audit -. Scrape Metrics .-> Prometheus
     Grafana -. Query .-> Prometheus
-    Grafana -. Query .-> Jaeger
 
     %% GitOps 数据流
     Gitea -. Poll .-> ArgoCD

@@ -44,15 +44,19 @@ main() {
   kubectl -n qytang-stateful-demo exec deploy/qytang-deployment-volume-demo -- sh -c 'cat /data/hello.txt'
 
   echo "[7/8] 查看 MongoDB ReplicaSet StatefulSet 实验"
-  MONGO_ROOT_PASSWORD="$(kubectl -n "${MONGO_NAMESPACE}" get secret "${MONGO_FULLNAME}" -o jsonpath='{.data.mongodb-root-password}' | base64 -d)"
-  kubectl -n "${MONGO_NAMESPACE}" get pods
-  kubectl -n "${MONGO_NAMESPACE}" get pvc
-  kubectl -n "${MONGO_NAMESPACE}" exec "pod/${MONGO_FULLNAME}-0" -- \
-    mongosh admin -u root -p "${MONGO_ROOT_PASSWORD}" --quiet \
-    --eval 'rs.status().members.map(function(m){return {name:m.name,stateStr:m.stateStr}})'
-  kubectl -n "${MONGO_NAMESPACE}" exec "pod/${MONGO_FULLNAME}-0" -- \
-    mongosh admin -u root -p "${MONGO_ROOT_PASSWORD}" --quiet \
-    --eval 'db.getSiblingDB("qytang").demo.find({_id:"statefulset-ok"}).toArray()'
+  if kubectl get namespace "${MONGO_NAMESPACE}" >/dev/null 2>&1; then
+    MONGO_ROOT_PASSWORD="$(kubectl -n "${MONGO_NAMESPACE}" get secret "${MONGO_FULLNAME}" -o jsonpath='{.data.mongodb-root-password}' | base64 -d)"
+    kubectl -n "${MONGO_NAMESPACE}" get pods
+    kubectl -n "${MONGO_NAMESPACE}" get pvc
+    kubectl -n "${MONGO_NAMESPACE}" exec "pod/${MONGO_FULLNAME}-0" -- \
+      mongosh admin -u root -p "${MONGO_ROOT_PASSWORD}" --quiet \
+      --eval 'rs.status().members.map(function(m){return {name:m.name,stateStr:m.stateStr}})'
+    kubectl -n "${MONGO_NAMESPACE}" exec "pod/${MONGO_FULLNAME}-0" -- \
+      mongosh admin -u root -p "${MONGO_ROOT_PASSWORD}" --quiet \
+      --eval 'db.getSiblingDB("qytang").demo.find({_id:"statefulset-ok"}).toArray()'
+  else
+    echo "INFO: 未检测到 ${MONGO_NAMESPACE}，跳过 MongoDB ReplicaSet 验收"
+  fi
 
   echo "[8/8] 验证 Longhorn UI HTTPS 访问"
   curl -I --resolve "${LONGHORN_DOMAIN}:443:${VIP}" --cacert "${CA_CERT}" "https://${LONGHORN_DOMAIN}/"

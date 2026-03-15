@@ -12,6 +12,25 @@ METALLB_MANIFEST_URL="http://ops:9000/03-north-south-traffic/artifacts/metallb-n
 POOL_URL="http://ops:9000/03-north-south-traffic/manifests/01_metallb_ipaddresspool.yaml"
 ADV_URL="http://ops:9000/03-north-south-traffic/manifests/02_metallb_l2advertisement.yaml"
 
+apply_with_retry() {
+  local description="$1"
+  local file_url="$2"
+  local max_attempts=12
+  local attempt
+
+  for ((attempt=1; attempt<=max_attempts; attempt++)); do
+    if kubectl apply -f "${file_url}"; then
+      return 0
+    fi
+
+    echo "${description} 暂未成功（第 ${attempt}/${max_attempts} 次），5 秒后重试"
+    sleep 5
+  done
+
+  echo "${description} 最终失败"
+  exit 1
+}
+
 main() {
   echo "========================================================="
   echo "开始安装 MetalLB"
@@ -35,11 +54,11 @@ main() {
   kubectl -n metallb-system rollout status deploy/controller --timeout=180s
 
   echo "[4/6] 应用业务 VIP 地址池"
-  kubectl apply -f "${POOL_URL}"
+  apply_with_retry "应用业务 VIP 地址池" "${POOL_URL}"
 
   echo "[5/6] 为 wk-edge01 打入口标签并应用 L2Advertisement"
   kubectl label node wk-edge01 qytk8s.com/node-role=edge --overwrite
-  kubectl apply -f "${ADV_URL}"
+  apply_with_retry "应用 L2Advertisement" "${ADV_URL}"
   kubectl -n metallb-system rollout status ds/speaker --timeout=180s
 
   echo "[6/6] 查看 MetalLB 状态"
