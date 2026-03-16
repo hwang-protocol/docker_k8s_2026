@@ -84,7 +84,12 @@ docker search nginx
 - `DESCRIPTION`：仓库说明
 - `STARS`：收藏数，通常可作为热度参考
 - `OFFICIAL`：是否为官方镜像
+
+有些 Docker 版本的 `docker search` 输出里还会出现：
+
 - `AUTOMATED`：是否为自动构建
+
+也就是说，这里的列并不是所有环境都完全一样，课堂里先重点看 `NAME`、`STARS`、`OFFICIAL` 就够了。
 
 关键看点：
 
@@ -105,6 +110,9 @@ docker search nginx
 curl -s "https://hub.docker.com/v2/repositories/library/nginx/tags/?page_size=10" | python3 -c "import sys, json; data=json.load(sys.stdin); [print(item['name']) for item in data['results']]"
 ```
 
+这里的 `page_size=10` 表示当前这一页最多返回 10 个结果，方便课堂演示。
+它不代表 `nginx` 只有 10 个 tag，更不代表已经把全部 tag 一次性列完了。
+
 示例输出：
 
 ```text
@@ -120,36 +128,157 @@ bookworm
 trixie
 ```
 
+下面这张图可以理解成“在 Docker Hub 页面查看 tag 时的大致效果”：
+
+<img src="./images/tag.png" alt="类似在 Docker Hub 页面查看远端镜像 tag 的效果" width="620" style="display:block; margin:0;" />
+
 关键看点：
 
-- 这里列出来的是远端仓库当前提供的 tag
+- 这里列出来的是远端仓库当前返回的一部分 tag，不是完整 tag 清单
 - 看到合适的 tag 后，再执行对应的 `docker pull nginx:<tag>`
 - 例如你想拉 Alpine 版本，就执行 `docker pull nginx:alpine`
+
+这里可以顺手把 `tag` 这个概念讲清楚。
+
+### 什么是 tag
+
+你可以先把它理解成：镜像的“版本名”或“标记名”。
+
+Docker 镜像的常见写法是：
+
+```text
+镜像名:tag
+```
+
+例如：
+
+- `nginx:1.29.6`
+- `nginx:alpine`
+
+这里：
+
+- `nginx` 是镜像名
+- `1.29.6`、`alpine` 就是 tag，`latest` 也是一种常见 tag
+
+对初学者来说，最简单的理解方式就是：
+
+- `nginx` 相当于软件名
+- `tag` 相当于这个软件对应的版本、发行类型或构建标记
+
+例如：
+
+- `nginx:1.29.6`
+  表示一个更明确的版本号
+- `nginx:alpine`
+  表示这个镜像基于 Alpine 这类更轻量的基础环境
+- `nginx:latest`
+  表示默认标签，通常指这个仓库当前默认指向的版本，但它不是固定版本
+
+为什么要关心 tag？
+
+- 因为不同 tag，镜像内容可能不同
+- 版本不同，软件行为可能不同
+- 基础环境不同，镜像大小、可用命令、兼容性也可能不同
+
+所以在课堂里要让学员形成一个习惯：
+
+- 不要只看镜像名
+- 还要看它后面的 tag
+
+比如下面这两个镜像都叫 `nginx`，但它们不是一回事：
+
+```text
+nginx:1.29.6
+nginx:alpine
+```
+
+以后看到 `docker pull nginx:xxx`、`docker run nginx:xxx`、`docker tag old:new`，都可以先理解成一句话：
+
+“我正在指定或修改这个镜像的标签。”
 
 ## 2. `docker pull`
 
 作用：拉取镜像。
 
 ```bash
-docker pull nginx
-docker pull nginx:latest
+docker pull nginx:1.29.6
+docker pull nginx:alpine
 ```
 
 高频点：
 
 - `nginx`：镜像名
-- `nginx:latest`：镜像名加标签，`latest` 是标签
+- `nginx:1.29.6`：镜像名加标签，`1.29.6` 是标签
+
+这里要补一个很重要的习惯：
+
+- 最好显式指定具体版本
+- 不要把 `latest` 当成默认好习惯
+
+例如：
+
+```bash
+docker pull nginx:1.29.6
+```
+
+原因是：
+
+- `latest` 不是固定版本
+- 今天拉到的 `latest`，和下次拉到的 `latest`，可能已经不是同一个内容
+- 一旦上游镜像更新，环境结果就可能变化
+
+所以更稳妥的习惯是：
+
+- 学习时就尽量养成写明确 tag 的习惯
+- 实际部署时，更要写明确 tag，例如 `nginx:1.29.6`
 
 常用参数：
 
 - `-a`
   拉取该镜像的所有标签，不常作为默认用法，知道即可。
 - `--platform`
-  指定平台，例如：
+  指定镜像平台，例如：
 
 ```bash
-docker pull --platform linux/amd64 nginx
+docker pull --platform linux/amd64 nginx:1.29.6
 ```
+
+这里要补一个实际使用中很容易遇到的问题。
+
+同一个镜像，往往不只提供一种平台版本，例如：
+
+- `linux/amd64`
+- `linux/arm64`
+
+不同机器默认拉取的平台，可能不一样。
+
+例如：
+
+- 如果你在常见的 x86 服务器上操作，默认更常见的是 `linux/amd64`
+- 如果你在 Apple Silicon 的 Mac 上操作，例如 M1、M2、M3，默认更常见的是 `linux/arm64`
+
+这意味着：
+
+- 你和同学虽然执行的都是 `docker pull nginx:1.29.6`
+- 但最终拉下来的镜像平台，可能并不一样
+
+大多数情况下，Docker 会自动帮你选择适合当前机器的平台版本。
+但如果你有下面这些需求，就要显式指定 `--platform`：
+
+- 需要和服务器环境保持一致
+- 需要测试某个特定架构
+- 当前镜像默认平台和你的目标平台不一致
+
+例如，假设你现在用的是 Mac，但后面部署目标是一台常见的 Linux x86 服务器，那么你可能会希望提前拉取：
+
+```bash
+docker pull --platform linux/amd64 nginx:1.29.6
+```
+
+课堂里先记住这一句就够了：
+
+- `--platform` 是用来指定“拉哪个系统架构版本的镜像”
+- Mac 上尤其容易遇到这个问题，因为不少新款 Mac 默认是 `arm64`
 
 课堂里最需要记住的是：`pull` 就是把远程镜像拉到本地。
 
@@ -158,26 +287,21 @@ docker pull --platform linux/amd64 nginx
 执行命令：
 
 ```bash
-docker pull nginx
+docker pull nginx:1.29.6
 ```
 
 原始输出节选：
 
 ```text
-Using default tag: latest
-latest: Pulling from library/nginx
-9eef040df109: Pulling fs layer
-75a1d70aee50: Pulling fs layer
-...
+1.29.6: Pulling from library/nginx
 Digest: sha256:bc45d248c4e1d1709321de61566eb2b64d4f0e32765239d66573666be7f13349
-Status: Downloaded newer image for nginx:latest
-docker.io/library/nginx:latest
+Status: Image is up to date for nginx:1.29.6
+docker.io/library/nginx:1.29.6
 ```
 
 关键看点：
 
-- `Using default tag: latest` 说明未显式写标签时，默认拉取 `latest`
-- `Pulling fs layer` 说明镜像是按层下载的
+- 如果本地已经存在该镜像，可能不会再次下载层，而是直接提示 `Image is up to date`
 - `Digest` 可用于确认镜像内容版本
 
 ## 3. `docker images`
@@ -221,18 +345,16 @@ docker images nginx --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}
 
 ```text
 REPOSITORY   TAG      IMAGE ID       SIZE
-nginx        latest   bc45d248c4e1   251MB
+nginx        1.29.6   bc45d248c4e1   251MB
 nginx        alpine   f46cb72c7df0   81.2MB
 ```
 
 关键看点：
 
 - `REPOSITORY` 表示镜像名，这里是 `nginx`
-- `TAG` 表示该镜像当前在本机已有的标签，例如 `latest`、`alpine`
+- `TAG` 表示该镜像当前在本机已有的标签，例如 `1.29.6`、`alpine`
 - 同一个仓库名下可以同时存在多个 tag
 - 如果两个 tag 对应的 `IMAGE ID` 相同，说明它们本质上指向同一个镜像内容
-
-<img src="./images/tag.png" alt="查看本地镜像 tag 示意图" width="620" style="display:block; margin:0;" />
 
 这里要特别区分：
 
@@ -252,41 +374,74 @@ docker images nginx
 原始输出：
 
 ```text
-WARNING: This output is designed for human readability. For machine-readable output, please use --format.
 IMAGE          ID             DISK USAGE   CONTENT SIZE   EXTRA
+nginx:1.29.6   bc45d248c4e1        240MB         65.8MB
 nginx:alpine   f46cb72c7df0       93.5MB         26.9MB
-nginx:latest   bc45d248c4e1        240MB         65.8MB   U
 ```
 
 关键看点：
 
 - `IMAGE` 一列里同时包含仓库名和标签
 - `ID` 是镜像 ID，后续 `rmi` 时也可以直接使用
-- 这里能看出 `nginx:latest` 比 `nginx:alpine` 更大
+- 这里说明当前本机已经存在 `nginx:1.29.6` 和 `nginx:alpine` 两个标签
+- 某些环境里还可能额外出现一行 `WARNING`，那只是输出格式提示，不影响看表格内容
 
 ## 4. `docker run`
 
 作用：基于镜像创建并启动容器。这是最核心的命令。
 
 ```bash
-docker run -d --name mynginx -p 8080:80 nginx
+docker run -d --name mynginx-demo -p 18080:80 nginx:1.29.6
 ```
 
 这条命令的含义是：
 
 - `-d`
   后台运行容器
-- `--name mynginx`
+- `--name mynginx-demo`
   给容器起一个名字，后续管理更方便
-- `-p 8080:80`
-  把宿主机 `8080` 端口映射到容器的 `80` 端口
-- `nginx`
-  使用 `nginx` 镜像启动容器
+- `-p 18080:80`
+  把宿主机 `18080` 端口映射到容器的 `80` 端口
+- `nginx:1.29.6`
+  使用 `nginx:1.29.6` 镜像启动容器
 
-执行后，可以通过下面的地址访问：
+这里要先记住一个很重要的点：
+
+- `docker run` 是“创建并启动一个新容器”
+- 如果同名容器已经存在，再次执行同样的 `--name`，就会报错
+
+如果你没有显式指定 `--name`，Docker 会自动给容器生成一个随机名字。
+
+例如：
+
+```bash
+docker run -d -p 18080:80 nginx:1.29.6
+```
+
+这时容器虽然能正常启动，但名字通常会像下面这样随机生成：
 
 ```text
-http://localhost:8080
+focused_mclean
+adoring_morse
+vibrant_goldberg
+```
+
+关键看点：
+
+- 不写 `--name` 并不会影响容器启动
+- 但后续做 `docker logs`、`docker exec`、`docker inspect`、`docker rm` 时不够直观
+- 所以日常学习和运维里，更推荐显式写 `--name`
+
+执行后，在命令行环境里更适合这样验证服务是否可访问：
+
+```bash
+curl http://127.0.0.1:18080
+```
+
+如果你是在外部电脑上访问这台 Linux 服务器，例如在 Windows 浏览器里访问，那么应当打开这台服务器的 IP 或域名，例如：
+
+```text
+http://服务器IP:18080
 ```
 
 `docker run` 的高频参数很多，最常用的是下面这些：
@@ -308,40 +463,61 @@ http://localhost:8080
 - `--restart unless-stopped`
   容器自动重启策略
 
-再看两个很常见的例子。
+再看两个最常见的场景。
 
 后台服务方式：
 
 ```bash
-docker run -d --name mynginx -p 8080:80 --restart unless-stopped nginx
+docker run -d --name mynginx-demo -p 18080:80 --restart unless-stopped nginx:1.29.6
 ```
 
 交互调试方式：
 
 ```bash
-docker run -it --rm ubuntu bash
+docker run -it --rm nginx:1.29.6 /bin/sh
 ```
 
-这两个命令都很常见，一个偏服务部署，一个偏临时调试。
+这两个命令都很常见，一个偏长期运行的服务容器，一个偏临时进入容器排查问题。
 
-实机示例：
-
-执行命令：
+实际操作中，还很容易遇到下面这个报错：
 
 ```bash
-docker run -d --name mynginx-live -p 28080:80 nginx:latest
+docker run -d --name mynginx -p 8080:80 --restart unless-stopped nginx:1.29.6
 ```
 
-原始输出：
+原始报错：
 
 ```text
-561708f16f4967e07988c987019e2d35262f9af1a548f4811691298d6e72f7d8
+docker: Error response from daemon: Conflict. The container name "/mynginx" is already in use by container "15f2d87ef35cc43c0aa10efe30b9373fc38e903b8ed6a2d155b869183e8f7de9". You have to remove (or rename) that container to be able to reuse that name.
+
+Run 'docker run --help' for more information
 ```
 
-关键看点：
+这个错误说明：
 
-- 成功时通常只返回容器 ID
-- 返回了容器 ID，不代表业务一定已经可用，后面还要继续用 `ps`、`logs` 验证
+- 当前已经存在一个名字叫 `mynginx` 的容器
+- Docker 容器名在同一台主机上必须唯一
+- 所以不能再次用同一个名字创建新容器
+
+看到这个错误时，常见处理方式有 3 种：
+
+- 继续使用原容器，不再重复创建
+- 先删除旧容器，再重新使用 `mynginx` 这个名字
+- 换一个新的容器名和新的宿主机端口
+
+例如本次继续执行时，可以改成：
+
+```bash
+docker run -d --name mynginx-2 -p 8081:80 --restart unless-stopped nginx:1.29.6
+```
+
+验证结果：
+
+```text
+mynginx-2    nginx:1.29.6    Up 1 second    0.0.0.0:8081->80/tcp, [::]:8081->80/tcp
+```
+
+这里不再重复展示 `docker run` 的实机输出，后面直接通过 `docker ps`、`docker logs`、`docker inspect` 来验证容器是否真的已经正常运行。
 
 ## 5. `docker ps`
 
@@ -380,7 +556,7 @@ docker ps --filter name=mynginx-live
 
 ```text
 CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS         PORTS                                       NAMES
-561708f16f49   nginx:latest   "/docker-entrypoint.…"   7 seconds ago   Up 5 seconds   0.0.0.0:28080->80/tcp, [::]:28080->80/tcp   mynginx-live
+4ddd5bc8e442   nginx:1.29.6   "/docker-entrypoint.…"   8 seconds ago   Up 8 seconds   0.0.0.0:28080->80/tcp, [::]:28080->80/tcp   mynginx-live
 ```
 
 关键看点：
@@ -426,9 +602,9 @@ docker logs mynginx-live
 `docker logs` 原始输出节选：
 
 ```text
+2026/03/16 06:49:03 [notice] 1#1: nginx/1.29.6
 /docker-entrypoint.sh: Configuration complete; ready for start up
-172.17.0.1 - - [16/Mar/2026:03:29:30 +0000] "HEAD / HTTP/1.1" 200 0 "-" "curl/8.5.0" "-"
-2026/03/16 03:29:24 [notice] 1#1: nginx/1.29.6
+172.17.0.1 - - [16/Mar/2026:06:49:11 +0000] "HEAD / HTTP/1.1" 200 0 "-" "curl/8.5.0" "-"
 ```
 
 关键看点：
@@ -621,7 +797,7 @@ mynginx-live
 mynginx-live
 mynginx-live
 CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS         PORTS                                       NAMES
-561708f16f49   nginx:latest   "/docker-entrypoint.…"   44 seconds ago   Up 4 seconds   0.0.0.0:28080->80/tcp, [::]:28080->80/tcp   mynginx-live
+4ddd5bc8e442   nginx:1.29.6   "/docker-entrypoint.…"   43 seconds ago   Up 6 seconds   0.0.0.0:28080->80/tcp, [::]:28080->80/tcp   mynginx-live
 ```
 
 关键看点：
@@ -685,13 +861,13 @@ mynginx-live
 例如把本地镜像改成准备推送到仓库的名字：
 
 ```bash
-docker tag nginx:latest yourname/mynginx:v1
+docker tag nginx:1.29.6 yourname/mynginx:v1
 ```
 
 如果是私有仓库，通常会带仓库地址：
 
 ```bash
-docker tag nginx:latest registry.example.com/project/mynginx:v1
+docker tag nginx:1.29.6 registry.example.com/project/mynginx:v1
 ```
 
 这里最重要的是理解目标名称的格式：
@@ -707,7 +883,7 @@ docker tag nginx:latest registry.example.com/project/mynginx:v1
 执行命令：
 
 ```bash
-docker tag nginx:latest nginx:demo-v1
+docker tag nginx:1.29.6 nginx:demo-v1
 docker images nginx
 ```
 
@@ -715,15 +891,14 @@ docker images nginx
 
 ```text
 IMAGE           ID             DISK USAGE   CONTENT SIZE   EXTRA
-nginx:alpine    f46cb72c7df0       93.5MB         26.9MB
+nginx:1.29.6    bc45d248c4e1        240MB         65.8MB   U
 nginx:demo-v1   bc45d248c4e1        240MB         65.8MB   U
-nginx:latest    bc45d248c4e1        240MB         65.8MB   U
 ```
 
 关键看点：
 
 - `docker tag` 本身通常没有标准输出，所以要配合 `docker images` 验证
-- `nginx:demo-v1` 和 `nginx:latest` 的 `ID` 相同，说明只是同一个镜像的两个标签
+- `nginx:demo-v1` 和 `nginx:1.29.6` 的 `ID` 相同，说明只是同一个镜像的两个标签
 
 ## 14. `docker push`
 
@@ -756,7 +931,7 @@ docker push -a yourname/mynginx
 因此这一组命令通常连着记：
 
 ```bash
-docker tag nginx:latest yourname/mynginx:v1
+docker tag nginx:1.29.6 yourname/mynginx:v1
 docker push yourname/mynginx:v1
 ```
 
@@ -765,7 +940,7 @@ docker push yourname/mynginx:v1
 执行命令：
 
 ```bash
-docker push nginx:latest
+docker push nginx:1.29.6
 ```
 
 原始输出节选：
@@ -829,7 +1004,7 @@ ls -lh /tmp/nginx-demo-v1.tar
 验证输出：
 
 ```text
--rw------- 1 root root 63M Mar 16 11:29 /tmp/nginx-demo-v1.tar
+-rw------- 1 root root 63M Mar 16 14:50 /tmp/nginx-demo-v1.tar
 ```
 
 导入镜像：
@@ -855,7 +1030,7 @@ Loaded image: nginx:demo-v1
 
 ```bash
 docker rmi yourname/mynginx:v1
-docker rmi nginx:latest
+docker rmi nginx:1.29.6
 ```
 
 常用参数：
@@ -864,7 +1039,7 @@ docker rmi nginx:latest
   强制删除镜像
 
 ```bash
-docker rmi -f nginx:latest
+docker rmi -f nginx:1.29.6
 ```
 
 注意：
@@ -876,7 +1051,7 @@ docker rmi -f nginx:latest
 
 ```bash
 docker rm -f mynginx
-docker rmi nginx:latest
+docker rmi nginx:1.29.6
 ```
 
 实机示例：
@@ -891,7 +1066,6 @@ docker rmi nginx:demo-v1
 
 ```text
 Untagged: nginx:demo-v1
-Untagged: moby-dangling@sha256:bc45d248c4e1d1709321de61566eb2b64d4f0e32765239d66573666be7f13349
 ```
 
 关键看点：
