@@ -1,11 +1,12 @@
-FROM alpine:3.20
+FROM python:3.12-alpine
 
 WORKDIR /app
 
-COPY entrypoint.sh /app/entrypoint.sh
+COPY entrypoint_demo.py /app/entrypoint_demo.py
 
-RUN chmod +x /app/entrypoint.sh
+RUN pip install requests \
+    && apk add --no-cache curl
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["python3", "/app/entrypoint_demo.py"]
 
-CMD ["default-user"]
+CMD ["https://www.baidu.com"]

@@ -44,12 +44,12 @@
 
 为了避免误删你机器上其他无关的容器和镜像，本文只清理和本实验有关的对象：
 
-- 容器名：`df-env-demo`、`df-entry-demo`、`df-copy-demo`、`df-add-demo`
-- 镜像：`df-demo:env`、`df-demo:entry`、`df-demo:copydir`、`df-demo:copy`、`df-demo:add`、`alpine:3.20`
+- 容器名：`df-env-demo`
+- 镜像：`df-demo:env`、`df-demo:entry`、`df-demo:copydir`、`df-demo:copy`、`df-demo:add`、`alpine:3.20`、`python:3.12-alpine`
 
-## 0. 实验准备（一把梭前提）
+## 实验准备
 
-以下所有命令均在**实验目录**下执行。实验目录即包含 `Dockerfile.env`、`hello.sh`、`Dockerfile.entrypoint`、`entrypoint.sh`、`Dockerfile.copydir`、`Dockerfile.copy`、`Dockerfile.add` 以及用于生成 `site.tar.gz` 的 `site/` 目录的那一层；若使用本仓库，则为 `docker/docker_5_DockerFile/lab`。进入实验目录后，先生成 COPY/ADD 实验所需的压缩包（若已有 `site.tar.gz` 可跳过）：
+以下所有命令均在**实验目录**下执行。实验目录即包含 `Dockerfile.env`、`hello.sh`、`Dockerfile.entrypoint`、`entrypoint_demo.py`、`Dockerfile.copydir`、`Dockerfile.copy`、`Dockerfile.add` 以及用于生成 `site.tar.gz` 的 `site/` 目录的那一层；若使用本仓库，则为 `docker/docker_5_DockerFile/lab`。进入实验目录后，先生成 COPY/ADD 实验所需的压缩包（若已有 `site.tar.gz` 可跳过）：
 
 ```bash
 cd docker/docker_5_DockerFile/lab   # 按你的实际路径调整
@@ -84,10 +84,10 @@ tar -tzf site.tar.gz
 ### 第一步：先把实验环境清到空
 
 ```bash
-docker rm -f df-env-demo df-entry-demo df-copy-demo df-add-demo >/dev/null 2>&1 || true
-docker rmi df-demo:env df-demo:entry df-demo:copydir df-demo:copy df-demo:add alpine:3.20 >/dev/null 2>&1 || true
-docker ps -a --format '{{.Names}}' | rg '^(df-env-demo|df-entry-demo|df-copy-demo|df-add-demo)$' || echo no-experiment-container
-docker images --format '{{.Repository}}:{{.Tag}}' | rg '^(df-demo:(env|entry|copydir|copy|add)|alpine:3.20)$' || echo no-experiment-image
+docker rm -f df-env-demo >/dev/null 2>&1 || true
+docker rmi df-demo:env df-demo:entry df-demo:copydir df-demo:copy df-demo:add alpine:3.20 python:3.12-alpine >/dev/null 2>&1 || true
+docker ps -a --format '{{.Names}}' | rg '^df-env-demo$' || echo no-experiment-container
+docker images --format '{{.Repository}}:{{.Tag}}' | rg '^(df-demo:(env|entry|copydir|copy|add)|alpine:3.20|python:3.12-alpine)$' || echo no-experiment-image
 ```
 
 原始输出：
@@ -101,7 +101,6 @@ no-experiment-image
 
 - 这里只清理本文实验相关对象
 - 不会去删除你机器上其他无关的容器和镜像
-- 与第五部分收尾验证格式一致，便于一把梭时头尾对照
 
 ### 第二步：准备第一个 Dockerfile，先把基础指令串起来
 
@@ -290,58 +289,76 @@ PWD=/app
 
 这一段是 Dockerfile 里最容易绕的部分。
 
-先看第二个 Dockerfile：
+先看文件 `Dockerfile.entrypoint`：
 
 ```dockerfile
-FROM alpine:3.20
+FROM python:3.12-alpine
 
 WORKDIR /app
 
-COPY entrypoint.sh /app/entrypoint.sh
+COPY entrypoint_demo.py /app/entrypoint_demo.py
 
-RUN chmod +x /app/entrypoint.sh
+RUN pip install requests \
+    && apk add --no-cache curl
 
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["python3", "/app/entrypoint_demo.py"]
 
-CMD ["default-user"]
+CMD ["https://www.baidu.com"]
 ```
 
-配套脚本 `entrypoint.sh`：
+配套脚本 `entrypoint_demo.py`：
 
-```sh
-#!/bin/sh
-echo "ENTRYPOINT received: $*"
+```python
+import sys
+
+import requests
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        target = sys.argv[1]
+    else:
+        target = "https://www.qytang.com"
+
+    req_result = requests.get(target, timeout=10)
+
+    print(f"sys.argv={sys.argv}")
+    print(f"url={target}")
+    print(f"status_code={req_result.status_code}")
 ```
 
-这个脚本本身没有复杂逻辑，它只是把自己收到的参数打印出来。
+这个脚本本身没有复杂逻辑，它只是做两件事：
+
+- 把 Python 程序收到的参数打印出来
+- 再发起一次 HTTP 请求，并把最终访问的 URL 和状态码打印出来
 
 这样做的目的很直接：
 
-- 看容器启动时，最后到底收到了什么参数
-- 用最简单的方式观察 `ENTRYPOINT` 和 `CMD` 是怎么组合在一起的
+- 看容器启动时，Python 程序最后到底收到了什么参数
+- 用最直观的方式观察 `ENTRYPOINT` 和 `CMD` 是怎么组合在一起的
 
-这里的 `$*` 可以直接理解成：
+这里的 `sys.argv` 可以直接理解成：
 
-- 把这个脚本收到的所有参数一起打印出来
+- Python 程序启动时收到的参数列表
 
 例如：
 
-- 如果实际执行的是 `/app/entrypoint.sh default-user`
-  那么 `$*` 打印出来的就是 `default-user`
-- 如果实际执行的是 `/app/entrypoint.sh alice`
-  那么 `$*` 打印出来的就是 `alice`
+- 如果容器内部实际执行的效果接近于 `python3 /app/entrypoint_demo.py https://www.baidu.com`
+  那么 `sys.argv` 里就会看到 `https://www.baidu.com`
+- 如果容器内部实际执行的效果接近于 `python3 /app/entrypoint_demo.py https://www.qytang.com`
+  那么 `sys.argv` 里就会看到 `https://www.qytang.com`
 
 所以这段脚本的作用，本质上就是把：
 
 - `ENTRYPOINT` 后面到底跟了什么参数
+- `CMD` 有没有作为默认参数传进来
 
 直接打印给你看。
 
 这个实验的目标只有一个：
 
-- 看清 `ENTRYPOINT` 和 `CMD` 到底是“谁是主命令，谁是默认参数”
+- 看清 `ENTRYPOINT` 和 `CMD` 到底是“谁是主程序，谁是默认参数”
 
-### 第八步：构建 `ENTRYPOINT` 实验镜像
+### 第七步：构建 `ENTRYPOINT` 实验镜像
 
 ```bash
 docker build --progress=plain -t df-demo:entry -f Dockerfile.entrypoint .
@@ -351,12 +368,15 @@ docker build --progress=plain -t df-demo:entry -f Dockerfile.entrypoint .
 
 ```text
 #1 [internal] load build definition from Dockerfile.entrypoint
-#2 [internal] load metadata for docker.io/library/alpine:3.20
-#5 [2/4] WORKDIR /app
-#7 [3/4] COPY entrypoint.sh /app/entrypoint.sh
-#8 [4/4] RUN chmod +x /app/entrypoint.sh
-#9 exporting to image
-#9 naming to docker.io/library/df-demo:entry done
+#2 [internal] load metadata for docker.io/library/python:3.12-alpine
+#6 [1/4] FROM docker.io/library/python:3.12-alpine@sha256:7747d47f92cfca63a6e2b50275e23dba8407c30d8ae929a88ddd49a5d3f2d331
+#7 [2/4] WORKDIR /app
+#8 [3/4] COPY entrypoint_demo.py /app/entrypoint_demo.py
+#9 [4/4] RUN pip install requests     && apk add --no-cache curl
+#9 8.258 Successfully installed certifi-2026.2.25 charset_normalizer-3.4.6 idna-3.11 requests-2.32.5 urllib3-2.6.3
+#9 11.82 (10/10) Installing curl (8.17.0-r1)
+#10 exporting to image
+#10 naming to docker.io/library/df-demo:entry done
 ```
 
 再查看镜像配置：
@@ -368,23 +388,25 @@ docker image inspect df-demo:entry --format $'Entrypoint={{json .Config.Entrypoi
 原始输出：
 
 ```text
-Entrypoint=["/app/entrypoint.sh"]
-Cmd=["default-user"]
+Entrypoint=["python3","/app/entrypoint_demo.py"]
+Cmd=["https://www.baidu.com"]
 WorkingDir=/app
 ```
 
 关键看点：
 
-- `Entrypoint=["/app/entrypoint.sh"]` 表示容器启动时默认执行这个程序
-- `Cmd=["default-user"]` 表示默认给这个程序传入一个参数 `default-user`
+- `Entrypoint=["python3","/app/entrypoint_demo.py"]` 表示容器启动时默认执行的是这个 Python 程序
+- `Cmd=["https://www.baidu.com"]` 表示默认给这个程序再传入一个参数 `https://www.baidu.com`
 
-把它们拼在一起看，效果接近：
+把它们拼在一起看，容器内部的实际执行效果接近：
 
 ```bash
-/app/entrypoint.sh default-user
+python3 /app/entrypoint_demo.py https://www.baidu.com
 ```
 
-### 第九步：第一次运行，不额外传参
+这里表达的是容器内部的执行效果，不是让你在宿主机终端里直接敲这条命令。
+
+### 第八步：第一次运行，不额外传参
 
 ```bash
 docker run --rm df-demo:entry
@@ -393,40 +415,50 @@ docker run --rm df-demo:entry
 原始输出：
 
 ```text
-ENTRYPOINT received: default-user
+sys.argv=['/app/entrypoint_demo.py', 'https://www.baidu.com']
+url=https://www.baidu.com
+status_code=200
 ```
 
 说明：
 
-- 没有额外传参时，`CMD ["default-user"]` 会作为参数传给 `ENTRYPOINT`
+- 没有额外传参时，`CMD ["https://www.baidu.com"]` 会作为参数传给 `ENTRYPOINT`
 
-### 第十步：第二次运行，手工传入一个新参数
+### 第九步：第二次运行，手工传入一个新参数
 
 ```bash
-docker run --rm df-demo:entry alice
+docker run --rm df-demo:entry https://www.qytang.com
 ```
 
 原始输出：
 
 ```text
-ENTRYPOINT received: alice
+sys.argv=['/app/entrypoint_demo.py', 'https://www.qytang.com']
+url=https://www.qytang.com
+status_code=200
 ```
 
 说明：
 
-- 运行容器时追加的 `alice`，替换掉了原来的 `CMD ["default-user"]`
+- 运行容器时追加的 `https://www.qytang.com`，替换掉了原来的 `CMD ["https://www.baidu.com"]`
 - 但 `ENTRYPOINT` 仍然没有变
 
-### 第十一步：第三次运行，直接改掉入口命令
+### 第十步：第三次运行，直接改掉入口命令
 
 ```bash
-docker run --rm --entrypoint sh df-demo:entry -c 'echo manual shell'
+docker run --rm --entrypoint curl df-demo:entry -I -s https://www.baidu.com
 ```
 
 原始输出：
 
 ```text
-manual shell
+HTTP/1.1 200 OK
+Cache-Control: private, no-cache, no-store, proxy-revalidate, no-transform
+Content-Length: 0
+Content-Type: text/html
+Pragma: no-cache
+Server: bfe
+Date: Mon, 16 Mar 2026 14:29:35 GMT
 ```
 
 关键看点：
@@ -435,6 +467,7 @@ manual shell
 - `CMD` 更像这个主程序的默认参数
 - `docker run 镜像名 新参数`，通常覆盖的是 `CMD`
 - `docker run --entrypoint ...`，才是在强行改入口命令
+- 这一条命令里，原来的 Python 入口已经完全没有执行，而是直接改成了 `curl`
 
 你可以先记一句最实用的话：
 
@@ -448,7 +481,7 @@ manual shell
 - `COPY` 是普通复制
 - `ADD` 在处理本地压缩包时，会自动解压
 
-依赖第 0 节中在实验目录下生成的 `site.tar.gz`。可再次确认压缩包内容：
+依赖前面实验准备中生成的 `site.tar.gz`。可再次确认压缩包内容：
 
 ```bash
 tar -tzf site.tar.gz
@@ -461,7 +494,7 @@ tar -tzf site.tar.gz
 ./index.html
 ```
 
-### 第十二步：先看 `COPY` 目录
+### 第十一步：先看 `COPY` 目录
 
 文件 `Dockerfile.copydir`：
 
@@ -511,7 +544,7 @@ docker run --rm df-demo:copydir
 - `site` 目录在镜像里会变成 `/data/site`
 - 这类写法很常见，例如把源码目录、静态文件目录、配置目录整体复制进镜像
 
-### 第十三步：再看 `COPY` 普通复制压缩包
+### 第十二步：再看 `COPY` 普通复制压缩包
 
 文件 `Dockerfile.copy`：
 
@@ -560,7 +593,7 @@ docker run --rm df-demo:copy
 - `COPY` 做的就是普通复制
 - 压缩包还是压缩包，没有自动展开
 
-### 第十四步：再用 `ADD`
+### 第十三步：再用 `ADD`
 
 文件 `Dockerfile.add`：
 
@@ -654,10 +687,10 @@ docker run --rm df-demo:add
 ## 5. 把实验环境清回空
 
 ```bash
-docker rm -f df-env-demo df-entry-demo df-copy-demo df-add-demo >/dev/null 2>&1 || true
-docker rmi df-demo:env df-demo:entry df-demo:copydir df-demo:copy df-demo:add alpine:3.20 >/dev/null 2>&1 || true
-docker ps -a --format '{{.Names}}' | rg '^(df-env-demo|df-entry-demo|df-copy-demo|df-add-demo)$' || echo no-experiment-container
-docker images --format '{{.Repository}}:{{.Tag}}' | rg '^(df-demo:(env|entry|copydir|copy|add)|alpine:3.20)$' || echo no-experiment-image
+docker rm -f df-env-demo >/dev/null 2>&1 || true
+docker rmi df-demo:env df-demo:entry df-demo:copydir df-demo:copy df-demo:add alpine:3.20 python:3.12-alpine >/dev/null 2>&1 || true
+docker ps -a --format '{{.Names}}' | rg '^df-env-demo$' || echo no-experiment-container
+docker images --format '{{.Repository}}:{{.Tag}}' | rg '^(df-demo:(env|entry|copydir|copy|add)|alpine:3.20|python:3.12-alpine)$' || echo no-experiment-image
 ```
 
 原始输出：
