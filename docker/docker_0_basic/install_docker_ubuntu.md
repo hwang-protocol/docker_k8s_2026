@@ -83,7 +83,57 @@ sudo systemctl status docker
 
 - `docker` 服务状态为 `active (running)`。
 
-### 5. 验证安装结果
+### 5. 可选：配置数据目录与镜像加速
+
+若需将镜像与容器数据存到指定目录，并配置国内/镜像加速（拉取镜像时走代理镜像站），可执行以下步骤。
+
+**5.1 创建数据目录**
+
+```bash
+sudo mkdir -p /data/docker
+```
+
+**5.2 写入 daemon 配置**
+
+`data-root` 指定镜像与容器数据的存储路径；`registry-mirrors` 为拉取镜像时使用的镜像加速列表，按顺序尝试。
+
+```bash
+sudo tee /etc/docker/daemon.json <<'EOF'
+{
+    "data-root": "/data/docker",
+    "registry-mirrors": [
+        "https://hub.xdark.top",
+        "https://hub.littlediary.cn",
+        "https://dockerpull.org",
+        "https://hub.crdz.gq",
+        "https://docker.1panel.live",
+        "https://docker.unsee.tech",
+        "https://docker.m.daocloud.io",
+        "https://docker.kejilion.pro",
+        "https://registry.dockermirror.com",
+        "https://hub.rat.dev",
+        "https://dhub.kubesre.xyz",
+        "https://docker.nastool.de",
+        "https://docker.udayun.com",
+        "https://docker.rainbond.cc",
+        "https://hub.geekery.cn",
+        "https://docker.1panelproxy.com"
+    ]
+}
+EOF
+```
+
+**5.3 重载配置并重启 Docker**
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+sudo systemctl status docker
+```
+
+配置生效后，`docker pull` 会优先通过上述镜像站拉取，镜像与容器数据将存放在 `/data/docker`。
+
+### 6. 验证安装结果
 
 ```bash
 sudo docker run hello-world
@@ -96,7 +146,7 @@ sudo docker compose version
 - `docker compose version` 能正常输出版本号。
 - 命令格式是 `docker compose`，中间是空格，不是 `docker-compose`。
 
-### 6. 可选：允许当前用户直接使用 Docker
+### 7. 可选：允许当前用户直接使用 Docker
 
 ```bash
 sudo usermod -aG docker "$USER"
