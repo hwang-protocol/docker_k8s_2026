@@ -688,6 +688,33 @@ grep 'X-Course-Version\|docker data ro' /docker_k8s_2026/docker/docker_4_data/ng
             return 200 "docker data ro v1\n";
 ```
 
+先拉取 `nginx` 镜像：
+
+```bash
+docker pull nginx:1.29.6
+```
+
+原始输出节选：
+
+```text
+1.29.6: Pulling from library/nginx
+9eef040df109: Pulling fs layer
+206356c42440: Pulling fs layer
+18a071c04bd1: Pulling fs layer
+df9da45c1db2: Pulling fs layer
+79697674b897: Pulling fs layer
+...
+18a071c04bd1: Pull complete
+df9da45c1db2: Pull complete
+a9d395129dce: Pull complete
+75a1d70aee50: Pull complete
+9eef040df109: Pull complete
+79697674b897: Pull complete
+Digest: sha256:bc45d248c4e1d1709321de61566eb2b64d4f0e32765239d66573666be7f13349
+Status: Downloaded newer image for nginx:1.29.6
+docker.io/library/nginx:1.29.6
+```
+
 现在启动一个 `nginx` 容器，把这个配置文件只读挂载进去：
 
 ```bash
@@ -701,7 +728,7 @@ docker run -d \
 先从宿主机访问它，确认当前生效的是 `v1` 配置：
 
 ```bash
-curl -i http://127.0.0.1:38081
+curl -is http://127.0.0.1:38081
 ```
 
 原始输出：
@@ -757,7 +784,7 @@ until curl -s http://127.0.0.1:38081 >/dev/null 2>&1; do
   sleep 1
 done
 echo ready
-curl -i http://127.0.0.1:38081
+curl -is http://127.0.0.1:38081
 ```
 
 原始输出：
@@ -809,7 +836,6 @@ grep 'X-Course-Version\|docker data ro' /docker_k8s_2026/docker/docker_4_data/ng
 - 容器内不能直接修改 `/etc/nginx/nginx.conf`
 - 但宿主机上的源文件仍然可以修改
 - 宿主机修改后，容器重启并重新加载配置，就能看到效果变化
-- 作为教材实验，最后要把宿主机配置恢复到初始状态，这样下次才能从同一个起点重新刷
 
 实验结束后，把 `app-demo` 容器清理掉：
 
