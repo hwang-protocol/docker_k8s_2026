@@ -86,8 +86,8 @@ tar -tzf site.tar.gz
 ```bash
 docker rm -f df-env-demo >/dev/null 2>&1 || true
 docker rmi df-demo:env df-demo:entry df-demo:copydir df-demo:copy df-demo:add alpine:3.20 python:3.12-alpine >/dev/null 2>&1 || true
-docker ps -a --format '{{.Names}}' | rg '^df-env-demo$' || echo no-experiment-container
-docker images --format '{{.Repository}}:{{.Tag}}' | rg '^(df-demo:(env|entry|copydir|copy|add)|alpine:3.20|python:3.12-alpine)$' || echo no-experiment-image
+docker ps -a --format '{{.Names}}' | grep -E '^df-env-demo$' || echo no-experiment-container
+docker images --format '{{.Repository}}:{{.Tag}}' | grep -E '^(df-demo:(env|entry|copydir|copy|add)|alpine:3.20|python:3.12-alpine)$' || echo no-experiment-image
 ```
 
 原始输出：
@@ -689,8 +689,8 @@ docker run --rm df-demo:add
 ```bash
 docker rm -f df-env-demo >/dev/null 2>&1 || true
 docker rmi df-demo:env df-demo:entry df-demo:copydir df-demo:copy df-demo:add alpine:3.20 python:3.12-alpine >/dev/null 2>&1 || true
-docker ps -a --format '{{.Names}}' | rg '^df-env-demo$' || echo no-experiment-container
-docker images --format '{{.Repository}}:{{.Tag}}' | rg '^(df-demo:(env|entry|copydir|copy|add)|alpine:3.20|python:3.12-alpine)$' || echo no-experiment-image
+docker ps -a --format '{{.Names}}' | grep -E '^df-env-demo$' || echo no-experiment-container
+docker images --format '{{.Repository}}:{{.Tag}}' | grep -E '^(df-demo:(env|entry|copydir|copy|add)|alpine:3.20|python:3.12-alpine)$' || echo no-experiment-image
 ```
 
 原始输出：
