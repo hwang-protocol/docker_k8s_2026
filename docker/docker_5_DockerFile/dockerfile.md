@@ -29,7 +29,7 @@
 
 ## 先记住和 Dockerfile 配套的常用命令
 
-这一章最常用的命令主要有 5 个：
+这一章最常用的命令主要有 4 个：
 
 1. `docker build`
    根据 Dockerfile 构建镜像。
@@ -37,9 +37,7 @@
    基于镜像启动容器，验证效果。
 3. `docker image inspect`
    查看镜像配置，例如 `Env`、`Cmd`、`Entrypoint`、`ExposedPorts`。
-4. `docker history`
-   查看镜像分层和每一层对应的指令。
-5. `docker rm` / `docker rmi`
+4. `docker rm` / `docker rmi`
    清理实验容器和镜像。
 
 ## 实验说明
@@ -47,23 +45,31 @@
 为了避免误删你机器上其他无关的容器和镜像，本文只清理和本实验有关的对象：
 
 - 容器名：`df-env-demo`、`df-entry-demo`、`df-copy-demo`、`df-add-demo`
-- 镜像：`df-demo:env`、`df-demo:entry`、`df-demo:copy`、`df-demo:add`、`alpine:3.20`
-
-也就是说：
-
-- 开始前，把这些实验对象清到空
-- 结束后，再把这些实验对象清到空
-
-下面穿插的原始输出来自一次真实实验，时间为 `2026-03-16`。
+- 镜像：`df-demo:env`、`df-demo:entry`、`df-demo:copydir`、`df-demo:copy`、`df-demo:add`、`alpine:3.20`
 
 ## 0. 实验准备（一把梭前提）
 
-以下所有命令均在**实验目录**下执行。实验目录即包含 `Dockerfile.env`、`hello.sh`、`Dockerfile.entrypoint`、`entrypoint.sh`、`Dockerfile.copy`、`Dockerfile.add` 以及用于生成 `site.tar.gz` 的 `site/` 目录的那一层；若使用本仓库，则为 `docker/docker_5_DockerFile/lab`。进入实验目录后，先生成 COPY/ADD 实验所需的压缩包（若已有 `site.tar.gz` 可跳过）：
+以下所有命令均在**实验目录**下执行。实验目录即包含 `Dockerfile.env`、`hello.sh`、`Dockerfile.entrypoint`、`entrypoint.sh`、`Dockerfile.copydir`、`Dockerfile.copy`、`Dockerfile.add` 以及用于生成 `site.tar.gz` 的 `site/` 目录的那一层；若使用本仓库，则为 `docker/docker_5_DockerFile/lab`。进入实验目录后，先生成 COPY/ADD 实验所需的压缩包（若已有 `site.tar.gz` 可跳过）：
 
 ```bash
 cd docker/docker_5_DockerFile/lab   # 按你的实际路径调整
 tar -czf site.tar.gz -C site .
 ```
+
+这条命令的含义是：
+
+- `-c`
+  创建一个新的压缩包。
+- `-z`
+  使用 `gzip` 压缩。
+- `-f site.tar.gz`
+  把结果文件名指定为 `site.tar.gz`。
+- `-C site .`
+  先切到 `site` 目录，再把这个目录下的内容打包进去。
+
+所以这条命令的整体作用就是：
+
+- 把 `site/` 目录里的内容打成一个名为 `site.tar.gz` 的压缩包
 
 确认压缩包内容（可选）：
 
@@ -73,15 +79,15 @@ tar -tzf site.tar.gz
 
 应看到 `./` 与 `./index.html`。
 
-## 1. 主线实验：从空开始，跑到空结束
+## 1. 先做一个最小可运行镜像
 
 ### 第一步：先把实验环境清到空
 
 ```bash
 docker rm -f df-env-demo df-entry-demo df-copy-demo df-add-demo >/dev/null 2>&1 || true
-docker rmi df-demo:env df-demo:entry df-demo:copy df-demo:add alpine:3.20 >/dev/null 2>&1 || true
+docker rmi df-demo:env df-demo:entry df-demo:copydir df-demo:copy df-demo:add alpine:3.20 >/dev/null 2>&1 || true
 docker ps -a --format '{{.Names}}' | rg '^(df-env-demo|df-entry-demo|df-copy-demo|df-add-demo)$' || echo no-experiment-container
-docker images --format '{{.Repository}}:{{.Tag}}' | rg '^(df-demo:(env|entry|copy|add)|alpine:3.20)$' || echo no-experiment-image
+docker images --format '{{.Repository}}:{{.Tag}}' | rg '^(df-demo:(env|entry|copydir|copy|add)|alpine:3.20)$' || echo no-experiment-image
 ```
 
 原始输出：
@@ -157,6 +163,16 @@ echo "PWD=$(pwd)"
 docker build --progress=plain -t df-demo:env -f Dockerfile.env .
 ```
 
+其中：
+
+- `--progress=plain`
+  表示用普通文本方式输出构建过程，方便在终端里逐步查看，也方便课堂记录原始输出。
+
+它不是必须参数。
+
+- 不写也能正常构建
+- 这里只是为了让输出更直观
+
 原始输出节选：
 
 ```text
@@ -181,13 +197,17 @@ docker build --progress=plain -t df-demo:env -f Dockerfile.env .
 ### 第四步：用 `docker image inspect` 看镜像配置
 
 ```bash
-docker image inspect df-demo:env --format 'Labels={{json .Config.Labels}} Env={{json .Config.Env}} ExposedPorts={{json .Config.ExposedPorts}} Cmd={{json .Config.Cmd}} WorkingDir={{.Config.WorkingDir}}'
+docker image inspect df-demo:env --format $'Labels={{json .Config.Labels}}\nEnv={{json .Config.Env}}\nExposedPorts={{json .Config.ExposedPorts}}\nCmd={{json .Config.Cmd}}\nWorkingDir={{.Config.WorkingDir}}'
 ```
 
 原始输出：
 
 ```text
-Labels={"course":"docker2026","maintainer":"collinsctk"} Env=["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","APP_NAME=dockerfile-demo","APP_ENV=prod","APP_PORT=8080"] ExposedPorts={"8080/tcp":{}} Cmd=["/app/hello.sh"] WorkingDir=/app
+Labels={"course":"docker2026","maintainer":"collinsctk"}
+Env=["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","APP_NAME=dockerfile-demo","APP_ENV=prod","APP_PORT=8080"]
+ExposedPorts={"8080/tcp":{}}
+Cmd=["/app/hello.sh"]
+WorkingDir=/app
 ```
 
 关键看点：
@@ -266,32 +286,6 @@ PWD=/app
 - `docker run -e` 可以在启动容器时覆盖它
 - 镜像里的默认值和运行时传入的值，要区分开来看
 
-### 第七步：再用 `docker history` 看一次分层
-
-```bash
-docker history --no-trunc df-demo:env
-```
-
-原始输出节选：
-
-```text
-IMAGE                                                                     CREATED          CREATED BY                                                SIZE
-sha256:4b81bcf12c1b8256ead210bcd2ffab64a2f2e976aa8118ae9f91344deb02819a   17 seconds ago   CMD ["/app/hello.sh"]                                     0B
-<missing>                                                                 17 seconds ago   EXPOSE [8080/tcp]                                         0B
-<missing>                                                                 17 seconds ago   ENV APP_NAME=dockerfile-demo APP_ENV=prod APP_PORT=8080   0B
-<missing>                                                                 17 seconds ago   RUN /bin/sh -c chmod +x /app/hello.sh # buildkit          12.3kB
-<missing>                                                                 18 seconds ago   COPY hello.sh /app/hello.sh # buildkit                    12.3kB
-<missing>                                                                 18 seconds ago   WORKDIR /app                                              8.19kB
-<missing>                                                                 18 seconds ago   LABEL maintainer=collinsctk course=docker2026             0B
-<missing>                                                                 6 weeks ago      ADD alpine-minirootfs-3.20.9-x86_64.tar.gz / # buildkit   8.47MB
-```
-
-关键看点：
-
-- `docker history` 能直接把 Dockerfile 指令和镜像层对应起来
-- `COPY`、`RUN` 这些通常会形成有体积变化的层
-- `ENV`、`EXPOSE`、`CMD` 更多是在写镜像配置，体积常常显示为 `0B`
-
 ## 2. 单独讲透 `CMD` 和 `ENTRYPOINT`
 
 这一段是 Dockerfile 里最容易绕的部分。
@@ -319,6 +313,30 @@ CMD ["default-user"]
 echo "ENTRYPOINT received: $*"
 ```
 
+这个脚本本身没有复杂逻辑，它只是把自己收到的参数打印出来。
+
+这样做的目的很直接：
+
+- 看容器启动时，最后到底收到了什么参数
+- 用最简单的方式观察 `ENTRYPOINT` 和 `CMD` 是怎么组合在一起的
+
+这里的 `$*` 可以直接理解成：
+
+- 把这个脚本收到的所有参数一起打印出来
+
+例如：
+
+- 如果实际执行的是 `/app/entrypoint.sh default-user`
+  那么 `$*` 打印出来的就是 `default-user`
+- 如果实际执行的是 `/app/entrypoint.sh alice`
+  那么 `$*` 打印出来的就是 `alice`
+
+所以这段脚本的作用，本质上就是把：
+
+- `ENTRYPOINT` 后面到底跟了什么参数
+
+直接打印给你看。
+
 这个实验的目标只有一个：
 
 - 看清 `ENTRYPOINT` 和 `CMD` 到底是“谁是主命令，谁是默认参数”
@@ -344,19 +362,27 @@ docker build --progress=plain -t df-demo:entry -f Dockerfile.entrypoint .
 再查看镜像配置：
 
 ```bash
-docker image inspect df-demo:entry --format 'Entrypoint={{json .Config.Entrypoint}} Cmd={{json .Config.Cmd}} WorkingDir={{.Config.WorkingDir}}'
+docker image inspect df-demo:entry --format $'Entrypoint={{json .Config.Entrypoint}}\nCmd={{json .Config.Cmd}}\nWorkingDir={{.Config.WorkingDir}}'
 ```
 
 原始输出：
 
 ```text
-Entrypoint=["/app/entrypoint.sh"] Cmd=["default-user"] WorkingDir=/app
+Entrypoint=["/app/entrypoint.sh"]
+Cmd=["default-user"]
+WorkingDir=/app
 ```
 
 关键看点：
 
-- `Entrypoint=["/app/entrypoint.sh"]` 说明主程序已经固定
-- `Cmd=["default-user"]` 说明这里只是默认参数
+- `Entrypoint=["/app/entrypoint.sh"]` 表示容器启动时默认执行这个程序
+- `Cmd=["default-user"]` 表示默认给这个程序传入一个参数 `default-user`
+
+把它们拼在一起看，效果接近：
+
+```bash
+/app/entrypoint.sh default-user
+```
 
 ### 第九步：第一次运行，不额外传参
 
@@ -435,9 +461,59 @@ tar -tzf site.tar.gz
 ./index.html
 ```
 
-### 第十二步：先用 `COPY`
+### 第十二步：先看 `COPY` 目录
 
-Dockerfile：
+文件 `Dockerfile.copydir`：
+
+```dockerfile
+FROM alpine:3.20
+
+WORKDIR /data
+
+COPY site /data/site
+
+CMD ["sh", "-c", "find /data -maxdepth 3 -type f | sort"]
+```
+
+构建镜像：
+
+```bash
+docker build --progress=plain -t df-demo:copydir -f Dockerfile.copydir .
+```
+
+原始输出节选：
+
+```text
+#1 [internal] load build definition from Dockerfile.copydir
+#4 [internal] load build context
+#5 [1/3] FROM docker.io/library/alpine:3.20@sha256:a4f4213abb84c497377b8544c81b3564f313746700372ec4fe84653e4fb03805
+#6 [2/3] WORKDIR /data
+#7 [3/3] COPY site /data/site
+#8 exporting to image
+#8 naming to docker.io/library/df-demo:copydir done
+```
+
+运行镜像：
+
+```bash
+docker run --rm df-demo:copydir
+```
+
+原始输出：
+
+```text
+/data/site/index.html
+```
+
+关键看点：
+
+- `COPY` 不只能复制单个文件，也可以直接复制整个目录
+- `site` 目录在镜像里会变成 `/data/site`
+- 这类写法很常见，例如把源码目录、静态文件目录、配置目录整体复制进镜像
+
+### 第十三步：再看 `COPY` 普通复制压缩包
+
+文件 `Dockerfile.copy`：
 
 ```dockerfile
 FROM alpine:3.20
@@ -484,9 +560,9 @@ docker run --rm df-demo:copy
 - `COPY` 做的就是普通复制
 - 压缩包还是压缩包，没有自动展开
 
-### 第十三步：再用 `ADD`
+### 第十四步：再用 `ADD`
 
-Dockerfile：
+文件 `Dockerfile.add`：
 
 ```dockerfile
 FROM alpine:3.20
@@ -579,9 +655,9 @@ docker run --rm df-demo:add
 
 ```bash
 docker rm -f df-env-demo df-entry-demo df-copy-demo df-add-demo >/dev/null 2>&1 || true
-docker rmi df-demo:env df-demo:entry df-demo:copy df-demo:add alpine:3.20 >/dev/null 2>&1 || true
+docker rmi df-demo:env df-demo:entry df-demo:copydir df-demo:copy df-demo:add alpine:3.20 >/dev/null 2>&1 || true
 docker ps -a --format '{{.Names}}' | rg '^(df-env-demo|df-entry-demo|df-copy-demo|df-add-demo)$' || echo no-experiment-container
-docker images --format '{{.Repository}}:{{.Tag}}' | rg '^(df-demo:(env|entry|copy|add)|alpine:3.20)$' || echo no-experiment-image
+docker images --format '{{.Repository}}:{{.Tag}}' | rg '^(df-demo:(env|entry|copydir|copy|add)|alpine:3.20)$' || echo no-experiment-image
 ```
 
 原始输出：
@@ -600,6 +676,6 @@ no-experiment-image
 
 - 能说清楚 `FROM`、`RUN`、`WORKDIR`、`COPY`、`ENV`、`CMD` 的基本作用
 - 知道 `EXPOSE` 只是声明端口，不等于真正发布端口
-- 知道 `MAINTAINER` 已经过时，今天更推荐 `LABEL`
+- 知道可以用 `LABEL` 给镜像补充维护信息
 - 能说明 `ENTRYPOINT` 和 `CMD` 的关系
 - 能说明为什么日常应优先使用 `COPY`，而不是默认用 `ADD`

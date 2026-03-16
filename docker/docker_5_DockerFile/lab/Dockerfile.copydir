@@ -1,0 +1,7 @@
+FROM alpine:3.20
+
+WORKDIR /data
+
+COPY site /data/site
+
+CMD ["sh", "-c", "find /data -maxdepth 3 -type f | sort"]
