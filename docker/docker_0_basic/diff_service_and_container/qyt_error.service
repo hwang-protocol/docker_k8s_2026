@@ -1,0 +1,12 @@
+# [root@docker_1 system]# pwd
+# /etc/systemd/system
+[Unit]
+Description=qyt error service
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/bin/bash -c 'cd /docker_compose_swarm/docker_0_basic/diff_service_and_container; python3 app.py'
+
+[Install]
+WantedBy=multi-user.target
