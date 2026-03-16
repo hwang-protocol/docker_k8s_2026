@@ -63,11 +63,6 @@ flowchart LR
 - 给镜像打标签并推送到镜像仓库
 - 把镜像导出为文件，再导入到另一台机器
 
-本文中穿插的“实机示例”来自本机真实执行，时间为 `2026-03-16`。
-为了避免和正文中的基础示例名称冲突，实操时统一使用容器名 `mynginx-live`，宿主机端口使用 `28080`。
-这样你在阅读时可以同时看到“标准写法”和“真实输出”。
-整篇文章就按这条主线任务往下展开，不再在后面单独重复一遍命令清单。
-
 ## 1. `docker search`
 
 作用：搜索镜像仓库。
@@ -202,24 +197,25 @@ nginx:alpine
 
 ```bash
 docker pull nginx:1.29.6
-docker pull nginx:alpine
 ```
 
 高频点：
 
-- `nginx`：镜像名
 - `nginx:1.29.6`：镜像名加标签，`1.29.6` 是标签
+- `nginx`：镜像名
+
+如果你想拉更轻量的 Alpine 变体，应当单独写成：
+
+```bash
+docker pull nginx:alpine
+```
+
+这里的 `alpine` 也是 tag，它表示这是一种不同构建类型的镜像。
 
 这里要补一个很重要的习惯：
 
 - 最好显式指定具体版本
 - 不要把 `latest` 当成默认好习惯
-
-例如：
-
-```bash
-docker pull nginx:1.29.6
-```
 
 原因是：
 
@@ -269,7 +265,7 @@ docker pull --platform linux/amd64 nginx:1.29.6
 - 需要测试某个特定架构
 - 当前镜像默认平台和你的目标平台不一致
 
-例如，假设你现在用的是 Mac，但后面部署目标是一台常见的 Linux x86 服务器，那么你可能会希望提前拉取：
+例如，假设你现在用的是 Mac，但后面部署目标是一台常见的 Linux x86 服务器，那么你可能会希望这样拉取：
 
 ```bash
 docker pull --platform linux/amd64 nginx:1.29.6
@@ -282,15 +278,7 @@ docker pull --platform linux/amd64 nginx:1.29.6
 
 课堂里最需要记住的是：`pull` 就是把远程镜像拉到本地。
 
-实机示例：
-
-执行命令：
-
-```bash
-docker pull nginx:1.29.6
-```
-
-原始输出节选：
+示例输出节选：
 
 ```text
 1.29.6: Pulling from library/nginx
@@ -310,8 +298,9 @@ docker.io/library/nginx:1.29.6
 
 ```bash
 docker images
-docker images nginx
 ```
+
+这条命令查看本机所有镜像。
 
 示例输出里通常会看到：
 
@@ -355,6 +344,7 @@ nginx        alpine   f46cb72c7df0   81.2MB
 - `TAG` 表示该镜像当前在本机已有的标签，例如 `1.29.6`、`alpine`
 - 同一个仓库名下可以同时存在多个 tag
 - 如果两个 tag 对应的 `IMAGE ID` 相同，说明它们本质上指向同一个镜像内容
+- 某些环境里还可能额外出现一行 `WARNING`，那只是输出格式提示，不影响看表格内容
 
 这里要特别区分：
 
@@ -363,45 +353,22 @@ nginx        alpine   f46cb72c7df0   81.2MB
 
 这一步通常接在 `docker pull` 后面，用来确认镜像已经拉到本地。
 
-实机示例：
-
-执行命令：
-
-```bash
-docker images nginx
-```
-
-原始输出：
-
-```text
-IMAGE          ID             DISK USAGE   CONTENT SIZE   EXTRA
-nginx:1.29.6   bc45d248c4e1        240MB         65.8MB
-nginx:alpine   f46cb72c7df0       93.5MB         26.9MB
-```
-
-关键看点：
-
-- `IMAGE` 一列里同时包含仓库名和标签
-- `ID` 是镜像 ID，后续 `rmi` 时也可以直接使用
-- 这里说明当前本机已经存在 `nginx:1.29.6` 和 `nginx:alpine` 两个标签
-- 某些环境里还可能额外出现一行 `WARNING`，那只是输出格式提示，不影响看表格内容
-
 ## 4. `docker run`
 
 作用：基于镜像创建并启动容器。这是最核心的命令。
 
 ```bash
-docker run -d --name mynginx-demo -p 18080:80 nginx:1.29.6
+docker run -d --name nginx-lab-demo -p 38080:80 nginx:1.29.6
 ```
 
 这条命令的含义是：
 
 - `-d`
   后台运行容器
-- `--name mynginx-demo`
+- `--name nginx-lab-demo`
   给容器起一个名字，后续管理更方便
-- `-p 18080:80`
-  把宿主机 `18080` 端口映射到容器的 `80` 端口
+- `-p 38080:80`
+  把宿主机 `38080` 端口映射到容器的 `80` 端口
 - `nginx:1.29.6`
   使用 `nginx:1.29.6` 镜像启动容器
 
@@ -415,7 +382,7 @@ docker run -d --name mynginx-demo -p 18080:80 nginx:1.29.6
 例如：
 
 ```bash
-docker run -d -p 18080:80 nginx:1.29.6
+docker run -d -p 39080:80 nginx:1.29.6
 ```
 
 这时容器虽然能正常启动，但名字通常会像下面这样随机生成：
@@ -435,13 +402,13 @@ vibrant_goldberg
 执行后，在命令行环境里更适合这样验证服务是否可访问：
 
 ```bash
-curl http://127.0.0.1:18080
+curl http://127.0.0.1:38080
 ```
 
 如果你是在外部电脑上访问这台 Linux 服务器，例如在 Windows 浏览器里访问，那么应当打开这台服务器的 IP 或域名，例如：
 
 ```text
-http://服务器IP:18080
+http://服务器IP:38080
 ```
 
 `docker run` 的高频参数很多，最常用的是下面这些：
@@ -467,9 +434,8 @@ http://服务器IP:18080
 
 后台服务方式：
 
-```bash
-docker run -d --name mynginx-demo -p 18080:80 --restart unless-stopped nginx:1.29.6
-```
+- 上面这条 `docker run -d --name nginx-lab-demo -p 38080:80 nginx:1.29.6` 就是最典型的后台服务方式
+- 如果希望容器在 Docker 重启后自动拉起，可以在这条命令上补一个 `--restart unless-stopped`
 
 交互调试方式：
 
@@ -525,15 +491,25 @@ mynginx-2    nginx:1.29.6    Up 1 second    0.0.0.0:8081->80/tcp, [::]:8081->80/
 
 ```bash
 docker ps
+```
+
+这条命令只看正在运行的容器。
+
+关键看点：
+
+- 当你刚执行完 `docker run`，第一件事通常就是先看 `docker ps`
+- 如果容器没有出现在这里，往往说明它没有正常处于运行状态
+
+```bash
 docker ps -a
 ```
 
-高频点：
+这条命令看所有容器，包括已经退出的容器。
 
-- `docker ps`
-  只看正在运行的容器
-- `docker ps -a`
-  看所有容器，包括已经退出的容器
+关键看点：
+
+- 即使容器已经停止，`docker ps -a` 也能看到
+- 当你怀疑容器“创建过，但是现在不见了”时，优先看这条命令
 
 常用参数：
 
@@ -542,35 +518,28 @@ docker ps -a
 - `-q`
   只输出容器 ID
 
-`docker run` 之后，第一件事通常就是用 `docker ps` 看容器是否真的跑起来了。
+`docker run` 之后，第一件事通常就是先看 `docker ps`；如果没有看到目标容器，再补看 `docker ps -a`。
 
-实机示例：
-
-执行命令：
-
-```bash
-docker ps --filter name=mynginx-live
-```
-
-原始输出：
+例如下面是 `docker ps` 的输出节选：
 
 ```text
 CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS         PORTS                                       NAMES
-4ddd5bc8e442   nginx:1.29.6   "/docker-entrypoint.…"   8 seconds ago   Up 8 seconds   0.0.0.0:28080->80/tcp, [::]:28080->80/tcp   mynginx-live
+155b4c3c1a14   nginx:1.29.6   "/docker-entrypoint.…"   2 seconds ago   Up 1 second    0.0.0.0:38080->80/tcp, [::]:38080->80/tcp   nginx-lab-demo
 ```
 
-关键看点：
-
+- `docker ps` 会把当前所有正在运行的容器都列出来
+- 如果这台主机上还有其他运行中的容器，它们也会一起显示出来
 - `STATUS` 为 `Up`，说明容器正在运行
-- `PORTS` 显示了宿主机 `28080` 到容器 `80` 的映射
+- `PORTS` 能直接看到宿主机端口和容器端口的映射关系
 - `NAMES` 是后续 `logs`、`exec`、`inspect`、`rm` 最常用的定位方式
+- 如果你只想看某一个容器，也可以使用 `docker ps --filter name=nginx-lab-demo`
 
 ## 6. `docker logs`
 
 作用：查看容器日志。
 
 ```bash
-docker logs mynginx
+docker logs nginx-lab-demo
 ```
 
 常用参数：
@@ -585,26 +554,43 @@ docker logs mynginx
 例如：
 
 ```bash
-docker logs -f --tail 100 mynginx
+docker logs -f --tail 100 nginx-lab-demo
 ```
 
 如果容器启动失败，`logs` 往往是第一排查入口。
 
-实机示例：
+更适合课堂演示的方式是开两个终端：
 
-执行命令前，先访问一次服务，制造真实访问日志：
+终端 A：持续观察日志
 
 ```bash
-curl -I http://127.0.0.1:28080
-docker logs mynginx-live
+docker logs -f --tail 100 nginx-lab-demo
 ```
 
-`docker logs` 原始输出节选：
+终端 B：主动发起一次请求
+
+```bash
+curl -I http://127.0.0.1:38080
+```
+
+这时回到终端 A，通常会看到日志新增访问记录；如果多访问几次，就会连续新增多行。
+
+例如，`docker logs nginx-lab-demo` 可能看到下面这样的输出：
 
 ```text
-2026/03/16 06:49:03 [notice] 1#1: nginx/1.29.6
+/docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+/docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+10-listen-on-ipv6-by-default.sh: info: Enabled listen on IPv6 in /etc/nginx/conf.d/default.conf
+/docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+/docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
 /docker-entrypoint.sh: Configuration complete; ready for start up
-172.17.0.1 - - [16/Mar/2026:06:49:11 +0000] "HEAD / HTTP/1.1" 200 0 "-" "curl/8.5.0" "-"
+172.17.0.1 - - [16/Mar/2026:07:19:53 +0000] "HEAD / HTTP/1.1" 200 0 "-" "curl/8.5.0" "-"
+172.17.0.1 - - [16/Mar/2026:08:04:10 +0000] "HEAD / HTTP/1.1" 200 0 "-" "curl/8.5.0" "-"
+172.17.0.1 - - [16/Mar/2026:08:04:15 +0000] "HEAD / HTTP/1.1" 200 0 "-" "curl/8.5.0" "-"
+2026/03/16 07:19:52 [notice] 1#1: nginx/1.29.6
 ```
 
 关键看点：
@@ -612,6 +598,7 @@ docker logs mynginx-live
 - `Configuration complete; ready for start up` 说明启动初始化已完成
 - `HEAD / HTTP/1.1 200` 表示请求已经真正到达服务并成功返回
 - 可以从日志里直接看见 `nginx/1.29.6` 这样的版本信息
+- `docker logs -f` 的价值就在于：当第二个终端发起请求后，你能立刻看到新增日志
 
 ## 7. `docker exec`
 
@@ -620,25 +607,19 @@ docker logs mynginx-live
 进入容器最常见的写法：
 
 ```bash
-docker exec -it mynginx /bin/sh
+docker exec -it nginx-lab-demo /bin/sh
 ```
 
-有些镜像带 `bash`，有些没有，所以更稳妥的写法通常是：
+有些镜像带 `bash`，有些没有，所以更稳妥的默认习惯是优先尝试 `/bin/sh`。如果镜像里有 `bash`，也可以这样：
 
 ```bash
-docker exec -it mynginx /bin/sh
-```
-
-如果镜像里有 `bash`，也可以这样：
-
-```bash
-docker exec -it mynginx bash
+docker exec -it nginx-lab-demo bash
 ```
 
 除了进入容器，也可以直接执行单条命令：
 
 ```bash
-docker exec mynginx ls /usr/share/nginx/html
+docker exec nginx-lab-demo ls /usr/share/nginx/html
 ```
 
 常用参数：
@@ -650,15 +631,7 @@ docker exec mynginx ls /usr/share/nginx/html
 
 在实际使用中，最常见的组合就是 `-it`。
 
-实机示例：
-
-执行命令：
-
-```bash
-docker exec mynginx-live ls /usr/share/nginx/html
-```
-
-原始输出：
+例如执行 `docker exec nginx-lab-demo ls /usr/share/nginx/html`，可能会看到：
 
 ```text
 50x.html
@@ -675,8 +648,15 @@ index.html
 作用：查看容器或镜像的详细信息。
 
 ```bash
-docker inspect mynginx
-docker inspect nginx
+docker inspect nginx-lab-demo
+```
+
+这条命令查看容器的完整详细信息。
+
+如果你要查看镜像本身的详细信息，可以单独执行：
+
+```bash
+docker inspect nginx:1.29.6
 ```
 
 `inspect` 的输出通常是大段 JSON，里面能看到很多关键内容，比如：
@@ -693,13 +673,19 @@ docker inspect nginx
 例如查看容器 IP：
 
 ```bash
-docker inspect -f '{{.NetworkSettings.IPAddress}}' mynginx
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' nginx-lab-demo
 ```
+
+这里说明一下：
+
+- 早期资料里经常能看到 `{{.NetworkSettings.IPAddress}}`
+- 但在当前很多 Docker 环境里，这样写已经可能报错
+- 更稳妥的写法是遍历 `NetworkSettings.Networks` 再取 `IPAddress`
 
 例如查看容器状态：
 
 ```bash
-docker inspect -f '{{.State.Status}}' mynginx
+docker inspect -f '{{.State.Status}}' nginx-lab-demo
 ```
 
 常用参数：
@@ -709,32 +695,30 @@ docker inspect -f '{{.State.Status}}' mynginx
 
 如果你发现容器“明明启动了，但是访问不到”，`inspect` 往往能帮你定位端口、网络、挂载是不是配错了。
 
-实机示例：
-
-执行命令：
+例如执行下面这条格式化命令：
 
 ```bash
-docker inspect -f 'status={{.State.Status}} ip={{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}} ports={{json .NetworkSettings.Ports}}' mynginx-live
+docker inspect -f 'status={{.State.Status}} ip={{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}} ports={{json .NetworkSettings.Ports}}' nginx-lab-demo
 ```
 
-格式化输出结果：
+可能会看到：
 
 ```text
-status=running ip=172.17.0.2 ports={"80/tcp":[{"HostIp":"0.0.0.0","HostPort":"28080"},{"HostIp":"::","HostPort":"28080"}]}
+status=running ip=172.17.0.4 ports={"80/tcp":[{"HostIp":"0.0.0.0","HostPort":"38080"},{"HostIp":"::","HostPort":"38080"}]}
 ```
 
 关键看点：
 
 - `status=running` 能直接确认容器正在运行
-- `ip=172.17.0.2` 是容器在桥接网络中的内部 IP
-- `ports=...28080...` 说明端口映射已经生效
+- `ip=172.17.0.4` 是容器在桥接网络中的内部 IP
+- `ports=...38080...` 说明端口映射已经生效
 
 ## 9. `docker stop`
 
 作用：停止运行中的容器。
 
 ```bash
-docker stop mynginx
+docker stop nginx-lab-demo
 ```
 
 常用参数：
@@ -743,7 +727,7 @@ docker stop mynginx
   指定优雅停止等待时间，单位秒
 
 ```bash
-docker stop -t 30 mynginx
+docker stop -t 30 nginx-lab-demo
 ```
 
 默认情况下，Docker 会先给容器发送停止信号，等待一段时间后再强制结束。
@@ -753,7 +737,7 @@ docker stop -t 30 mynginx
 作用：启动已经存在但处于停止状态的容器。
 
 ```bash
-docker start mynginx
+docker start nginx-lab-demo
 ```
 
 这条命令适合已经创建过的容器，不需要重新 `run`。
@@ -768,7 +752,7 @@ docker start mynginx
 作用：重启容器。
 
 ```bash
-docker restart mynginx
+docker restart nginx-lab-demo
 ```
 
 这个命令本质上可以理解为：
@@ -779,51 +763,37 @@ stop + start
 
 当你修改了某些配置，或者容器状态异常时，`restart` 很常用。
 
-实机示例：
-
-执行命令：
-
-```bash
-docker stop mynginx-live
-docker start mynginx-live
-docker restart mynginx-live
-docker ps -a --filter name=mynginx-live
-```
-
-命令输出节选：
-
-```text
-mynginx-live
-mynginx-live
-mynginx-live
-CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS         PORTS                                       NAMES
-4ddd5bc8e442   nginx:1.29.6   "/docker-entrypoint.…"   43 seconds ago   Up 6 seconds   0.0.0.0:28080->80/tcp, [::]:28080->80/tcp   mynginx-live
-```
-
 关键看点：
 
 - `stop`、`start`、`restart` 成功时通常只回显容器名
-- 执行完生命周期命令后，最好再看一次 `docker ps -a`
+- 执行完这些生命周期命令后，最好再看一次 `docker ps -a --filter name=nginx-lab-demo`
 
 ## 12. `docker rm`
 
 作用：删除容器。
 
 ```bash
-docker rm mynginx
+docker rm nginx-lab-demo
 ```
 
-如果容器还在运行，通常需要先停止：
+这条命令适合删除已经停止的容器。
+
+> Note
+> `docker rm nginx-lab-demo` 适合删除已经停止的容器。
+> 如果你直接删除一个正在运行的容器，通常会看到类似报错：
+>
+> ```text
+> Error response from daemon: cannot remove container "nginx-lab-demo": container is running: stop the container before removing or force remove
+> ```
+>
+> 这句话的意思很直接：
+> 要么先执行 `docker stop nginx-lab-demo`，
+> 要么直接执行 `docker rm -f nginx-lab-demo`。
+
+如果容器还在运行，更常见的写法是：
 
 ```bash
-docker stop mynginx
-docker rm mynginx
-```
-
-也可以强制删除：
-
-```bash
-docker rm -f mynginx
+docker rm -f nginx-lab-demo
 ```
 
 常用参数：
@@ -835,24 +805,11 @@ docker rm -f mynginx
 
 这一步通常发生在“这个容器不用了，准备重新跑一个新的”时。
 
-实机示例：
-
-执行命令：
-
-```bash
-docker rm -f mynginx-live
-```
-
-原始输出：
-
-```text
-mynginx-live
-```
-
 关键看点：
 
-- 删除成功时通常回显被删除的容器名
-- `-f` 表示即使容器还在运行，也会先停止再删除
+- `docker rm` 适合删除已经停止的容器
+- `docker rm -f` 适合直接删除正在运行的容器
+- 删除成功时通常会回显被删除的容器名
 
 ## 13. `docker tag`
 
@@ -861,7 +818,7 @@ mynginx-live
 例如把本地镜像改成准备推送到仓库的名字：
 
 ```bash
-docker tag nginx:1.29.6 yourname/mynginx:v1
+docker tag nginx:1.29.6 collinsctk/docker2026_nginx:1.29.6
 ```
 
 如果是私有仓库，通常会带仓库地址：
@@ -878,34 +835,24 @@ docker tag nginx:1.29.6 registry.example.com/project/mynginx:v1
 
 如果目标镜像名不对，后面的 `push` 往往也会失败。
 
-实机示例：
-
-执行命令：
+例如：
 
 ```bash
-docker tag nginx:1.29.6 nginx:demo-v1
-docker images nginx
-```
-
-验证输出：
-
-```text
-IMAGE           ID             DISK USAGE   CONTENT SIZE   EXTRA
-nginx:1.29.6    bc45d248c4e1        240MB         65.8MB   U
-nginx:demo-v1   bc45d248c4e1        240MB         65.8MB   U
+docker tag nginx:1.29.6 collinsctk/docker2026_nginx:1.29.6
 ```
 
 关键看点：
 
-- `docker tag` 本身通常没有标准输出，所以要配合 `docker images` 验证
-- `nginx:demo-v1` 和 `nginx:1.29.6` 的 `ID` 相同，说明只是同一个镜像的两个标签
+- `docker tag` 本身通常没有标准输出
+- 如果要验证新标签是否已经出现，可以回到前面的 `docker images nginx` 用法再看一次
+- `collinsctk/docker2026_nginx:1.29.6` 和 `nginx:1.29.6` 的 `ID` 相同，说明只是同一个镜像的两个标签
 
 ## 14. `docker push`
 
 作用：把镜像推送到远程镜像仓库。
 
 ```bash
-docker push yourname/mynginx:v1
+docker push collinsctk/docker2026_nginx:1.29.6
 ```
 
 如果是私有仓库：
@@ -920,7 +867,7 @@ docker push registry.example.com/project/mynginx:v1
   推送该仓库名下的所有标签
 
 ```bash
-docker push -a yourname/mynginx
+docker push -a collinsctk/docker2026_nginx
 ```
 
 注意：
@@ -928,33 +875,72 @@ docker push -a yourname/mynginx
 - `push` 之前通常要先执行 `docker login`
 - 本地镜像名必须和目标仓库名匹配，所以常常要先 `docker tag`
 
+在执行 `push` 之前，先登录 Docker Hub：
+
+```bash
+docker login
+```
+
+如果当前 Docker 版本启用了网页登录流程，终端里可能会看到类似输出：
+
+```text
+USING WEB-BASED LOGIN
+
+i Info → To sign in with credentials on the command line, use 'docker login -u <username>'
+
+Your one-time device confirmation code is: SQZS-LSST
+Press ENTER to open your browser or submit your device code here: https://login.docker.com/activate
+
+Waiting for authentication in the browser…
+
+WARNING! Your credentials are stored unencrypted in '/root/.docker/config.json'.
+Configure a credential helper to remove this warning. See
+https://docs.docker.com/go/credential-store/
+
+Login Succeeded
+```
+
+这一步的实际操作是：
+
+- 在终端里执行 `docker login`
+- 按提示回车，或手动打开 `https://login.docker.com/activate`
+- 在网页里输入一次性验证码，例如 `SQZS-LSST`
+- 浏览器完成登录后，终端里会显示 `Login Succeeded`
+
+下面这张图就是浏览器里输入设备验证码时的大致界面：
+
+<img src="./images/login.png" alt="Docker Hub 设备验证码网页登录界面" width="420" style="display:block; margin:0;" />
+
 因此这一组命令通常连着记：
 
 ```bash
-docker tag nginx:1.29.6 yourname/mynginx:v1
-docker push yourname/mynginx:v1
+docker tag nginx:1.29.6 collinsctk/docker2026_nginx:1.29.6
+docker push collinsctk/docker2026_nginx:1.29.6
 ```
 
-实机示例：
-
-执行命令：
-
-```bash
-docker push nginx:1.29.6
-```
-
-原始输出节选：
+例如，实际执行成功后，终端里可能看到下面这样的输出：
 
 ```text
-The push refers to repository [docker.io/library/nginx]
-...
-failed commit on ref "manifest-sha256:a6bead2c897e9e39ca1a2dbd241f96dc181c8d32adcb6201258624fb37d2c7fe": server message: insufficient_scope: authorization failed
+The push refers to repository [docker.io/collinsctk/docker2026_nginx]
+a9d395129dce: Layer already exists
+206356c42440: Layer already exists
+75a1d70aee50: Layer already exists
+18a071c04bd1: Layer already exists
+79697674b897: Layer already exists
+df9da45c1db2: Layer already exists
+9eef040df109: Layer already exists
+1.29.6: digest: sha256:a6bead2c897e9e39ca1a2dbd241f96dc181c8d32adcb6201258624fb37d2c7fe size: 2290
+
+i Info → Not all multiplatform-content is present and only the available single-platform image was pushed
+         sha256:bc45d248c4e1d1709321de61566eb2b64d4f0e32765239d66573666be7f13349 -> sha256:a6bead2c897e9e39ca1a2dbd241f96dc181c8d32adcb6201258624fb37d2c7fe
 ```
 
 关键看点：
 
-- 这次推送失败是正常现象，因为 `library/nginx` 是官方仓库，本机账号没有写入权限
-- 最关键的是最后一行 `insufficient_scope: authorization failed`，它明确说明失败原因是权限不足
+- `The push refers to repository [docker.io/collinsctk/docker2026_nginx]` 说明这次推送的目标仓库已经是你自己的仓库
+- `Layer already exists` 说明远端仓库里已经有这些层，所以这次不需要重复上传
+- `1.29.6: digest: ...` 说明这个 tag 已经成功推送
+- 最后一段 `single-platform image was pushed` 说明这次推送的是当前可用的单平台镜像内容
 
 ## 15. `docker save / docker load`
 
@@ -963,13 +949,13 @@ failed commit on ref "manifest-sha256:a6bead2c897e9e39ca1a2dbd241f96dc181c8d32ad
 导出镜像：
 
 ```bash
-docker save -o mynginx_v1.tar yourname/mynginx:v1
+docker save -o collinsctk_docker2026_nginx_1.29.6.tar collinsctk/docker2026_nginx:1.29.6
 ```
 
 导入镜像：
 
 ```bash
-docker load -i mynginx_v1.tar
+docker load -i collinsctk_docker2026_nginx_1.29.6.tar
 ```
 
 常用参数：
@@ -992,44 +978,28 @@ docker load -i mynginx_v1.tar
 
 如果你的目标是“备份或迁移镜像”，应该优先记住的是 `save/load`。
 
-实机示例：
-
-导出镜像：
-
-```bash
-docker save -o /tmp/nginx-demo-v1.tar nginx:demo-v1
-ls -lh /tmp/nginx-demo-v1.tar
-```
-
-验证输出：
+例如导出后再用 `ls -lh` 查看文件，可能看到：
 
 ```text
--rw------- 1 root root 63M Mar 16 14:50 /tmp/nginx-demo-v1.tar
+-rw------- 1 root root 63M Mar 16 15:20 collinsctk_docker2026_nginx_1.29.6.tar
 ```
 
-导入镜像：
-
-```bash
-docker load -i /tmp/nginx-demo-v1.tar
-```
-
-原始输出：
+导入时常见输出如下：
 
 ```text
-Loaded image: nginx:demo-v1
+Loaded image: collinsctk/docker2026_nginx:1.29.6
 ```
 
 关键看点：
 
 - `docker save` 成功时通常没有标准输出，所以要配合 `ls -lh` 看文件是否真的生成
-- `Loaded image: nginx:demo-v1` 说明 tar 包中的镜像标签已经重新注册到本地
+- `Loaded image: collinsctk/docker2026_nginx:1.29.6` 说明 tar 包中的镜像标签已经重新注册到本地
 
 ## 16. `docker rmi`
 
 作用：删除镜像。
 
 ```bash
-docker rmi yourname/mynginx:v1
 docker rmi nginx:1.29.6
 ```
 
@@ -1050,26 +1020,13 @@ docker rmi -f nginx:1.29.6
 所以常见顺序是：
 
 ```bash
-docker rm -f mynginx
+docker rm -f nginx-lab-demo
 docker rmi nginx:1.29.6
-```
-
-实机示例：
-
-执行命令：
-
-```bash
-docker rmi nginx:demo-v1
-```
-
-原始输出：
-
-```text
-Untagged: nginx:demo-v1
 ```
 
 关键看点：
 
+- 删除镜像时，常见输出会出现 `Untagged`
 - `Untagged` 表示删除的是标签引用
 - 只要还有其他标签或容器引用同一个镜像，底层镜像层不一定会立刻被物理删除
 
