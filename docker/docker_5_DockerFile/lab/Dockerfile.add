@@ -1,0 +1,7 @@
+FROM alpine:3.20
+
+WORKDIR /data
+
+ADD site.tar.gz /data/
+
+CMD ["sh", "-c", "find /data -maxdepth 2 -type f | sort"]
