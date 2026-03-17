@@ -6,6 +6,14 @@
 
 ---
 
+## 集群拓扑
+
+下图展示集群的物理拓扑与网络：控制面 HAProxy/VRRP、三控制节点、四工作节点（应用/边缘/可观测）、运维/Gitea/Harbor/DNS 等基础设施与 MetalLB、Service/Pod CIDR 的关系。
+
+<img src="k8s/images/top.png" alt="集群拓扑" width="720" />
+
+---
+
 ## 一、 核心 Web 平台访问清单 (GUI)
 
 整个集群暴露了多个核心 Web 界面，全部通过 HTTPS 提供服务，并由 `Cilium Gateway API` 或 `Istio Ingress Gateway` 对外发布。
@@ -198,6 +206,8 @@ otel-opentelemetry-collector-787d57c785-g8br6   1/1     Running   0          9m3
 
 ## 三、 最终架构数据流回顾
 
+### 3.1 逻辑架构与数据流
+
 ```mermaid
 flowchart TD
     User((用户/管理员))
@@ -261,6 +271,35 @@ flowchart TD
     ArgoCD -. Deploy .-> Device
     ArgoCD -. Deploy .-> Resource
     ArgoCD -. Deploy .-> Audit
+```
+
+### 3.2 GitOps 交付链路
+
+从改代码/改配置到浏览器看到结果，整条链路如下。课堂演示时可重点观察步骤 8（Argo CD 发现 Git 变化）、9（同步到集群）、11（浏览器结果）。
+
+```mermaid
+flowchart TD
+  user[操作者]
+  local[本地应用目录<br/>源码 Helm Chart values]
+  script[发布脚本]
+  gitea[Gitea 发布仓<br/>保存源码 Chart values Application]
+  gitnode[git 节点构建环境]
+  harbor[Harbor 镜像仓库]
+  argocd[Argo CD]
+  cluster[Kubernetes 集群]
+  browser[浏览器访问]
+
+  user -->|1. 手工修改代码或 Chart values| local
+  user -->|2. 手工执行脚本| script
+  local -->|3. 脚本读取源码与部署配置| script
+  script -->|4. 提交源码或配置变更| gitea
+  script -->|5. 在 git 节点构建镜像| gitnode
+  gitnode -->|6. docker push 到 Harbor| harbor
+  script -->|7. 回写 values 中的镜像 tag 并再次提交| gitea
+  gitea -->|8. Webhook 或轮询发现 Git 变化| argocd
+  argocd -->|9. 同步目标状态到集群| cluster
+  harbor -->|10. 节点按镜像地址拉取镜像| cluster
+  cluster -->|11. 浏览器访问最终结果| browser
 ```
 
 ## 四、 结语
