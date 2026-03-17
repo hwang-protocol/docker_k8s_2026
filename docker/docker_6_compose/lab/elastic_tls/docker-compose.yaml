@@ -1,0 +1,160 @@
+services:
+  cert-init:
+    image: alpine:3.22
+    entrypoint: ["/bin/sh", "/init/generate-certs.sh"]
+    restart: "no"
+    volumes:
+      - ../../certs:/ca:ro
+      - ./certs/generated:/output
+      - ./init/generate-certs.sh:/init/generate-certs.sh:ro
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+    environment:
+      discovery.type: single-node
+      node.name: es01
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "true"
+      xpack.security.http.ssl.certificate: /usr/share/elasticsearch/config/certs/tls.crt
+      xpack.security.http.ssl.key: /usr/share/elasticsearch/config/certs/tls.key
+      xpack.security.http.ssl.certificate_authorities: /usr/share/elasticsearch/config/certs/ca.crt
+      xpack.security.transport.ssl.enabled: "true"
+      xpack.security.transport.ssl.verification_mode: certificate
+      xpack.security.transport.ssl.certificate: /usr/share/elasticsearch/config/certs/tls.crt
+      xpack.security.transport.ssl.key: /usr/share/elasticsearch/config/certs/tls.key
+      xpack.security.transport.ssl.certificate_authorities: /usr/share/elasticsearch/config/certs/ca.crt
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail --cacert /usr/share/elasticsearch/config/certs/ca.crt -u elastic:${ELASTIC_PASSWORD} https://127.0.0.1:9200/_cluster/health >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 40s
+    restart: unless-stopped
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+      - ./certs/generated/elasticsearch:/usr/share/elasticsearch/config/certs:ro
+    networks:
+      elastic:
+        aliases:
+          - es01.qytdocker2026.com
+
+  kibana-auth-init:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    user: root
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+      elasticsearch:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/init/configure-kibana-user.sh"]
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
+    restart: "no"
+    volumes:
+      - ./init/configure-kibana-user.sh:/init/configure-kibana-user.sh:ro
+      - ./certs/generated/ca:/certs:ro
+    networks:
+      - elastic
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+      elasticsearch:
+        condition: service_healthy
+      kibana-auth-init:
+        condition: service_completed_successfully
+    environment:
+      SERVER_NAME: kibana01.qytdocker2026.com
+      SERVER_HOST: 0.0.0.0
+      SERVER_SSL_ENABLED: "true"
+      SERVER_SSL_CERTIFICATE: /usr/share/kibana/config/certs/tls.crt
+      SERVER_SSL_KEY: /usr/share/kibana/config/certs/tls.key
+      SERVER_PUBLICBASEURL: https://kibana01.qytdocker2026.com
+      ELASTICSEARCH_HOSTS: '["https://es01.qytdocker2026.com:9200"]'
+      ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: /usr/share/kibana/config/certs/ca.crt
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "curl --silent --fail --cacert /usr/share/kibana/config/certs/ca.crt https://127.0.0.1:5601/api/status >/dev/null"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 40s
+    restart: unless-stopped
+    volumes:
+      - kibanadata:/usr/share/kibana/data
+      - ./certs/generated/kibana:/usr/share/kibana/config/certs:ro
+      - ./certs/generated/ca:/usr/share/kibana/config/ca:ro
+    networks:
+      elastic:
+        aliases:
+          - kibana01.qytdocker2026.com
+
+  nginx:
+    image: nginx:${NGINX_VERSION}
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+      kibana:
+        condition: service_healthy
+    ports:
+      - "443:443"
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/html:/usr/share/nginx/html:ro
+      - ./certs/generated/nginx:/etc/nginx/certs/nginx:ro
+      - ./certs/generated/kibana:/etc/nginx/certs/kibana:ro
+      - ./certs/generated/ca:/etc/nginx/certs/ca:ro
+      - nginxlogs:/var/log/nginx
+    networks:
+      edge:
+        aliases:
+          - www.qytdocker2026.com
+      elastic:
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:${STACK_VERSION}
+    user: root
+    depends_on:
+      cert-init:
+        condition: service_completed_successfully
+      elasticsearch:
+        condition: service_healthy
+      nginx:
+        condition: service_started
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+    restart: unless-stopped
+    volumes:
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./certs/generated/filebeat:/usr/share/filebeat/certs/filebeat:ro
+      - ./certs/generated/ca:/usr/share/filebeat/certs/ca:ro
+      - nginxlogs:/var/log/nginx:ro
+    networks:
+      elastic:
+      edge:
+        aliases:
+          - filebeat01.qytdocker2026.com
+
+volumes:
+  esdata:
+  kibanadata:
+  nginxlogs:
+
+networks:
+  edge:
+  elastic:

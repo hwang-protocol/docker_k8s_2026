@@ -1,0 +1,29 @@
+filebeat.inputs:
+  - type: filestream
+    id: nginx-access
+    enabled: true
+    paths:
+      - /var/log/nginx/access-compose.log
+      - /var/log/nginx/error-compose.log
+    fields:
+      service_name: nginx
+      compose_demo: elastic_tls
+    fields_under_root: true
+
+processors:
+  - add_host_metadata: ~
+  - add_fields:
+      target: ''
+      fields:
+        env: lab
+
+output.elasticsearch:
+  hosts: ["https://es01.qytdocker2026.com:9200"]
+  username: elastic
+  password: ${ELASTIC_PASSWORD}
+  ssl.certificate_authorities: ["/usr/share/filebeat/certs/ca/ca.crt"]
+
+setup.template.enabled: true
+setup.ilm.enabled: false
+
+logging.level: info

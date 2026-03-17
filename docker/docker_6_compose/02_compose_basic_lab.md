@@ -1,0 +1,554 @@
+# Docker Compose 基础实验
+
+## 本实验目标
+
+本实验使用 3 个服务搭建一个最小但完整的 Compose 项目：
+
+- `nginx`
+- `app`（Flask）
+- `redis`
+
+这个实验不追求业务复杂度，而是用于把 Docker Compose 最常见的 5 个知识点一次讲清楚：
+
+1. 卷
+2. 网络
+3. 用户权限
+4. 环境变量
+5. 自动启动
+
+## 1. 实验拓扑
+
+```mermaid
+flowchart LR
+  Browser[浏览器或 curl] -->|8080| Nginx[nginx]
+  Nginx -->|backend 网络| App[flask app]
+  App -->|backend 网络| Redis[redis]
+
+  subgraph frontend 网络
+    Nginx
+  end
+
+  subgraph backend 网络
+    Nginx
+    App
+    Redis
+  end
+
+  Redis --> RedisData[(redisdata 卷)]
+```
+
+从教学角度，这张图至少能说明 3 件事：
+
+- `nginx` 是入口服务，所以它既连接 `frontend`，也连接 `backend`
+- `app` 和 `redis` 不需要对宿主机开放端口
+- Redis 的数据应放在卷中持久化
+
+## 2. 实验目录
+
+```text
+lab/basic/
+├── .env
+├── docker-compose.yaml
+├── app/
+│   ├── Dockerfile
+│   ├── app.py
+│   └── requirements.txt
+└── nginx/
+    └── default.conf
+```
+
+## 3. Compose 文件
+
+本实验的核心文件如下：
+
+```yaml
+services:
+  nginx:
+    image: nginx:1.29.1
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT}:80"
+    restart: unless-stopped
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - frontend
+      - backend
+
+  app:
+    build:
+      context: ./app
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      APP_NAME: "${APP_NAME}"
+      APP_ENV: "${APP_ENV}"
+      APP_PORT: "${APP_PORT}"
+      CACHE_HOST: "${CACHE_HOST}"
+      CACHE_PORT: "${CACHE_PORT}"
+    expose:
+      - "${APP_PORT}"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:${APP_PORT}/healthz')\""]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    restart: unless-stopped
+    user: "10001:10001"
+    networks:
+      - backend
+
+  redis:
+    image: redis:8.2.3-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    networks:
+      - backend
+
+volumes:
+  redisdata:
+
+networks:
+  frontend:
+  backend:
+```
+
+文件位置：
+
+- [docker-compose.yaml](/docker_k8s_2026/docker/docker_6_compose/lab/basic/docker-compose.yaml)
+
+## 4. 先读 Compose，再读代码
+
+这一节按照教材思路，从 Compose 结构反过来理解整个项目。
+
+### 4.1 `nginx` 服务
+
+`nginx` 是外部入口，所以它具备 4 个典型特征：
+
+- 使用公开镜像 `nginx:1.29.1`
+- 通过 `ports` 把宿主机 `8080` 映射到容器 `80`
+- 通过 bind mount 挂载自定义配置文件
+- 同时连接 `frontend` 和 `backend`
+
+这里最值得讲清楚的是 `ports` 和 `networks` 的区别：
+
+- `ports` 决定宿主机如何访问容器
+- `networks` 决定容器之间如何互相访问
+
+### 4.2 `app` 服务
+
+`app` 不是直接使用镜像，而是用本地 Dockerfile 构建：
+
+```dockerfile
+FROM python:3.12-alpine
+
+WORKDIR /app
+
+RUN addgroup -S appgroup && adduser -S -G appgroup -u 10001 appuser
+
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+COPY app.py /app/app.py
+
+CMD ["python", "/app/app.py"]
+```
+
+文件位置：
+
+- [Dockerfile](/docker_k8s_2026/docker/docker_6_compose/lab/basic/app/Dockerfile)
+
+这里可以顺带讲两个 Compose 概念。
+
+第一，`build` 与 `image` 并不对立。  
+在同一个 Compose 文件里，某些服务可以用现成镜像，某些服务可以现场构建。
+
+第二，`user: "10001:10001"` 是一个非常实用的安全实践。  
+它说明容器里的应用不必默认以 root 身份运行。
+
+### 4.3 `redis` 服务
+
+Redis 负责保存计数器，并且通过具名卷进行持久化：
+
+```yaml
+volumes:
+  - redisdata:/data
+```
+
+这正是 Compose 中“卷”的最典型用法。  
+对学生来说，要建立这样一个认识：
+
+- 配置文件常常用 bind mount
+- 数据目录常常用具名卷
+
+## 5. 应用代码说明
+
+### 5.1 Flask 程序
+
+应用代码如下：
+
+```python
+import os
+
+import redis
+from flask import Flask, jsonify
+
+
+app = Flask(__name__)
+
+CACHE_HOST = os.getenv("CACHE_HOST", "redis")
+CACHE_PORT = int(os.getenv("CACHE_PORT", "6379"))
+APP_NAME = os.getenv("APP_NAME", "compose-basic-demo")
+APP_ENV = os.getenv("APP_ENV", "prod")
+APP_PORT = int(os.getenv("APP_PORT", "5000"))
+
+
+def get_cache():
+    return redis.Redis(host=CACHE_HOST, port=CACHE_PORT, decode_responses=True)
+
+
+@app.get("/")
+def index():
+    cache = get_cache()
+    hits = cache.incr("compose_basic_hits")
+    return jsonify(
+        {
+            "app_name": APP_NAME,
+            "app_env": APP_ENV,
+            "cache_host": CACHE_HOST,
+            "cache_port": CACHE_PORT,
+            "hits": hits,
+        }
+    )
+
+
+@app.get("/healthz")
+def healthz():
+    cache = get_cache()
+    cache.ping()
+    return jsonify({"status": "ok"})
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=APP_PORT)
+```
+
+文件位置：
+
+- [app.py](/docker_k8s_2026/docker/docker_6_compose/lab/basic/app/app.py)
+
+这里最重要的教学点不是 Flask，而是 Compose 环境变量。
+
+这段代码明显依赖：
+
+- `CACHE_HOST`
+- `CACHE_PORT`
+- `APP_NAME`
+- `APP_ENV`
+- `APP_PORT`
+
+这些变量并没有写死在代码里，而是由 Compose 注入。
+
+### 5.2 `.env` 文件
+
+```env
+WEB_PORT=8080
+APP_NAME=compose-basic-demo
+APP_ENV=prod
+APP_PORT=5000
+CACHE_HOST=redis
+CACHE_PORT=6379
+```
+
+文件位置：
+
+- [.env](/docker_k8s_2026/docker/docker_6_compose/lab/basic/.env)
+
+这里可以配合官方文档解释：`.env` 不是随便放的文本文件，而是 Compose 变量替换的重要组成部分。
+
+### 5.3 Nginx 反向代理配置
+
+```nginx
+server {
+    listen 80;
+    server_name _;
+
+    location / {
+        proxy_pass http://app:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+文件位置：
+
+- [default.conf](/docker_k8s_2026/docker/docker_6_compose/lab/basic/nginx/default.conf)
+
+这段配置体现了 Compose 自带服务发现的价值。  
+这里的 `proxy_pass http://app:5000;` 直接用了服务名 `app`，而不是手工查 IP。
+
+## 6. 这个实验要讲透的 5 个 Compose 知识点
+
+### 6.1 卷
+
+本实验中出现了两种挂载方式：
+
+- bind mount：`./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro`
+- named volume：`redisdata:/data`
+
+**关键看点**
+
+- 配置文件通常用 bind mount，更直观，方便编辑
+- 数据目录通常用具名卷，适合持久化
+- `:ro` 表示只读挂载，这是一种值得强调的习惯
+
+### 6.2 网络
+
+本实验定义了两个网络：
+
+- `frontend`
+- `backend`
+
+其中：
+
+- `nginx` 连接两个网络
+- `app` 和 `redis` 只连接 `backend`
+
+这种设计比“所有服务都扔进一个网络”更有教学价值，因为它清楚表达了网络边界。
+
+**关键看点**
+
+- `nginx` 作为入口层，要同时面向外部和内部
+- `redis` 不需要暴露端口，也不需要进入前端网络
+- Compose 网络本身就能承载服务发现
+
+### 6.3 用户权限
+
+`app` 服务用了：
+
+```yaml
+user: "10001:10001"
+```
+
+这说明容器中的业务进程可以用普通用户身份运行。  
+虽然 `Dockerfile` 里创建了 `appuser`，但运行时仍然通过 Compose 再次明确指定用户，这种写法更直观。
+
+**关键看点**
+
+- “容器里运行”不代表就必须是 root
+- Compose 可以把安全策略写进运行时配置
+
+### 6.4 环境变量
+
+Compose 通过 `environment` 把 `.env` 中的变量传给容器。
+
+这带来的好处有两个：
+
+- 应用代码不必写死参数
+- 实验环境修改端口或运行模式时不需要改代码
+
+### 6.5 自动启动
+
+三个服务都用了：
+
+```yaml
+restart: unless-stopped
+```
+
+这是教学里值得保留的一个设置，因为它很贴近真实项目。  
+当 Docker 服务重启后，只要没有人为停止，容器会自动拉起。
+
+## 7. 配置检查命令
+
+`docker compose config` 不是启动实验的必需步骤，但在教学和排错时很有价值。  
+它可以用来查看变量替换后的最终配置：
+
+```bash
+cd /docker_k8s_2026/docker/docker_6_compose/lab/basic
+docker compose config
+```
+
+这条命令的价值在于：
+
+- 检查 `.env` 是否被正确替换
+- 检查 YAML 语法是否正确
+- 检查最终端口、卷、网络定义是否符合预期
+
+如果只想直接启动实验，也可以直接执行下一节的 `docker compose up -d`。
+
+## 8. 启动实验
+
+```bash
+cd /docker_k8s_2026/docker/docker_6_compose/lab/basic
+docker compose up -d
+```
+
+## 9. 实验验证
+
+### 9.1 查看服务状态
+
+实际运行输出如下：
+
+```text
+NAME            IMAGE                COMMAND                  SERVICE   CREATED       STATUS                 PORTS
+basic-app-1     basic-app            "python /app/app.py"     app       2 hours ago   Up 2 hours (healthy)   5000/tcp
+basic-nginx-1   nginx:1.29.1         "/docker-entrypoint.…"   nginx     2 hours ago   Up 2 hours             0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
+basic-redis-1   redis:8.2.3-alpine   "docker-entrypoint.s…"   redis     2 hours ago   Up 2 hours (healthy)   6379/tcp
+```
+
+命令：
+
+```bash
+docker compose ps
+```
+
+**关键看点**
+
+- `app` 和 `redis` 都显示为 `healthy`
+- 只有 `nginx` 发布了宿主机端口
+- `app` 只暴露容器端口，没有对宿主机做 `ports` 映射
+
+### 9.2 访问业务接口
+
+命令：
+
+```bash
+curl -s http://127.0.0.1:8080/
+```
+
+实际输出：
+
+```json
+{"app_env":"prod","app_name":"compose-basic-demo","cache_host":"redis","cache_port":6379,"hits":2}
+```
+
+这个结果说明：
+
+- Nginx 反代正常
+- Flask 应用运行正常
+- 应用已经成功连接 Redis
+- `CACHE_HOST=redis` 的服务名解析是正常的
+
+### 9.3 查看日志
+
+命令：
+
+```bash
+docker compose logs --tail=20 app nginx redis
+```
+
+实际输出节选：
+
+```text
+nginx-1  | /docker-entrypoint.sh: Configuration complete; ready for start up
+nginx-1  | 2026/03/17 03:14:30 [notice] 1#1: nginx/1.29.1
+app-1    | 127.0.0.1 - - [17/Mar/2026 04:49:29] "GET / HTTP/1.0" 200 -
+redis-1  | 1:M 17 Mar 2026 03:14:13.169 * Ready to accept connections tcp
+nginx-1  | 172.18.0.1 - - [17/Mar/2026:04:49:29 +0000] "GET / HTTP/1.1" 200 99 "-" "curl/8.5.0" "-"
+```
+
+**关键看点**
+
+- `redis` 已经进入 `Ready to accept connections`
+- `app` 收到了来自 `nginx` 的请求
+- `nginx` 记录了来自宿主机 `curl` 的访问
+
+## 10. 这个实验体现了哪些 Compose 思路
+
+### 10.1 入口层与业务层分离
+
+即使是一个很小的实验，也不宜把 Web 服务和业务逻辑塞进同一个容器。  
+拆分成 `nginx + app` 后，反向代理与应用本身的职责更清晰。
+
+### 10.2 用健康检查配合依赖关系
+
+Compose 官方文档反复强调：  
+容器启动了，不代表服务已经就绪。
+
+本实验中：
+
+- `redis` 通过 `redis-cli ping` 判断健康
+- `app` 通过访问 `/healthz` 判断健康
+- `nginx` 等待 `app` 健康后再启动
+
+这就是一个很典型的 Compose 实战写法。
+
+### 10.3 把“运行方式”写进项目
+
+Compose 最大的教学价值之一，就是把一个项目的运行方式文档化、代码化。  
+当其他同学拿到项目目录后，只要执行：
+
+```bash
+docker compose up -d
+```
+
+就可以复现同样的实验环境。
+
+## 11. 常见错误与排错思路
+
+### 11.1 访问 `8080` 失败
+
+先检查：
+
+```bash
+docker compose ps
+docker compose logs nginx
+```
+
+重点看：
+
+- 端口是否发布成功
+- Nginx 配置是否挂载成功
+
+### 11.2 `app` 无法连接 Redis
+
+先检查：
+
+```bash
+docker compose logs app redis
+```
+
+重点看：
+
+- `CACHE_HOST` 是否还是 `redis`
+- `redis` 是否已经健康
+
+### 11.3 改了 `.env` 却没生效
+
+启动前先执行：
+
+```bash
+docker compose config
+```
+
+先看最终展开后的配置，再决定是否需要重建容器。
+
+## 12. 本实验小结
+
+这个基础实验虽然简单，但已经完整覆盖了 Compose 的核心日常能力：
+
+- `build` 和 `image`
+- `ports`
+- `volumes`
+- `networks`
+- `environment`
+- `depends_on`
+- `healthcheck`
+- `restart`
+- `user`
+
+如果能够真正看懂这个实验，再进入完整实验时，注意力就不会停留在 YAML 结构本身，而会转向“如何用 Compose 组织一个更真实的系统”。
