@@ -821,3 +821,14 @@ docker exec compose-elk-elasticsearch-1 sh -c \
 - TLS 如何融入多容器编排
 
 如果学生能够真正理解这个案例，那么他们学到的就不只是“会写几行 YAML”，而是开始具备了用 Compose 组织真实应用结构的能力。
+
+## 21. 清空环境
+
+本实验应以空环境开始、以空环境结束。验证完成后，在 ELK 项目目录停止并删除容器、网络与卷：
+
+```bash
+cd /docker_k8s_2026/docker/docker_6_compose/lab/elastic_tls
+docker compose down -v
+```
+
+如需保留卷数据，可去掉 `-v`，仅删除容器与网络。执行后可用 `docker ps`、`docker network ls` 确认无 `compose-elk-*` 相关资源，环境即已还原。

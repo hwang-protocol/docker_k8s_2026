@@ -196,9 +196,13 @@ volumes:
 
 ### 5.1 Flask 程序
 
-应用代码如下：
+应用代码如下（关键处已加注释，便于理解与 Compose 的配合）：
 
 ```python
+"""
+Compose 基础实验：Flask 应用。
+从环境变量读取 Redis 地址与运行配置，供 Compose 通过 environment 注入。
+"""
 import os
 
 import redis
@@ -207,7 +211,8 @@ from flask import Flask, jsonify
 
 app = Flask(__name__)
 
-CACHE_HOST = os.getenv("CACHE_HOST", "redis")
+# 从环境变量读取配置，未设置时使用默认值；Compose 会在容器内注入这些变量
+CACHE_HOST = os.getenv("CACHE_HOST", "redis")   # Redis 主机，Compose 中写服务名 redis 即可解析
 CACHE_PORT = int(os.getenv("CACHE_PORT", "6379"))
 APP_NAME = os.getenv("APP_NAME", "compose-basic-demo")
 APP_ENV = os.getenv("APP_ENV", "prod")
@@ -215,13 +220,15 @@ APP_PORT = int(os.getenv("APP_PORT", "5000"))
 
 
 def get_cache():
+    """返回 Redis 客户端；decode_responses=True 使 get/incr 得到 str 而非 bytes。"""
     return redis.Redis(host=CACHE_HOST, port=CACHE_PORT, decode_responses=True)
 
 
 @app.get("/")
 def index():
+    """首页：自增 Redis 中的计数，并返回当前配置与点击数（用于验证环境变量与连通性）。"""
     cache = get_cache()
-    hits = cache.incr("compose_basic_hits")
+    hits = cache.incr("compose_basic_hits")  # 键不存在时会先设为 0 再自增，得到 1
     return jsonify(
         {
             "app_name": APP_NAME,
@@ -235,20 +242,21 @@ def index():
 
 @app.get("/healthz")
 def healthz():
+    """健康检查：能连上 Redis 并 ping 通即返回 ok，供 Compose healthcheck 调用。"""
     cache = get_cache()
     cache.ping()
     return jsonify({"status": "ok"})
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=APP_PORT)
+    app.run(host="0.0.0.0", port=APP_PORT)  # 监听所有网卡，便于容器内被 Nginx 反代
 ```
 
 文件位置：
 
 - [app.py](/docker_k8s_2026/docker/docker_6_compose/lab/basic/app/app.py)
 
-这里最重要的教学点不是 Flask，而是 Compose 环境变量。
+**关键注释说明**：模块顶部的 docstring 说明“从环境变量读配置”；各 `os.getenv` 旁注明由 Compose 注入；`get_cache`、`index`、`healthz` 的 docstring 说明用途及与 Compose（健康检查、服务名解析）的关系。本实验的教学重点是 Compose 环境变量，不是 Flask 本身。
 
 这段代码明显依赖：
 
@@ -401,19 +409,19 @@ docker compose up -d
 
 ### 9.1 查看服务状态
 
-实际运行输出如下：
+执行：
+
+```bash
+docker compose ps
+```
+
+示例输出：
 
 ```text
 NAME            IMAGE                COMMAND                  SERVICE   CREATED       STATUS                 PORTS
 basic-app-1     basic-app            "python /app/app.py"     app       2 hours ago   Up 2 hours (healthy)   5000/tcp
 basic-nginx-1   nginx:1.29.1         "/docker-entrypoint.…"   nginx     2 hours ago   Up 2 hours             0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
 basic-redis-1   redis:8.2.3-alpine   "docker-entrypoint.s…"   redis     2 hours ago   Up 2 hours (healthy)   6379/tcp
-```
-
-命令：
-
-```bash
-docker compose ps
 ```
 
 **关键看点**
@@ -552,3 +560,20 @@ docker compose config
 - `user`
 
 如果能够真正看懂这个实验，再进入完整实验时，注意力就不会停留在 YAML 结构本身，而会转向“如何用 Compose 组织一个更真实的系统”。
+
+## 13. 清空环境
+
+本实验应以空环境开始、以空环境结束。验证完成后，在项目目录停止并删除容器与网络：
+
+```bash
+cd /docker_k8s_2026/docker/docker_6_compose/lab/basic
+docker compose down
+```
+
+如需同时删除本实验的命名卷（如 `basic_redisdata`），可加 `-v`：
+
+```bash
+docker compose down -v
+```
+
+执行后可用 `docker ps`、`docker network ls` 确认无 `basic-*` 容器和 `basic_*` 网络，环境即已还原。
