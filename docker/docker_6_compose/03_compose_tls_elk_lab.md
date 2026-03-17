@@ -99,14 +99,19 @@ lab/elastic_tls/
 - `kibana01.qytdocker2026.com`
 - `filebeat01.qytdocker2026.com`
 
+外部访问方式：
+
+- Windows 客户端通过 `hosts` 映射访问 `www.qytdocker2026.com` 与 `kibana01.qytdocker2026.com`
+
 容器内部访问方式：
 
-- 使用 Compose 网络别名 `aliases`，让内部服务也能用完整域名互相访问
+- 使用 Compose 网络别名 `aliases`
+- 让内部服务也能用完整域名互相访问
 
 **关键看点**
 
 - 外部域名解析和 Compose 内部服务发现不是一回事
-- 同一台机器上：外部可用 `hosts` 映射；内部由 Compose 内置 **DNS** 解析（通过 `aliases` 提供 FQDN，也可在容器内做 hosts）
+- 外部通过 `hosts` 映射域名到 Docker 主机 IP，内部由 Compose 内置 DNS 解析服务名与别名
 - 只要证书 SAN 中包含这些 FQDN，TLS 校验就能通过
 
 ## 4. Compose 文件整体结构
@@ -129,7 +134,7 @@ flowchart TD
   A --> F
 ```
 
-**简版说明**（图中箭头表示依赖与启动顺序）：
+图中箭头表示依赖与启动顺序，可按下面的顺序理解：
 
 - ① **cert-init**：先跑完证书生成
 - ② **elasticsearch**：再起 Elasticsearch
@@ -159,7 +164,7 @@ COMPOSE_PROJECT_NAME=compose-elk
 
 - [.env](/docker_k8s_2026/docker/docker_6_compose/lab/elastic_tls/.env)
 
-这里的教学重点不是密码本身，而是 Compose 变量替换能力：
+这里更值得注意的是 Compose 的变量替换能力：
 
 - 镜像版本统一在 `.env` 中定义
 - 密码参数统一在 `.env` 中定义
@@ -290,10 +295,8 @@ healthcheck:
 
 ## 8. `kibana-auth-init`：第二个一次性服务
 
-Kibana 连接 Elasticsearch 时，不能直接长期使用 `elastic` 超级用户。  
-为了让实验更顺利、结构更清楚，本案例引入了第二个一次性服务：
-
-- `kibana-auth-init`
+Kibana 连接 Elasticsearch 时，需要先准备好 `kibana_system` 账户密码。  
+因此本实验引入了第二个一次性服务 `kibana-auth-init`。
 
 它的职责非常明确：
 
@@ -340,9 +343,9 @@ ELASTICSEARCH_USERNAME: kibana_system
 ELASTICSEARCH_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
 ```
 
-这个片段非常适合用来讲 Compose 的两个概念：
+这个片段适合用来说明 Compose 中环境变量的两种常见用途：
 
-1. 环境变量不仅可以传简单参数（如字符串、数字），也能传复杂值（如列表、JSON，例如 `ELASTICSEARCH_HOSTS` 的 `["https://..."]`）
+1. 环境变量不仅可以传简单参数，也可以传列表或 JSON 形式的复杂值
 2. 只要内部 DNS 名称与证书 SAN 对齐，容器间 TLS 完全可以走 FQDN
 
 ## 10. `nginx`：HTTPS 入口与 Kibana 反向代理
@@ -469,26 +472,30 @@ output.elasticsearch:
 
 其中：
 
-- `nginx` 同时连接 `edge` 和 `elastic`（入口对外、反代与内部服务通信）
-- `filebeat` 只连接 `elastic`（通过 **nginxlogs 卷** 读 Nginx 日志，经 elastic 网络写 ES，无需接入 edge）
+- `nginx` 同时连接 `edge` 和 `elastic`
+- `filebeat` 只连接 `elastic`
 - `elasticsearch` 与 `kibana` 只连接 `elastic`
 
-服务与网络的对应关系如下：仅 `nginx` 用两根线分别接入两个网络。
-
 ```mermaid
-flowchart LR
+flowchart TD
   subgraph edge["edge 网络（入口侧）"]
-    Ingress[入口]
+    EdgeNet[edge]
   end
 
+  Nginx[nginx]
+
   subgraph elastic["elastic 网络（内部通信）"]
+    ElasticNet[elastic]
     ES[elasticsearch]
     Kibana[kibana]
     Filebeat[filebeat]
   end
 
-  Nginx[nginx] --- edge
-  Nginx --- elastic
+  EdgeNet --- Nginx
+  Nginx --- ElasticNet
+  ES --- ElasticNet
+  Kibana --- ElasticNet
+  Filebeat --- ElasticNet
 ```
 
 为什么这么设计？
@@ -496,12 +503,12 @@ flowchart LR
 ### 12.1 `edge` 网络
 
 表示面向入口流量的一侧。  
-仅 `nginx` 接入此网络，承担 HTTPS 入口；`filebeat` 通过卷共享获取 Nginx 日志，只需在 `elastic` 内连 ES，故不接入 edge。
+这里只有 `nginx` 接入，因为它承担对外 HTTPS 入口。
 
 ### 12.2 `elastic` 网络
 
 表示内部服务通信的一侧。  
-Elasticsearch、Kibana、Nginx、Filebeat 都在此网络中；Nginx 反代到 Kibana、Filebeat 上报到 ES 等内部调用均走此网。
+Elasticsearch、Kibana、Nginx、Filebeat 都在此网络中，反代和日志上报等内部调用都走这一侧。
 
 ### 12.3 `aliases`
 
@@ -637,31 +644,53 @@ cert-init-1         | all certificates generated under /output
 - Compose 中的一次性服务确实参与了整个应用启动流程
 - 证书与密码初始化都被“编排”进了项目，而不是靠手工命令完成
 
-### 16.3 验证 HTTPS 首页（Windows 浏览器访问）
+### 16.3 验证 HTTPS 首页
 
-在 **Windows 客户端** 做主机映射后，用浏览器访问静态站点即可验证。
+在 Windows 客户端完成 `hosts` 映射并信任根证书后，直接用浏览器访问：
 
-**主机映射**（在 Windows 客户端配置；将 `10.1.1.201` 替换为你的 Docker 主机 IP）：
+```text
+https://www.qytdocker2026.com/
+```
 
-`10.1.1.201  www.qytdocker2026.com`
+`hosts` 示例：
 
-在浏览器中访问 **https://www.qytdocker2026.com/**，并信任本实验的根证书后，可见 Nginx 提供的静态首页，例如：
+```text
+<Docker 主机 IP>  www.qytdocker2026.com
+```
+
+正常情况下，会看到 Nginx 提供的静态首页：
 
 ![HTTPS 首页 www.qytdocker2026.com](lab/elastic_tls/images/nginx_home.png)
 
-**说明**：Nginx 对外 HTTPS 正常、证书链校验通过、静态站点可访问。
+**关键看点**
 
-### 16.4 验证 Kibana HTTPS 反代（浏览器访问）
+- Nginx 对外 HTTPS 正常
+- 证书链校验通过
+- 静态站点已经可访问
 
-**访问地址**：**https://kibana01.qytdocker2026.com**
+### 16.4 验证 Kibana HTTPS 反代
 
-**主机映射**（在 Windows 客户端配置；将 `10.1.1.201` 替换为你的 Docker 主机 IP）：
+继续在 Windows 浏览器中访问：
 
-`10.1.1.201  kibana01.qytdocker2026.com`
+```text
+https://kibana01.qytdocker2026.com
+```
 
-**账户**：用户名为 `elastic`，密码与 `.env` 中的 `ELASTIC_PASSWORD` 一致（本实验示例为 `Cisc0123`）。信任本实验根证书后，在浏览器中打开上述地址即可见到 Kibana 登录页，说明 Nginx 已成功反代到 Kibana 且后端正常响应。
+`hosts` 示例：
+
+```text
+<Docker 主机 IP>  kibana01.qytdocker2026.com
+```
+
+正常情况下，会先看到 Kibana 登录页，这说明请求已经经过 Nginx 成功反代到 Kibana：
 
 ![Kibana 登录页](lab/elastic_tls/images/login.png)
+
+**关键看点**
+
+- 外部请求先到 Nginx
+- Nginx 已经成功反代到 Kibana
+- Kibana 登录页能够正常返回
 
 ### 16.5 验证 Nginx 日志已写入共享卷
 
@@ -735,7 +764,7 @@ docker exec compose-elk-filebeat-1 sh -c 'tail -n 5 /var/log/nginx/access-compos
 但在单机 Compose 场景里，更简洁的做法是：
 
 - 外部：`hosts` 映射
-- 内部：Compose 自带 **DNS**，通过 `network aliases` 把 FQDN 解析到对应服务（也可在容器内做 hosts）
+- 内部：Compose 自带 **DNS**，通过 `network aliases` 把 FQDN 解析到对应服务
 
 本实验采用上述方式，证书 SAN 与这些 FQDN 对齐即可通过 TLS 校验。
 
@@ -750,7 +779,7 @@ docker exec compose-elk-filebeat-1 sh -c 'tail -n 5 /var/log/nginx/access-compos
 
 ## 18. 本实验小结
 
-这个完整案例真正要让学生看到的，不是 Elastic Stack 的细节，而是 Compose 如何把一个较复杂的系统组织得清清楚楚：
+这个完整案例要说明的是，Compose 如何把一个较复杂的系统组织得清清楚楚：
 
 - 入口服务是谁
 - 初始化服务是谁
