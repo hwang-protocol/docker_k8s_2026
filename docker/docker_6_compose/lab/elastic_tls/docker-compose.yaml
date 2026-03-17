@@ -146,7 +146,6 @@ services:
       - nginxlogs:/var/log/nginx:ro
     networks:
       elastic:
-      edge:
         aliases:
           - filebeat01.qytdocker2026.com
 

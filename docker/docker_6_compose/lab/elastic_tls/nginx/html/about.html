@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>关于 - Compose TLS Demo</title>
+  <style>body{font-family:sans-serif;max-width:720px;margin:2em auto;padding:0 1em;} nav{margin:1em 0;padding:0.5em 0;border-bottom:1px solid #ccc;} nav a{margin-right:1em;} a{color:#06c;}</style>
+</head>
+<body>
+  <nav>
+    <a href="/">首页</a>
+    <a href="/about.html">关于</a>
+    <a href="/docs.html">文档</a>
+    <a href="/status.html">状态</a>
+    <a href="/contact.html">联系</a>
+  </nav>
+  <h1>关于本实验</h1>
+  <p>本静态站点用于配合 Docker Compose TLS/ELK 实验：Nginx 将访问日志写入本地文件，Filebeat 通过共享卷采集并上报至 Elasticsearch，在 Kibana 中即可分析请求路径、状态码、Referer、User-Agent 等。</p>
+  <p>多设计几个页面并加上超链接，可以在短时间内产生多样化的请求，便于在 Kibana 中做筛选、聚合与可视化。</p>
+  <p><a href="/">返回首页</a> · <a href="/docs.html">查看文档</a></p>
+</body>
+</html>

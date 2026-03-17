@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文档 - Compose TLS Demo</title>
+  <style>body{font-family:sans-serif;max-width:720px;margin:2em auto;padding:0 1em;} nav{margin:1em 0;padding:0.5em 0;border-bottom:1px solid #ccc;} nav a{margin-right:1em;} a{color:#06c;} pre{background:#f5f5f5;padding:1em;overflow:auto;}</style>
+</head>
+<body>
+  <nav>
+    <a href="/">首页</a>
+    <a href="/about.html">关于</a>
+    <a href="/docs.html">文档</a>
+    <a href="/status.html">状态</a>
+    <a href="/contact.html">联系</a>
+  </nav>
+  <h1>使用说明与架构</h1>
+  <h2>访问方式</h2>
+  <p>在客户端 hosts 中配置：</p>
+  <pre>&lt;Docker 主机 IP&gt;  www.qytdocker2026.com
+&lt;Docker 主机 IP&gt;  kibana01.qytdocker2026.com</pre>
+  <p>使用浏览器访问 <code>https://www.qytdocker2026.com</code>（需信任实验 CA 证书）。</p>
+  <h2>日志链路</h2>
+  <p>Nginx → access-compose.log → Filebeat（共享卷）→ Elasticsearch → Kibana。在 Kibana 中创建 Index Pattern 后，可按 URI、status、referer 等字段做 Discover 与 Dashboard。</p>
+  <p><a href="/status.html">查看状态页</a> · <a href="/contact.html">反馈与联系</a></p>
+</body>
+</html>

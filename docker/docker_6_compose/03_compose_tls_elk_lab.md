@@ -46,7 +46,6 @@ flowchart LR
 
   subgraph edge 网络
     Nginx
-    Filebeat
   end
 
   subgraph elastic 网络
@@ -100,20 +99,14 @@ lab/elastic_tls/
 - `kibana01.qytdocker2026.com`
 - `filebeat01.qytdocker2026.com`
 
-外部访问方式：
-
-- 由 Windows 客户端自行做 `hosts` 映射
-- 本章只提醒如何映射，不把重点放在 Windows 操作本身
-
 容器内部访问方式：
 
-- 使用 Compose 网络别名 `aliases`
-- 让内部服务也能用完整域名互相访问
+- 使用 Compose 网络别名 `aliases`，让内部服务也能用完整域名互相访问
 
 **关键看点**
 
 - 外部域名解析和 Compose 内部服务发现不是一回事
-- 同一台机器上，外部可用 `hosts`，内部可用 `network aliases`
+- 同一台机器上：外部可用 `hosts` 映射；内部由 Compose 内置 **DNS** 解析（通过 `aliases` 提供 FQDN，也可在容器内做 hosts）
 - 只要证书 SAN 中包含这些 FQDN，TLS 校验就能通过
 
 ## 4. Compose 文件整体结构
@@ -126,15 +119,24 @@ lab/elastic_tls/
 
 ```mermaid
 flowchart TD
-  A[cert-init] --> B[elasticsearch]
-  B --> C[kibana-auth-init]
-  C --> D[kibana]
-  D --> E[nginx]
-  B --> F[filebeat]
+  A[1 cert-init] --> B[2 elasticsearch]
+  B --> C[3 kibana-auth-init]
+  C --> D[4 kibana]
+  D --> E[5 nginx]
+  B --> F[6 filebeat]
   A --> D
   A --> E
   A --> F
 ```
+
+**简版说明**（图中箭头表示依赖与启动顺序）：
+
+- ① **cert-init**：先跑完证书生成
+- ② **elasticsearch**：再起 Elasticsearch
+- ③ **kibana-auth-init**：用 ES 给 Kibana 系统用户设密
+- ④ **kibana**：起 Kibana
+- ⑤ **nginx**：Kibana 就绪后起 Nginx 作入口
+- ⑥ **filebeat**：证书和 ES 就绪后启动，采日志入 ES
 
 这个启动图体现了两个 Compose 设计要点：
 
@@ -148,8 +150,8 @@ flowchart TD
 ```env
 STACK_VERSION=8.19.0
 NGINX_VERSION=1.29.1
-ELASTIC_PASSWORD=Cisc0123!
-KIBANA_SYSTEM_PASSWORD=Cisc0123!
+ELASTIC_PASSWORD=Cisc0123
+KIBANA_SYSTEM_PASSWORD=Cisc0123
 COMPOSE_PROJECT_NAME=compose-elk
 ```
 
@@ -340,7 +342,7 @@ ELASTICSEARCH_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
 
 这个片段非常适合用来讲 Compose 的两个概念：
 
-1. 环境变量不仅可以传简单参数，也能传复杂配置项
+1. 环境变量不仅可以传简单参数（如字符串、数字），也能传复杂值（如列表、JSON，例如 `ELASTICSEARCH_HOSTS` 的 `["https://..."]`）
 2. 只要内部 DNS 名称与证书 SAN 对齐，容器间 TLS 完全可以走 FQDN
 
 ## 10. `nginx`：HTTPS 入口与 Kibana 反向代理
@@ -349,6 +351,18 @@ ELASTICSEARCH_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
 
 1. 对外提供 `https://www.qytdocker2026.com`
 2. 反代 `https://kibana01.qytdocker2026.com`
+
+按域名与端口的请求走向如下（对应下文的三个 `server` 块）：
+
+```mermaid
+flowchart LR
+  subgraph 入口
+    Req[客户端请求]
+  end
+  Req -->|:80 任意 Host| Redirect[server 块 1<br/>301 → https]
+  Req -->|:443 Host: www| Static[server 块 2<br/>www.qytdocker2026.com<br/>root + try_files 静态]
+  Req -->|:443 Host: kibana01| Proxy[server 块 3<br/>kibana01.qytdocker2026.com<br/>proxy_pass → Kibana:5601]
+```
 
 Nginx 配置如下：
 
@@ -455,21 +469,39 @@ output.elasticsearch:
 
 其中：
 
-- `nginx` 同时连接 `edge` 和 `elastic`
-- `filebeat` 同时连接 `edge` 和 `elastic`
+- `nginx` 同时连接 `edge` 和 `elastic`（入口对外、反代与内部服务通信）
+- `filebeat` 只连接 `elastic`（通过 **nginxlogs 卷** 读 Nginx 日志，经 elastic 网络写 ES，无需接入 edge）
 - `elasticsearch` 与 `kibana` 只连接 `elastic`
+
+服务与网络的对应关系如下：仅 `nginx` 用两根线分别接入两个网络。
+
+```mermaid
+flowchart LR
+  subgraph edge["edge 网络（入口侧）"]
+    Ingress[入口]
+  end
+
+  subgraph elastic["elastic 网络（内部通信）"]
+    ES[elasticsearch]
+    Kibana[kibana]
+    Filebeat[filebeat]
+  end
+
+  Nginx[nginx] --- edge
+  Nginx --- elastic
+```
 
 为什么这么设计？
 
 ### 12.1 `edge` 网络
 
 表示面向入口流量的一侧。  
-`nginx` 在这里承担 HTTPS 入口，`filebeat` 放进这个网络主要是为了在教学中展示一个服务可以同时参与多个网络。
+仅 `nginx` 接入此网络，承担 HTTPS 入口；`filebeat` 通过卷共享获取 Nginx 日志，只需在 `elastic` 内连 ES，故不接入 edge。
 
 ### 12.2 `elastic` 网络
 
 表示内部服务通信的一侧。  
-Elasticsearch、Kibana、Nginx、Filebeat 都在这个网络里完成内部调用。
+Elasticsearch、Kibana、Nginx、Filebeat 都在此网络中；Nginx 反代到 Kibana、Filebeat 上报到 ES 等内部调用均走此网。
 
 ### 12.3 `aliases`
 
@@ -498,13 +530,25 @@ networks:
 
 ## 13. Compose 卷设计
 
-本实验定义了 3 个具名卷：
+本实验定义了 3 个具名卷，与服务的挂载、读写关系如下：
 
-- `esdata`
-- `kibanadata`
-- `nginxlogs`
+```mermaid
+flowchart TB
+  subgraph 持久化卷["持久化卷（单服务挂载）"]
+    ES[elasticsearch] -->|读写| ESVol[(esdata)]
+    Kibana[kibana] -->|读写| KVol[(kibanadata)]
+  end
 
-其中最有教学价值的是 `nginxlogs`：
+  subgraph 共享卷["共享卷（多服务挂载）"]
+    Nginx[nginx] -->|写入<br/>/var/log/nginx| NLog[(nginxlogs)]
+    NLog -->|只读采集<br/>/var/log/nginx| Filebeat[filebeat]
+  end
+```
+
+- **esdata / kibanadata**：仅单个服务挂载，用于数据持久化。
+- **nginxlogs**：由 `nginx` 写入日志、`filebeat` 只读采集，是典型的“卷在服务间共享数据”的用法。
+
+其中最有教学价值的是 `nginxlogs`，其数据流如下：
 
 ```mermaid
 flowchart LR
@@ -547,7 +591,13 @@ docker compose up -d
 
 ### 16.1 查看服务状态
 
-实际输出如下：
+执行：
+
+```bash
+docker compose ps
+```
+
+示例输出：
 
 ```text
 NAME                          IMAGE                                                  COMMAND                  SERVICE         CREATED             STATUS                       PORTS
@@ -557,17 +607,10 @@ compose-elk-kibana-1          docker.elastic.co/kibana/kibana:8.19.0            
 compose-elk-nginx-1           nginx:1.29.1                                           "/docker-entrypoint.…"   nginx           About an hour ago   Up About an hour             80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp
 ```
 
-命令：
-
-```bash
-docker compose ps
-```
-
 **关键看点**
 
 - `elasticsearch` 和 `kibana` 均进入 `healthy`
-- 对外只发布了 `443`
-- `5601` 没有直接发布到宿主机，而是交给 Nginx 反向代理
+- 对外只发布 Nginx `443`；Kibana 不直接映射端口，通过 Nginx 反代访问
 
 ### 16.2 查看初始化日志
 
@@ -594,64 +637,31 @@ cert-init-1         | all certificates generated under /output
 - Compose 中的一次性服务确实参与了整个应用启动流程
 - 证书与密码初始化都被“编排”进了项目，而不是靠手工命令完成
 
-### 16.3 验证 HTTPS 首页
+### 16.3 验证 HTTPS 首页（Windows 浏览器访问）
 
-如果当前机器本身没有做 `hosts` 映射，可以用 `curl --resolve` 临时验证：
+在 **Windows 客户端** 做主机映射后，用浏览器访问静态站点即可验证。
 
-```bash
-curl --resolve www.qytdocker2026.com:443:127.0.0.1 \
-  --cacert ./certs/generated/ca/ca.crt \
-  -s https://www.qytdocker2026.com/
-```
+**主机映射**（在 Windows 客户端配置；将 `10.1.1.201` 替换为你的 Docker 主机 IP）：
 
-实际输出：
+`10.1.1.201  www.qytdocker2026.com`
 
-```html
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Compose TLS Demo</title>
-</head>
-<body>
-  <h1>Docker Compose TLS Demo</h1>
-  <p>www.qytdocker2026.com served by nginx in Docker Compose.</p>
-  <p>Access Kibana through https://kibana01.qytdocker2026.com after hosts mapping.</p>
-</body>
-</html>
-```
+在浏览器中访问 **https://www.qytdocker2026.com/**，并信任本实验的根证书后，可见 Nginx 提供的静态首页，例如：
 
-这说明：
+![HTTPS 首页 www.qytdocker2026.com](lab/elastic_tls/images/nginx_home.png)
 
-- Nginx 对外 HTTPS 正常
-- 证书链校验正常
-- 静态站点已可访问
+**说明**：Nginx 对外 HTTPS 正常、证书链校验通过、静态站点可访问。
 
-### 16.4 验证 Kibana HTTPS 反代
+### 16.4 验证 Kibana HTTPS 反代（浏览器访问）
 
-命令：
+**访问地址**：**https://kibana01.qytdocker2026.com**
 
-```bash
-curl --resolve kibana01.qytdocker2026.com:443:127.0.0.1 \
-  --cacert ./certs/generated/ca/ca.crt \
-  -sI https://kibana01.qytdocker2026.com/
-```
+**主机映射**（在 Windows 客户端配置；将 `10.1.1.201` 替换为你的 Docker 主机 IP）：
 
-实际输出：
+`10.1.1.201  kibana01.qytdocker2026.com`
 
-```text
-HTTP/1.1 302 Found
-Server: nginx/1.29.1
-location: /login?next=%2F
-kbn-name: kibana01.qytdocker2026.com
-```
+**账户**：用户名为 `elastic`，密码与 `.env` 中的 `ELASTIC_PASSWORD` 一致（本实验示例为 `Cisc0123`）。信任本实验根证书后，在浏览器中打开上述地址即可见到 Kibana 登录页，说明 Nginx 已成功反代到 Kibana 且后端正常响应。
 
-**关键看点**
-
-- 外部请求先到 Nginx
-- Nginx 已经成功反代到 Kibana
-- `location: /login` 说明 Kibana 已在后端正常响应
+![Kibana 登录页](lab/elastic_tls/images/login.png)
 
 ### 16.5 验证 Nginx 日志已写入共享卷
 
@@ -674,70 +684,38 @@ docker exec compose-elk-nginx-1 sh -c 'tail -n 5 /var/log/nginx/access-compose.l
 - Nginx 的确把日志写入了共享目录
 - Filebeat 后续有真实数据可采集
 
-### 16.6 验证 Filebeat 索引写入
+### 16.6 验证共享卷：Filebeat 侧也能看到 Nginx 的日志
 
-命令：
+本实验的重点是 Compose 的**卷共享**：Nginx 把访问日志写入 `nginxlogs` 卷，Filebeat 挂载同一卷只读。验证方式：在 Filebeat 容器内读同一路径，能看到与 Nginx 写入一致的内容，即说明共享卷工作正常。
+
+执行（在 Filebeat 容器内查看共享卷中的日志文件）：
 
 ```bash
-docker exec compose-elk-elasticsearch-1 sh -c \
-  'curl --silent --cacert /usr/share/elasticsearch/config/certs/ca.crt \
-  -u elastic:Cisc0123! \
-  https://127.0.0.1:9200/_cat/indices/filebeat*?v'
+docker exec compose-elk-filebeat-1 sh -c 'tail -n 5 /var/log/nginx/access-compose.log'
 ```
 
-实际输出：
+示例输出（与 16.5 在 Nginx 容器内看到的为同一文件内容）：
 
 ```text
-health status index                                 uuid                   pri rep docs.count docs.deleted store.size pri.store.size dataset.size
-yellow open   .ds-filebeat-8.19.0-2026.03.17-000001 0gB40fUdS--nA1G1gmtxRQ   1   1         19            0     40.7kb         40.7kb       40.7kb
+172.21.0.1 - - [17/Mar/2026:03:36:21 +0000] "GET / HTTP/1.1" 200 394 "-" "curl/8.5.0" "-"
+...
 ```
 
-**关键看点**
+**关键看点**：同一卷在 Nginx 里写、在 Filebeat 里读，两服务通过 Compose 卷共享完成日志传递。
 
-- Filebeat 已经成功连接 Elasticsearch
-- 日志文档已经进入索引
-- 这说明共享卷、内部 DNS、内部 TLS 三个环节都工作正常
+### 16.7 在 Kibana 中查看日志
 
-### 16.7 验证日志文档内容
+在浏览器登录 Kibana 后，首次查看 Filebeat 写入的 Nginx 日志需要先创建 **Data View**（旧版为 Index Pattern），再在 **Discover** 中查询。
 
-命令：
+**创建 Data View**：进入 Stack Management → Data Views → Create data view。Index pattern 填写 `filebeat-*`，时间字段选 `@timestamp`，保存即可。
 
-```bash
-docker exec compose-elk-elasticsearch-1 sh -c \
-  'curl --silent --cacert /usr/share/elasticsearch/config/certs/ca.crt \
-  -u elastic:Cisc0123! \
-  "https://127.0.0.1:9200/filebeat-*/_search?q=service_name:nginx&size=1&pretty"'
-```
+![创建 Data View（步骤 1）](lab/elastic_tls/images/create_data_view_1.png)
 
-实际输出节选：
+![创建 Data View（步骤 2）](lab/elastic_tls/images/create_data_view_2.png)
 
-```json
-{
-  "hits" : {
-    "total" : {
-      "value" : 19,
-      "relation" : "eq"
-    },
-    "hits" : [
-      {
-        "_source" : {
-          "@timestamp" : "2026-03-17T03:36:23.839Z",
-          "service_name" : "nginx",
-          "message" : "172.21.0.1 - - [17/Mar/2026:03:36:21 +0000] \"GET / HTTP/1.1\" 200 394 \"-\" \"curl/8.5.0\" \"-\"",
-          "compose_demo" : "elastic_tls",
-          "env" : "lab"
-        }
-      }
-    ]
-  }
-}
-```
+**在 Discover 中查看**：左侧菜单进入 Discover，选择刚创建的 Data View，即可按时间浏览、筛选 Nginx 访问日志（如按 `message`、`service_name` 等字段）。
 
-这一步表明：
-
-- Filebeat 采集到的正是 Nginx 的日志文件
-- 自定义字段 `service_name`、`compose_demo` 已经写入
-- 数据链路已经完全跑通
+![Discover 查看日志](lab/elastic_tls/images/discover.png)
 
 ## 17. 这个实验里最值得学生掌握的 Compose 设计
 
@@ -754,12 +732,12 @@ docker exec compose-elk-elasticsearch-1 sh -c \
 ### 17.3 `aliases` 让内部 FQDN 成为可能
 
 很多同学一提到“域名”，就会立刻联想到额外部署 DNS。  
-但在单机 Compose 场景里，更简洁的做法往往是：
+但在单机 Compose 场景里，更简洁的做法是：
 
-- 外部：`hosts`
-- 内部：`network aliases`
+- 外部：`hosts` 映射
+- 内部：Compose 自带 **DNS**，通过 `network aliases` 把 FQDN 解析到对应服务（也可在容器内做 hosts）
 
-这正是本实验采用的方案。
+本实验采用上述方式，证书 SAN 与这些 FQDN 对齐即可通过 TLS 校验。
 
 ### 17.4 `healthcheck` 决定了启动是否可靠
 
@@ -770,45 +748,7 @@ docker exec compose-elk-elasticsearch-1 sh -c \
 
 因此本实验虽然复杂，但依然尽量用 Compose 原生能力表达“谁依赖谁、依赖到什么程度”。
 
-## 18. Windows 客户端访问提醒
-
-如果需要在 Windows 浏览器中访问：
-
-- `https://www.qytdocker2026.com`
-- `https://kibana01.qytdocker2026.com`
-
-请在 Windows 侧完成 `hosts` 映射，例如：
-
-```text
-<Docker 主机 IP>  www.qytdocker2026.com
-<Docker 主机 IP>  kibana01.qytdocker2026.com
-```
-
-同时需要信任本实验使用的根证书。  
-这一步只作为访问提醒，不是本章重点。
-
-## 19. 常见问题
-
-### 19.1 为什么 Kibana 不直接映射 `5601:5601`？
-
-因为本实验要展示“入口服务 + 反向代理”的 Compose 组织方式。  
-把 Kibana 放到 Nginx 后面，能更自然地展示：
-
-- 多个域名入口
-- Nginx 按域名分发
-- 反向代理后端也是 HTTPS
-
-### 19.2 为什么 Nginx 不直接读取容器 stdout 日志？
-
-因为本实验的重点是展示共享卷。  
-把日志明确写到 `/var/log/nginx/*.log`，再由 Filebeat 读取，更符合教学目的。
-
-### 19.3 为什么 `cert-init` 不用外部脚本？
-
-因为本实验强调“尽量只靠 `docker compose up -d` 完成一切”。  
-把签发逻辑放进 Compose 服务中，正好满足这个要求。
-
-## 20. 本实验小结
+## 18. 本实验小结
 
 这个完整案例真正要让学生看到的，不是 Elastic Stack 的细节，而是 Compose 如何把一个较复杂的系统组织得清清楚楚：
 
@@ -822,7 +762,7 @@ docker exec compose-elk-elasticsearch-1 sh -c \
 
 如果学生能够真正理解这个案例，那么他们学到的就不只是“会写几行 YAML”，而是开始具备了用 Compose 组织真实应用结构的能力。
 
-## 21. 清空环境
+## 19. 清空环境
 
 本实验应以空环境开始、以空环境结束。验证完成后，在 ELK 项目目录停止并删除容器、网络与卷：
 

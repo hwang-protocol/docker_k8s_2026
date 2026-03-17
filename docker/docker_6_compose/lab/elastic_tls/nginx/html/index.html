@@ -3,11 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Compose TLS Demo</title>
+  <title>首页 - Compose TLS Demo</title>
+  <style>body{font-family:sans-serif;max-width:720px;margin:2em auto;padding:0 1em;} nav{margin:1em 0;padding:0.5em 0;border-bottom:1px solid #ccc;} nav a{margin-right:1em;} a{color:#06c;}</style>
 </head>
 <body>
+  <nav>
+    <a href="/">首页</a>
+    <a href="/about.html">关于</a>
+    <a href="/docs.html">文档</a>
+    <a href="/status.html">状态</a>
+    <a href="/contact.html">联系</a>
+  </nav>
   <h1>Docker Compose TLS Demo</h1>
-  <p>www.qytdocker2026.com served by nginx in Docker Compose.</p>
-  <p>Access Kibana through https://kibana01.qytdocker2026.com after hosts mapping.</p>
+  <p>www.qytdocker2026.com 由 Compose 中的 Nginx 提供 HTTPS 静态站点。</p>
+  <p>配置好 hosts 后，可通过 <a href="https://kibana01.qytdocker2026.com">Kibana</a> 查看本站点的访问日志（Filebeat → Elasticsearch → Kibana）。</p>
+  <p>请随意点击上方导航或下方链接，便于在日志中产生不同 URI 与 Referer，方便后续分析。</p>
+  <ul>
+    <li><a href="/about.html">关于本实验</a></li>
+    <li><a href="/docs.html">使用说明与架构</a></li>
+    <li><a href="/status.html">服务状态页</a></li>
+  </ul>
 </body>
 </html>

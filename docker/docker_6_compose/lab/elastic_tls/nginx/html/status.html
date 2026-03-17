@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>状态 - Compose TLS Demo</title>
+  <style>body{font-family:sans-serif;max-width:720px;margin:2em auto;padding:0 1em;} nav{margin:1em 0;padding:0.5em 0;border-bottom:1px solid #ccc;} nav a{margin-right:1em;} a{color:#06c;} table{border-collapse:collapse;} th,td{border:1px solid #ccc;padding:0.4em 0.8em;} th{background:#f5f5f5;}</style>
+</head>
+<body>
+  <nav>
+    <a href="/">首页</a>
+    <a href="/about.html">关于</a>
+    <a href="/docs.html">文档</a>
+    <a href="/status.html">状态</a>
+    <a href="/contact.html">联系</a>
+  </nav>
+  <h1>服务状态页</h1>
+  <p>本页为静态模拟，仅用于产生固定 URI 的访问记录，便于在 Kibana 中按 <code>/status.html</code> 筛选或统计。</p>
+  <table>
+    <thead><tr><th>组件</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>Nginx</td><td>HTTPS 入口，写 access-compose.log</td></tr>
+      <tr><td>Filebeat</td><td>采集 Nginx 日志至 Elasticsearch</td></tr>
+      <tr><td>Elasticsearch</td><td>存储与检索日志</td></tr>
+      <tr><td>Kibana</td><td>通过 kibana01.qytdocker2026.com 访问</td></tr>
+    </tbody>
+  </table>
+  <p><a href="/">返回首页</a> · <a href="/docs.html">架构说明</a></p>
+</body>
+</html>
