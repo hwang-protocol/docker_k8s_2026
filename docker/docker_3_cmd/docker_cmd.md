@@ -484,6 +484,7 @@ mynginx-2    nginx:1.29.6    Up 1 second    0.0.0.0:8081->80/tcp, [::]:8081->80/
 ```
 
 这里不再重复展示 `docker run` 的实机输出，后面直接通过 `docker ps`、`docker logs`、`docker inspect` 来验证容器是否真的已经正常运行。
+也就是说，从这里开始，后面的命令默认都是围绕这个已经创建好的 `nginx-lab-demo` 容器继续操作。
 
 ## 5. `docker ps`
 
@@ -537,6 +538,8 @@ CONTAINER ID   IMAGE          COMMAND                  CREATED         STATUS   
 ## 6. `docker logs`
 
 作用：查看容器日志。
+
+这一步通常建立在前面已经 `run` 成功、并且能在 `docker ps` 里看到容器正在运行的基础上。
 
 ```bash
 docker logs nginx-lab-demo
@@ -604,6 +607,8 @@ curl -I http://127.0.0.1:38080
 
 作用：进入正在运行的容器，或者在容器内部执行命令。
 
+这一步的前提是：容器已经存在，而且通常处于运行状态。
+
 进入容器最常见的写法：
 
 ```bash
@@ -647,6 +652,8 @@ index.html
 
 作用：查看容器或镜像的详细信息。
 
+这一步通常发生在容器已经创建出来之后，用来进一步确认状态、网络、端口映射、挂载等细节。
+
 ```bash
 docker inspect nginx-lab-demo
 ```
@@ -682,6 +689,119 @@ docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ngi
 - 但在当前很多 Docker 环境里，这样写已经可能报错
 - 更稳妥的写法是遍历 `NetworkSettings.Networks` 再取 `IPAddress`
 
+按 JSON 路径来理解会更直观。执行：
+
+```bash
+docker inspect nginx-lab-demo
+```
+
+和 IP 相关的关键片段通常类似这样：
+
+```json
+{
+  "NetworkSettings": {
+    "Networks": {
+      "bridge": {
+        "IPAddress": "172.17.0.2"
+      }
+    }
+  }
+}
+```
+
+所以这个 IP 的真实路径其实是：
+
+```text
+.NetworkSettings.Networks.bridge.IPAddress
+```
+
+而不是旧资料里常见的：
+
+```text
+.NetworkSettings.IPAddress
+```
+
+也就是说，这条命令本质上是在取 `NetworkSettings -> Networks -> 某个网络 -> IPAddress`。
+
+如果先不管 `range`，你可以先把它理解成下面这个更直白的路径写法：
+
+```bash
+docker inspect -f '{{.NetworkSettings.Networks.bridge.IPAddress}}' nginx-lab-demo
+```
+
+这里只是把 JSON 里的字段路径直接写进模板里：
+
+- `{{ }}` 表示模板取值
+- `.` 表示当前这个容器对象
+- `.NetworkSettings.Networks.bridge.IPAddress` 表示按层级一路取到 IP
+
+之所以文档里写成：
+
+```bash
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' nginx-lab-demo
+```
+
+只是因为 `bridge` 是网络名，后面如果网络名不是 `bridge`，或者容器加入了多个网络，`range` 会更稳妥。
+可以先把它粗略理解成：
+
+```text
+{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}
+   |            |                   |
+   |            |                   +-- 当前网络对象中的 IPAddress
+   |            +-- 进入 Networks 这个 map
+   +-- 遍历 map 里的每个网络
+```
+
+现在你先记住这条主线就够了：先看 JSON 原文，再按字段路径往下取值。
+
+这里也顺手认识一下这个 IP 背后的 Docker 网络。
+
+- `172.17.0.2` 是容器在 Docker 默认 `bridge` 网络中的内部 IP
+- `172.17.0.1` 通常是这张桥接网络在宿主机一侧的网关地址
+- `-p 38080:80` 表示把宿主机 `38080` 端口转发到容器内的 `80` 端口
+
+所以对这个例子来说：
+
+- 你在浏览器里访问的通常是 `宿主机IP:38080`
+- 容器内部实际提供服务的端口是 `80`
+- `172.17.0.2` 更像是容器在 Docker 内部网络里的地址
+
+可以先把它理解成：Docker 在宿主机里单独划出了一小块内部网络，容器接到这张网络上，再通过端口映射把服务暴露出来。
+
+```mermaid
+flowchart LR
+    Client[浏览器 / curl<br/>访问宿主机:38080]
+
+    subgraph Host[宿主机]
+        PortMap[端口映射<br/>38080 -> 80]
+        GW[docker0 / 网关<br/>172.17.0.1]
+
+        subgraph Bridge[Docker 默认 bridge 网络]
+            Nginx[容器 nginx-lab-demo<br/>容器 IP: 172.17.0.2<br/>nginx 监听: 80/tcp]
+        end
+    end
+
+    Client -->|访问 38080| PortMap
+    PortMap -->|进入 bridge 网络| GW
+    GW -->|转发到容器 80| Nginx
+
+    classDef client fill:#fff3d6,stroke:#d6a83d,color:#333;
+    classDef host fill:#eaf3ff,stroke:#4a7bd0,color:#16324f;
+    classDef bridge fill:#edf8ed,stroke:#5c9c5c,color:#1d3b1d;
+    classDef container fill:#ffe9e2,stroke:#d46d4d,color:#4a1f16;
+
+    class Client client;
+    class PortMap host;
+    class GW bridge;
+    class Nginx container;
+```
+
+课堂里先记住这张图表达的 3 个事实就够了：
+
+- 容器有自己的内部 IP，例如 `172.17.0.2`
+- 这个 IP 属于 Docker 的桥接网络，不等于宿主机自己的 IP
+- 外部访问容器服务时，通常是通过 `38080:80` 这样的端口映射进入
+
 例如查看容器状态：
 
 ```bash
@@ -704,18 +824,20 @@ docker inspect -f 'status={{.State.Status}} ip={{range .NetworkSettings.Networks
 可能会看到：
 
 ```text
-status=running ip=172.17.0.4 ports={"80/tcp":[{"HostIp":"0.0.0.0","HostPort":"38080"},{"HostIp":"::","HostPort":"38080"}]}
+status=running ip=172.17.0.2 ports={"80/tcp":[{"HostIp":"0.0.0.0","HostPort":"38080"},{"HostIp":"::","HostPort":"38080"}]}
 ```
 
 关键看点：
 
 - `status=running` 能直接确认容器正在运行
-- `ip=172.17.0.4` 是容器在桥接网络中的内部 IP
+- `ip=172.17.0.2` 是容器在桥接网络中的内部 IP
 - `ports=...38080...` 说明端口映射已经生效
 
 ## 9. `docker stop`
 
 作用：停止运行中的容器。
+
+到这里，前面“创建、查看、进入、排查”这一段基本完成，下面开始进入容器生命周期管理。
 
 ```bash
 docker stop nginx-lab-demo
@@ -804,6 +926,7 @@ docker rm -f nginx-lab-demo
   删除容器时一并删除匿名卷
 
 这一步通常发生在“这个容器不用了，准备重新跑一个新的”时。
+按顺序理解时，可以先记成：先 `stop`，再 `rm`；如果只是图省事，才用 `docker rm -f`。
 
 关键看点：
 
@@ -1032,43 +1155,27 @@ docker rmi nginx:1.29.6
 
 ## 最后给出一套最容易记的对应关系
 
-- `docker search`
-  搜索镜像仓库
-- `docker pull`
-  拉镜像
-- `docker images`
-  看镜像
-- `docker run`
-  创建并启动容器
-- `docker ps`
-  看容器
-- `docker logs`
-  看日志
-- `docker exec`
-  进容器
-- `docker inspect`
-  看详细信息
-- `docker stop`
-  停容器
-- `docker start`
-  启容器
-- `docker restart`
-  重启容器
-- `docker rm`
-  删容器
-- `docker rmi`
-  删镜像
-- `docker tag`
-  打标签
-- `docker push`
-  推镜像
+按一条完整操作链来记，最清楚：
+
+- `docker search -> docker pull -> docker images`
+  先找镜像，再拉镜像，再确认镜像已经在本地
+- `docker run -> docker ps -> docker logs -> docker exec -> docker inspect`
+  先把容器跑起来，再看状态、看日志、进容器、看详细信息
+- `docker stop -> docker rm`
+  容器不用了，通常先停掉，再删除
+- `docker start / docker restart`
+  如果容器只是临时停了，或者需要重新拉起，就用这两个命令
+- `docker tag -> docker push`
+  需要分发到仓库时，先打标签，再推送
 - `docker save / docker load`
-  导出 / 导入镜像
+  需要离线迁移镜像时，用导出和导入
+- `docker rmi`
+  最后在确认没有容器继续使用该镜像后，再删除镜像
 
 ## 通过标准
 
 - 能说清楚镜像和容器的区别。
-- 能独立完成 `search -> pull -> run -> ps -> logs -> exec -> rm` 这条最核心流程。
+- 能独立完成 `search -> pull -> images -> run -> ps -> logs -> exec -> inspect -> stop -> rm` 这条最核心流程。
 - 知道 `run` 和 `start` 的区别。
 - 知道 `rm` 删除容器，`rmi` 删除镜像。
 - 知道镜像迁移优先用 `save/load`。
