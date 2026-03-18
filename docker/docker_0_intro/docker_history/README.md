@@ -194,11 +194,23 @@ Docker Desktop 在 2019 年引入 WSL 2 技术预览后，于 2020 年进一步�
 
 Docker 在 2024 年继续强化开发者工具路线，其中最典型的是 Build Cloud 与统一订阅方案。
 
-- **Docker Build Cloud**：云端构建服务，支持共享构建缓存和原生多架构构建
-- **Docker Scout**：供应链安全与镜像分析工具
-- **Testcontainers Cloud**：云端集成测试容器服务
+Docker 在 2024 年 9 月宣布升级订阅方案，并在 2024 年 12 月起逐步生效。新方案把 **Docker Desktop、Docker Hub、Build Cloud、Scout、Testcontainers Cloud** 放进统一订阅体系；业务重心是「开发入口 + 镜像分发 + 云端构建 + 安全分析 + 集成测试中的容器」，而非单一的云端构建。
 
-Docker 在 2024 年 9 月宣布升级订阅方案，并在 2024 年 12 月起逐步生效。新方案把 Docker Desktop、Docker Hub、Build Cloud、Scout、Testcontainers Cloud 放进统一订阅体系。
+### 2024 年前后主要产品线与作用
+
+| 产品 | 作用概要 |
+|---|---|
+| **Docker Desktop** | 本机开发入口：引擎、Compose、Kubernetes 等 |
+| **Docker Hub** | 镜像仓库与团队协作、拉取策略等 |
+| **Docker Build Cloud** | 构建在云端执行，本机传构建上下文并接收镜像；团队共享构建缓存，多架构构建更省事 |
+| **Docker Scout** | 镜像与依赖的漏洞、SBOM、策略门禁，常与 Registry / CI 联动 |
+| **Testcontainers Cloud** | 集成测试所需容器在云端创建与销毁；测试代码仍在本机或 CI 执行，依赖服务以真实容器形式提供 |
+
+### Build Cloud、Scout、Testcontainers Cloud 的区分
+
+- **Build Cloud**：将 `docker build` 的算力放到云上，突出 **共享缓存** 与 **原生多架构构建**；不等同于 Docker 的全部业务。
+- **Scout**：面向 **供应链安全与镜像分析**（漏洞、SBOM、策略），不替代业务逻辑开发。
+- **Testcontainers Cloud**：**Testcontainers** 在代码里声明「测试期间启动某镜像容器」（如 Postgres、Redis）。云端方案把「起容器、暴露端口」放到 Docker 托管环境，用于 **应用连真实依赖的集成测试**，而非测试 Docker 自身。
 
 ## 2025–2026 — 当前状态
 
@@ -216,6 +228,24 @@ Docker 在 2024 年 9 月宣布升级订阅方案，并在 2024 年 12 月起逐
 - 开发者桌面体验持续增强
 - Build / AI / 安全相关能力持续整合到 Docker Desktop
 - Docker 继续把重点放在开发者工作流，而不是重新回到企业编排平台路线
+
+需要特别说明的是，当前 Docker 给人的“存在感下降”并不等同于“停止维护”。
+更准确的变化是：**维护重点已经从早期的企业容器平台，转向开发者工具平台**。
+
+### Docker 与 Docker Compose 是否仍在维护
+
+| 项目 | 当前情况 |
+|---|---|
+| **Docker Engine / Docker CLI** | 仍在持续维护和发布版本，是 Docker 当前产品体系的核心基础能力 |
+| **Docker Compose** | 仍在持续维护，但官方主线已经是集成到 Docker CLI 中的 **Compose V2**，命令形态为 `docker compose` |
+| **`docker-compose`** | 这是早期独立的 Python 工具形态，已不再是官方推荐主线，因此容易让人误以为 Compose 已经“没人管” |
+| **Docker Swarm** | Mirantis 承诺支持两年后转向 Kubernetes |
+
+造成误解的主要原因有三点：
+
+- Docker 在 2019 年出售 Docker Enterprise 后，不再主打企业编排平台路线
+- Kubernetes 成为容器编排领域的主流话语中心，分散了外界对 Docker 的关注
+- Compose 的官方使用方式从 `docker-compose` 转为 `docker compose`，维护形态发生了变化
 
 # 关键时间线总结
 
@@ -237,7 +267,8 @@ Docker 在 2024 年 9 月宣布升级订阅方案，并在 2024 年 12 月起逐
 
 | 主题 | 当前结论 |
 |---|---|
-| Docker 产品形态 | Docker EE 已于 2019 年卖给 Mirantis；当前常见订阅层级为 Personal / Pro / Team / Business |
+| Docker 产品形态 | Docker EE 已于 2019 年卖给 Mirantis；当前常见订阅层级为 Personal / Pro / Team / Business；2024 年起 Build Cloud、Scout、Testcontainers Cloud 等与 Desktop、Hub 同属统一订阅下的产品组合 |
 | Windows 后端 | Docker Desktop 已长期以 WSL 2 路线为主，不再依赖传统 Hyper-V 虚拟机思路 |
+| Compose 状态 | Docker Compose 仍在维护，当前官方主线是 `docker compose`（Compose V2）；旧的 `docker-compose` 已不再是推荐形态 |
 | 生态结构 | 当前生态中，Docker、Moby、containerd、BuildKit、Compose 等已经形成更清晰的分层 |
 | 容器方案选择 | Docker 仍是最主流的方案之一，但 Podman、containerd + nerdctl 等替代路线也被广泛使用 |
