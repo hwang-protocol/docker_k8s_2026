@@ -1,12 +1,20 @@
+# 主题：容器的可迁移性（Portability）
+
+**可迁移性**在此指：将应用及其依赖打成**镜像**，经镜像仓库分发后，在**另一台已安装容器引擎、且 CPU 架构一致**的机器上，无需复制源码与重复配置运行环境，即可 `pull` 后以相同方式运行并得到一致行为。
+
+本步以最小 Flask 应用为样本，演示：**构建 → 本地校验 → 推送仓库 → 异机拉取运行**，从而验证可迁移性。
+
 # 本步目标
 
-- 理解本目录中 Flask 应用的镜像构建方式。
-- 能够在本目录下执行 `docker build` 构建镜像，并用 `docker run` 运行容器、访问服务。
-- 能够通过 `docker login`、`docker push` 将镜像推送到 Docker Hub，并在另一台机器（如 Rocky Linux）上 `docker pull` 后运行，验证跨平台使用。
+- 理解镜像如何封装运行环境，以及可迁移性依赖的要素（镜像、Registry、架构一致等）。
+- 能在本目录完成 `docker build` / `docker run`（含端口映射），确认构建机侧行为正确。
+- 能 `docker push` 至 Docker Hub，并在**未参与构建**的机器上 `docker pull` 后运行，用一致访问结果**证明可迁移**。
 
 # 问题背景
 
-本目录包含一个最小 Flask 应用（`app.py`）及用于构建镜像的 `Dockerfile`。镜像基于 `python:3.7-alpine`，在容器内监听 8080 端口。通过构建与运行，可验证“同一份应用在不同 Linux 环境（Alpine 容器）中运行”的效果。
+本目录含 `app.py` 与 `Dockerfile`，镜像基于 **`python:3.7-alpine`**，监听 **8080**。标签示例为 `collinsctk/flask_in_centos_ubuntu`（名称与宿主机发行版无关，仅作仓库中的标识）。
+
+验证路径对应可迁移性闭环：**构建机**产出镜像并推送；**目标机**仅具备 Docker（及网络拉取权限），不携带本仓库文件，仍能运行同一服务。
 
 # 理论说明
 
@@ -26,24 +34,25 @@ CMD ["flask", "run", "--port", "8080"]
 
 | 行 | 指令 | 说明 |
 |----|------|------|
-| 1 | `FROM python:3.7-alpine` | 以官方镜像 `python:3.7-alpine` 为构建基础。Alpine 体积小，内置 Python 3.7，后续所有层在其上叠加。 |
-| 2 | `ENV FLASK_APP=app.py` | 设置环境变量 `FLASK_APP=app.py`。Flask 的 `flask run` 会据此找到应用入口文件，无需在命令行指定。使用 `key=value` 格式。 |
-| 3 | `ENV FLASK_RUN_HOST=0.0.0.0` | 设置 Flask 开发服务器监听地址为 `0.0.0.0`。这样容器内进程监听所有网卡，宿主机通过端口映射才能访问；若为 `127.0.0.1`，则只能在容器内部访问。 |
-| 4 | `WORKDIR /` | 将镜像内的工作目录设为根目录 `/`。后续 `COPY`、`RUN` 以及容器启动后的当前目录均在此下（本示例中 `app.py` 被复制到 `/app.py`）。 |
-| 5 | `COPY app.py app.py` | 将构建上下文（即 `docker build` 时当前目录）中的 `app.py` 复制到镜像内路径 `app.py`。由于上一步 `WORKDIR /`，目标即 `/app.py`。 |
-| 6 | `RUN pip3 install -i https://mirrors.aliyun.com/pypi/simple/ flask` | 在镜像内执行 `pip3 install`，使用阿里云 PyPI 镜像加速，安装 `flask`。该层会写入镜像，构建一次后复用。 |
-| 7 | `CMD ["flask", "run", "--port", "8080"]` | 容器启动时的默认命令。使用 JSON 数组形式（exec 形式），在容器内执行 `flask run --port 8080`，即启动 Flask 开发服务器并监听 8080 端口。该进程为容器主进程，退出则容器退出。 |
+| 1 | `FROM python:3.7-alpine` | 构建基础镜像；Alpine 体积小，内含 Python 3.7。 |
+| 2 | `ENV FLASK_APP=app.py` | `flask run` 据此加载应用入口。 |
+| 3 | `ENV FLASK_RUN_HOST=0.0.0.0` | 监听所有接口；否则仅 `127.0.0.1` 时宿主机无法经 `-p` 访问。 |
+| 4 | `WORKDIR /` | 后续 `COPY` 与容器工作目录为 `/`。 |
+| 5 | `COPY app.py app.py` | 将构建上下文中的 `app.py` 拷入镜像（即 `/app.py`）。 |
+| 6 | `RUN pip3 install ... flask` | 镜像内安装依赖，写入镜像层。 |
+| 7 | `CMD ["flask", "run", "--port", "8080"]` | 容器主进程；JSON 数组为 exec 形式；进程退出则容器退出。 |
 
-**补充**：
+**构建与运行要点**：`docker build` 须在含 `Dockerfile` 与 `app.py` 的目录执行；`docker run` 需 `-p 8080:8080` 方可在宿主机访问容器内 8080。
 
-- **构建**：在包含 `Dockerfile` 和 `app.py` 的目录下执行 `docker build -t <镜像名> .`，按上述顺序执行各层，生成可运行该应用的镜像。
-- **运行**：运行容器时需将容器内 8080 端口映射到宿主机（如 `-p 8080:8080`），才能在宿主机访问 Flask 服务。
+**与可迁移性的关系**：依赖与代码写入镜像层后，**目标机只需镜像内容与容器运行时**，不必匹配构建机的 Python/Flask 安装方式；跨机分发依赖 **Registry**（本步为 Docker Hub）。**限制**：目标机与构建机需 **CPU 架构一致**（如均为 `amd64`），否则需多架构镜像或对应平台构建。
 
 # 验证方法
 
+**推荐顺序**：§1～§3 在构建机确认镜像可用；§4 推至仓库（**可迁移的发布环节**）；§5 在**未参与 build、未拷贝本仓库**的目标机仅 `pull`/`run`，与 §2 对照访问结果。§4 需 Docker Hub 账号及 push 权限，标签与 §1 一致。
+
 ## 1. 构建镜像
 
-先切到本目录（使用你机器上的绝对路径），再执行构建：
+工作目录（可按本机路径调整）：
 
 ```bash
 cd /docker_k8s_2026/docker/docker_0_intro/flask_in_diff_linux
@@ -52,11 +61,10 @@ docker build -t collinsctk/flask_in_centos_ubuntu .
 
 **关键看点**：
 
-- 必须先进入包含 `Dockerfile` 和 `app.py` 的目录再执行 `docker build`，否则会找不到文件或构建上下文错误。
-- `-t collinsctk/flask_in_centos_ubuntu` 为镜像打标签，便于后续 `docker run` 使用。
-- 末尾 `.` 表示使用当前目录为构建上下文，Docker 会读取当前目录下的 `Dockerfile` 和 `COPY` 所需的 `app.py`。
+- 当前目录须同时包含 `Dockerfile` 与 `app.py`；末尾 `.` 为构建上下文。
+- `-t collinsctk/flask_in_centos_ubuntu` 为后续 `run` / `push` 所用标签。
 
-构建成功时，终端会输出 `Successfully built ...` 和 `Successfully tagged collinsctk/flask_in_centos_ubuntu:latest`。
+成功时可见 `Successfully tagged collinsctk/flask_in_centos_ubuntu:latest`。
 
 ## 2. 运行容器并访问
 
@@ -64,13 +72,7 @@ docker build -t collinsctk/flask_in_centos_ubuntu .
 docker run --rm -p 8080:8080 collinsctk/flask_in_centos_ubuntu
 ```
 
-**关键看点**：
-
-- `-p 8080:8080`：将容器内 8080 映射到宿主机 8080，便于在宿主机用浏览器或 `curl` 访问。
-- `--rm`：容器退出后自动删除。
-- 容器在前台运行，终端会输出 Flask 日志；在另一终端或浏览器访问 `http://localhost:8080/` 可看到页面内容。
-
-验证请求示例（在宿主机另一终端执行）：
+**关键看点**：`-p 8080:8080` 做端口映射；`--rm` 退出删容器。容器前台占用终端时，在**另一终端**或浏览器验证：
 
 ```bash
 curl http://localhost:8080/
@@ -80,13 +82,13 @@ curl http://localhost:8080/
 
 ## 3. 停止容器
 
-在运行容器的终端按 `Ctrl+C`，容器主进程退出，容器随之停止（若使用了 `--rm`，容器会被删除）。
+在运行 `docker run` 的终端按 `Ctrl+C`，主进程结束，容器停止（`--rm` 时已删除容器实例）。
 
-## 4. 推送到 Docker Hub（供其他机器拉取、验证跨平台）
+## 4. 推送到 Docker Hub
 
-推送前需先登录 Docker Hub。镜像已在 **§1 构建镜像** 中生成并打标签为 `collinsctk/flask_in_centos_ubuntu`，此处仅需推送。
+前提：§1 已构建出 `collinsctk/flask_in_centos_ubuntu`；Hub 上需存在与标签匹配的命名空间权限（示例使用 `collinsctk/…`，实操时可改为自己的用户名并相应修改 `build -t` 与 `push`）。
 
-**4.1 登录 Docker Hub**
+**4.1 登录**
 
 ```bash
 docker login
@@ -97,37 +99,34 @@ docker login
 - 终端显示 `Login Succeeded` 即表示登录成功。
 - 凭据会保存在 `~/.docker/config.json`；若需更安全存储可配置 credential helper。
 
-**4.2 推送镜像**
+**4.2 推送**
 
 ```bash
 docker push collinsctk/flask_in_centos_ubuntu
 ```
 
-- 若本地尚无该镜像，需先回到 **§1** 在 `flask_in_diff_linux` 目录执行 `docker build -t collinsctk/flask_in_centos_ubuntu .`。
+默认推送 `latest`，即 `docker.io/collinsctk/flask_in_centos_ubuntu:latest`。成功可见各层 `Pushed` 及 digest。若本地无该镜像，回到 §1 目录执行 `docker build -t collinsctk/flask_in_centos_ubuntu .`。
 
-- 未写标签时默认使用 `latest`，推送目标为 `docker.io/collinsctk/flask_in_centos_ubuntu:latest`。
-- 推送成功会输出各层 `Pushed` 及 `latest: digest: sha256:... size: ...`。
+## 5. 在另一台机器上拉取并运行（可迁移性验证）
 
-## 5. 在另一台机器（如 Rocky Linux）上拉取并运行（验证跨平台）
-
-在未参与构建的机器上（如 Rocky Linux）安装好 Docker 后，可直接从 Docker Hub 拉取同一镜像并运行，用于验证“构建一次、多平台运行”的跨平台能力。
+在**未执行过上述 build**、也未拷贝本仓库的机器（如 Rocky Linux）上安装 Docker 后：
 
 ```bash
 docker pull collinsctk/flask_in_centos_ubuntu
 docker run --rm -p 8080:8080 collinsctk/flask_in_centos_ubuntu
 ```
 
-在宿主机访问 `http://<该机 IP>:8080/` 或本机 `curl http://localhost:8080/`，应得到 `Hello World! I am in QYT container`。由此可证明：在 Ubuntu 上构建并 push 的镜像，可在 Rocky 等其它机器上 pull 并正常运行。
+访问 `http://<该机 IP>:8080/` 或 `curl http://localhost:8080/`，应同样得到 `Hello World! I am in QYT container`。与 §2 行为一致，即表明：**同一镜像经 Registry 迁移后，在异机可直接复现运行**（前提：架构一致、网络可达仓库）。
 
 # 预期结果
 
-- `docker build -t collinsctk/flask_in_centos_ubuntu .` 成功完成，无报错。
-- `docker run --rm -p 8080:8080 collinsctk/flask_in_centos_ubuntu` 启动后，访问 `http://localhost:8080/` 得到 `Hello World! I am in QYT container`。
-- 容器内 Flask 监听 0.0.0.0:8080，通过端口映射可在宿主机正常访问。
+- §1～§2：构建机在本地证明镜像可运行。
+- §4：镜像进入仓库，成为**可分发单元**。
+- §5：目标机无源码、无本地 build，仅 pull/run 即得到与 §2 相同的访问结果——**可迁移性成立**。
 
 # 通过标准
 
-- 能说明本目录下构建镜像的命令及含义（`docker build -t <镜像名> .`）。
-- 能正确使用 `-p 8080:8080` 运行容器并访问 Flask 服务。
-- 能说明构建上下文（当前目录）中 `Dockerfile` 与 `app.py` 的作用。
-- 能完成 `docker login` 后 `docker push` 到 Docker Hub，并在另一台机器上 `docker pull` 后运行，说明跨平台验证步骤。
+- 能说明**可迁移性**的含义：镜像 + Registry + 同架构目标机上的等价运行。
+- 能说明 `docker build` 构建上下文与 `-t` 的作用。
+- 能使用 `-p 8080:8080` 运行并访问，并说明 `FLASK_RUN_HOST=0.0.0.0` 与映射的关系。
+- 能完成 push，并在第二台机器 pull → run，用结果对照说明可迁移性。
