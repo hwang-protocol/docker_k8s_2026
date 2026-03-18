@@ -46,7 +46,7 @@ CMD ["flask", "run", "--port", "8080"]
 先切到本目录（使用你机器上的绝对路径），再执行构建：
 
 ```bash
-cd /docker_k8s_2026/docker/docker_0_basic/flask_in_diff_linux
+cd /docker_k8s_2026/docker/docker_0_intro/flask_in_diff_linux
 docker build -t collinsctk/flask_in_centos_ubuntu .
 ```
 
@@ -84,7 +84,7 @@ curl http://localhost:8080/
 
 ## 4. 推送到 Docker Hub（供其他机器拉取、验证跨平台）
 
-推送前需先登录 Docker Hub，再构建并推送镜像。
+推送前需先登录 Docker Hub。镜像已在 **§1 构建镜像** 中生成并打标签为 `collinsctk/flask_in_centos_ubuntu`，此处仅需推送。
 
 **4.1 登录 Docker Hub**
 
@@ -97,15 +97,13 @@ docker login
 - 终端显示 `Login Succeeded` 即表示登录成功。
 - 凭据会保存在 `~/.docker/config.json`；若需更安全存储可配置 credential helper。
 
-**4.2 构建并推送镜像**
-
-在已构建出 `collinsctk/flask_in_centos_ubuntu` 的前提下执行：
+**4.2 推送镜像**
 
 ```bash
-cd /docker_k8s_2026/docker/docker_0_basic/flask_in_diff_linux
-docker build -t collinsctk/flask_in_centos_ubuntu .
 docker push collinsctk/flask_in_centos_ubuntu
 ```
+
+- 若本地尚无该镜像，需先回到 **§1** 在 `flask_in_diff_linux` 目录执行 `docker build -t collinsctk/flask_in_centos_ubuntu .`。
 
 - 未写标签时默认使用 `latest`，推送目标为 `docker.io/collinsctk/flask_in_centos_ubuntu:latest`。
 - 推送成功会输出各层 `Pushed` 及 `latest: digest: sha256:... size: ...`。
