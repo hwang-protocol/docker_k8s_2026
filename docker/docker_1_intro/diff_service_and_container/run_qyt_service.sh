@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 一把梭：从任意目录运行。请将下方改为你机器上的绝对路径后，复制到任意位置执行。
-PROJECT_DIR="/docker_k8s_2026/docker/docker_0_basic/diff_service_and_container"
+PROJECT_DIR="/docker_k8s_2026/docker/docker_1_intro/diff_service_and_container"
 
 set -e
 SERVICE_NAME="qyt_error.service"

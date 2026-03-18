@@ -55,7 +55,7 @@ CMD ["flask", "run", "--port", "8080"]
 工作目录（可按本机路径调整）：
 
 ```bash
-cd /docker_k8s_2026/docker/docker_0_intro/flask_in_diff_linux
+cd /docker_k8s_2026/docker/docker_1_intro/flask_in_diff_linux
 docker build -t collinsctk/flask_in_centos_ubuntu .
 ```
 

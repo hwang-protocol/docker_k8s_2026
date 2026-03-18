@@ -26,7 +26,7 @@ systemd 服务与 Docker 容器在**主进程决定生命周期**上一致：
 1. **安装并启动 systemd 服务**  
    在章节目录下执行（需 sudo）：
    ```bash
-   cd /docker_k8s_2026/docker/docker_0_intro/diff_service_and_container
+   cd /docker_k8s_2026/docker/docker_1_intro/diff_service_and_container
    sudo bash deploy_and_start_service.sh
    ```
 
@@ -35,7 +35,7 @@ systemd 服务与 Docker 容器在**主进程决定生命周期**上一致：
    ```ini
    [Service]
    User=root
-   ExecStart=/usr/bin/bash -c 'cd /docker_compose_swarm/docker_0_basic/diff_service_and_container; python3 app.py'
+   ExecStart=/usr/bin/bash -c 'cd /docker_compose_swarm/docker_1_intro/diff_service_and_container; python3 app.py'
    ```
 
    - **`[Service]`**：运行期段；本例未设 `Restart=`，主进程退出后单元失败，不会自动重启。
