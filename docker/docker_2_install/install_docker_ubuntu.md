@@ -1,21 +1,22 @@
-# 在 Ubuntu 上安装 Docker 与 Docker Compose
+# 在 Ubuntu 上安装 Docker
 
 **官方文档**：[Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
 
 ## 本步目标
 
 - 在 Ubuntu 上通过 Docker 官方 apt 源安装 Docker Engine。
-- 安装 Docker Compose 插件，并使用 `docker compose` 命令。
+- 安装 Compose 插件，并统一使用 `docker compose` 命令。
+- 配置 Docker 数据目录与镜像加速。
 - 完成安装后的基础验证。
 
 ## 问题背景
 
-Ubuntu 自带的 `docker.io` 与 Docker 官方版本不是同一套发布渠道，容易与后续实验环境不一致。本步骤统一使用 Docker 官方仓库安装，并同时安装 Compose 插件。
+Ubuntu 自带的 `docker.io` 与 Docker 官方版本不属于同一发布渠道，版本节奏和功能细节可能与后续实验环境不一致。本步骤统一使用 Docker 官方仓库安装，并同时安装 Compose 插件。
 
 ## 理论说明
 
-- `docker-ce` 提供 Docker Engine。
 - `docker-ce-cli` 提供 `docker` 命令行。
+- `docker-ce` 提供 Docker Engine，也就是 `dockerd` 服务。
 - `containerd.io` 提供容器运行时。
 - `docker-compose-plugin` 提供 `docker compose` 子命令。
 
@@ -24,29 +25,17 @@ flowchart TD
   U[用户命令] --> C1["docker run / docker pull"]
   U --> C2["docker compose up"]
 
-  C1 --> CLI["docker-ce-cli\n(docker 命令行)"]
+  C1 --> CLI["docker-ce-cli<br/>(docker 命令行)"]
   C2 --> CLI
 
-  CLI --> CE["docker-ce\n(Docker Engine / dockerd)"]
-  CE --> CTR["containerd.io\n(容器运行时)"]
+  CLI --> CE["docker-ce<br/>(Docker Engine / dockerd)"]
+  CE --> CTR["containerd.io<br/>(容器运行时)"]
 
-  C2 --> PLUGIN["docker-compose-plugin\n(compose 子命令插件)"]
+  C2 --> PLUGIN["docker-compose-plugin<br/>(Compose 插件)"]
   PLUGIN --> CLI
 ```
 
 本课程后续统一使用 `docker compose`，不是 `docker-compose`。
-
-### `docker compose` 与 `docker-compose` 的区别
-
-- **命令形态**：`docker compose` 是 Docker CLI 子命令（Compose V2）；`docker-compose` 是历史上的独立命令（Compose V1）。
-- **安装方式**：`docker compose` 来自 `docker-compose-plugin`；`docker-compose` 需要单独安装旧版工具。
-- **维护状态**：Compose V2（`docker compose`）是当前官方主线；`docker-compose` 属于旧方案，不建议新环境继续使用。
-- **教学规范**：为避免学员在不同机器出现命令差异，本课程统一使用 `docker compose`（无连字符）。
-
-## 安装前说明
-
-- 若系统使用 `ufw` 或 `firewalld`，需注意 Docker 发布的端口可能绕过部分防火墙规则。
-- Docker 依赖 `iptables` 规则工作；若系统已有较复杂的防火墙策略，安装前应先确认网络策略不会与 Docker 冲突。
 
 ## 验证方法
 
@@ -99,36 +88,24 @@ sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin d
 关键看点：
 
 - 安装包中必须包含 `docker-compose-plugin`。
-- 这里安装完成后，后续应使用 `docker compose` 命令。
+- 后续统一使用 `docker compose` 命令。
 
-### 4. 启动 Docker 服务
+### 4. 配置 Docker 数据目录与镜像加速
 
-多数 Ubuntu 环境在安装完成后会自动启动 Docker 服务；为保证课堂环境一致，这里统一显式执行启动与开机自启命令。
+本课程环境要求显式配置 Docker 数据目录与镜像加速。
 
-```bash
-sudo systemctl enable --now docker
-sudo systemctl status docker
-```
-
-预期结果：
-
-- `docker` 服务状态为 `active (running)`。
-
-### 5. 可选：配置数据目录与镜像加速
-
-若需将镜像与容器数据存到指定目录，并配置国内/镜像加速（拉取镜像时走代理镜像站），可执行以下步骤。
-
-**5.1 创建数据目录**
+**4.1 创建数据目录**
 
 ```bash
 sudo mkdir -p /data/docker
 ```
 
-**5.2 写入 daemon 配置**
+**4.2 写入 `daemon.json`**
 
-`data-root` 指定镜像与容器数据的存储路径；`registry-mirrors` 为拉取镜像时使用的镜像加速列表，按顺序尝试。
+`data-root` 指定镜像与容器数据的存储路径；`registry-mirrors` 指定拉取镜像时优先使用的镜像站。
 
 ```bash
+sudo mkdir -p /etc/docker
 sudo tee /etc/docker/daemon.json <<'EOF'
 {
     "data-root": "/data/docker",
@@ -154,15 +131,34 @@ sudo tee /etc/docker/daemon.json <<'EOF'
 EOF
 ```
 
-**5.3 重载配置并重启 Docker**
+验证方法：
+
+- 执行 `sudo ls /etc/docker/daemon.json`，确认文件已生成。
+- 执行 `sudo grep '"data-root"' /etc/docker/daemon.json`，确认数据目录配置存在。
+
+预期结果：
+
+- `/etc/docker/daemon.json` 文件存在。
+- 文件中包含 `/data/docker` 与镜像加速地址。
+
+通过标准：
+
+- Docker 后续启动时会读取该配置文件。
+
+### 5. 启动 Docker 服务
+
+安装并写入配置后，统一执行启动、重启与开机自启。
 
 ```bash
 sudo systemctl daemon-reload
+sudo systemctl enable docker
 sudo systemctl restart docker
 sudo systemctl status docker
 ```
 
-配置生效后，`docker pull` 会优先通过上述镜像站拉取，镜像与容器数据将存放在 `/data/docker`。
+预期结果：
+
+- `docker` 服务状态为 `active (running)`。
 
 ### 6. 验证安装结果
 
@@ -226,8 +222,9 @@ Docker Compose version v5.1.0
 
 关键看点：
 
-- `docker run hello-world` 能成功拉取并运行测试镜像。
+- `docker version` 同时显示 `Client` 与 `Server` 段。
 - `docker compose version` 能正常输出版本号。
+- `docker run hello-world` 能成功拉取并运行测试镜像。
 - 命令格式是 `docker compose`，中间是空格，不是 `docker-compose`。
 
 ### 7. 可选：允许当前用户直接使用 Docker
@@ -248,11 +245,13 @@ docker compose version
 - `docker --version` 能正常输出版本。
 - `docker compose version` 能正常输出版本。
 - `docker run hello-world` 能成功运行。
+- `/etc/docker/daemon.json` 已生效，数据目录为 `/data/docker`。
 - 后续执行 Compose 编排时，统一使用 `docker compose up -d`。
 
 ## 通过标准
 
 - 已从 Docker 官方 apt 源成功安装 `docker-ce`、`docker-ce-cli`、`containerd.io`、`docker-compose-plugin`。
+- 已写入 `/etc/docker/daemon.json`，包含 `data-root` 与镜像加速配置。
 - `docker` 服务已启动并可正常运行容器。
 - 能明确区分 `docker compose` 与 `docker-compose`，并在后续实验中使用前者。
 
