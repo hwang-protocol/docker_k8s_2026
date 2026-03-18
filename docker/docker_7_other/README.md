@@ -44,6 +44,39 @@ Docker 官方文档明确说明，Docker 使用的是 client-server 架构，其
 - containers
 - registries
 
+这层关系可以先用一张总览图来理解：
+
+```mermaid
+flowchart TD
+  User[用户]
+  CLI[Docker Client]
+  Daemon[dockerd]
+  Registry[Registry]
+  Build[镜像构建]
+  Image[Images]
+  Container[Containers]
+  Network[Networks]
+  Volume[Volumes]
+  Compose[Compose]
+
+  User --> CLI
+  CLI --> Daemon
+  CLI --> Compose
+  Compose --> Daemon
+  Daemon --> Build
+  Daemon --> Image
+  Daemon --> Container
+  Daemon --> Network
+  Daemon --> Volume
+  Daemon <--> Registry
+```
+
+这张图表达的是：
+
+- 用户通常先接触的是 `docker` 命令和 `docker compose`
+- 背后的核心控制点是 `dockerd`
+- 镜像、容器、网络、卷、镜像仓库交互等能力，都围绕这条中心链路展开
+
 Docker 的成功，正是因为它把很多能力打包得很完整：
 
 - 镜像构建
@@ -63,27 +96,6 @@ Docker 的成功，正是因为它把很多能力打包得很完整：
 
 Docker 以 `dockerd` 为中心。  
 这种架构带来统一管理的好处，但也意味着很多功能都依赖 daemon。
-
-```mermaid
-flowchart TD
-  CLI[Docker CLI]
-  API[Docker API]
-  Daemon[dockerd]
-  Img[images]
-  Ctn[containers]
-  Net[networks]
-  Vol[volumes]
-
-  CLI --> API
-  API --> Daemon
-  Daemon --> Img
-  Daemon --> Ctn
-  Daemon --> Net
-  Daemon --> Vol
-```
-
-这张图表达的重点是：  
-镜像、容器、网络、卷等能力都通过 `dockerd` 统一管理。
 
 因此，一旦 daemon 异常，最先受到影响的是管理面：
 
