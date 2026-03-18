@@ -44,11 +44,6 @@ Docker 官方文档明确说明，Docker 使用的是 client-server 架构，其
 - containers
 - registries
 
-来源：
-
-- Docker Overview  
-  <https://docs.docker.com/get-started/docker-overview/>
-
 Docker 的成功，正是因为它把很多能力打包得很完整：
 
 - 镜像构建
@@ -59,7 +54,7 @@ Docker 的成功，正是因为它把很多能力打包得很完整：
 - 卷
 - Compose
 
-但这套“一体化体验”也带来了几个典型边界。  
+但这套"一体化体验"也带来了几个典型边界。  
 这些边界不一定是缺陷，很多时候更像设计取舍。
 
 ### 1.1 Docker 的几个典型边界
@@ -102,7 +97,7 @@ flowchart TD
 
 这里有一个必须说清楚的细节：
 
-- 不能简单地说“daemon 一死，所有容器一定立刻全部挂掉”
+- 不能简单地说"daemon 一死，所有容器一定立刻全部挂掉"
 - 更准确的说法是：**默认情况下**，daemon 终止会关闭运行中的容器；但 Docker 提供了 `live-restore` 机制作为例外
 
 Docker 官方文档明确写到：
@@ -121,80 +116,60 @@ Docker 官方文档明确写到：
 
 > 可以配置 daemon，使其在不可用时仍然让容器继续运行。
 
-来源：
-
-- Docker Live Restore  
-  <https://docs.docker.com/engine/daemon/live-restore/>
-
 因此，这一层真正值得强调的问题是：
 
 - 管理中心比较集中
 - 默认情况下，daemon 的可用性会直接影响运行中的容器
 - 即使启用了 `live-restore`，daemon 不可用时，管理能力仍然会明显下降
 
-#### 1.1.2 工具边界比较“大”
+#### 1.1.2 其他边界
 
-Docker 既是：
+除 daemon 架构外，Docker 还有几个常见的讨论点：
 
-- CLI 工具
-- 镜像构建工具
-- 容器运行工具
-- 应用编排入口
+- **工具边界较大**：Docker 同时扮演 CLI、镜像构建、容器运行、应用编排等多个角色，容易让初学者把"容器生态"误解成"只有 Docker 一套东西"。
+- **rootful 使用习惯更常见**：虽然 Docker 也支持 rootless，但多数生产和实验环境仍以 rootful 模式为主。在更强调最小权限的场景下，用户会更愿意考虑其他方案。
+- **不是所有需求的最佳形态**：有些场景更在意 daemonless、rootless、或更贴近底层运行时的能力，这时就会出现 Docker 之外的选择。
 
-这让它很好上手，但也容易让初学者把“容器生态”误解成“只有 Docker 一套东西”。
+## 2. 生态位置总览
 
-#### 1.1.3 rootful 使用习惯更常见
+这几种方案并不是"互相完全替代"的关系，更像是在不同层次解决问题。
 
-虽然 Docker 也支持 rootless，但很多生产和实验环境里，人们仍然更习惯 rootful 模式。  
-而在一些更强调最小权限和 daemonless 的场景中，用户会更愿意考虑其他方案。
+一个值得注意的事实：Docker 自身的底层也使用 `containerd` 作为容器运行时。  
+换句话说，`containerd` 是 Docker 与 nerdctl 共同的基础组件，而 Podman 则走了另一条路线。
 
-#### 1.1.4 Docker 不是所有需求的最佳形态
+以下三张图分别展示各路线的完整栈：
 
-有些场景更在意：
-
-- daemonless
-- rootless
-- 更贴近底层运行时
-- 更贴近底层运行时
-
-这时就会出现 Docker 之外的选择。
-
-## 2. 先看生态位置
-
-这几种方案并不是“互相完全替代”的关系，更像是在不同层次解决问题。
+**Docker 路线**：CLI / Compose 围绕 `dockerd` 工作，`dockerd` 底层再调用 `containerd`。
 
 ```mermaid
-flowchart TD
-  DockerCLI[Docker CLI]
-  Dockerd[dockerd]
-  Compose[Docker Compose]
-  DockerCLI --> Dockerd
-  Compose --> Dockerd
+flowchart LR
+  DockerCLI[Docker CLI / Compose] --> Dockerd[dockerd]
+  Dockerd --> Containerd[containerd]
+  Containerd --> OCI[OCI Runtime<br/>runc]
+  OCI --> Process[Container Process]
 ```
 
-上图表示 Docker 路线：CLI 与 Compose 都围绕 `dockerd` 工作。
+**Podman 路线**：没有中心化 daemon，命令直接通过 `libpod` / `conmon` 管理容器。
 
 ```mermaid
-flowchart TD
-  PodmanCLI[Podman CLI]
-  Libpod[daemonless 容器管理]
-  PodmanCompose[podman compose]
-  PodmanCLI --> Libpod
-  PodmanCompose --> PodmanCLI
+flowchart LR
+  PodmanCLI[Podman CLI / Compose] --> Libpod[libpod]
+  Libpod --> Conmon[conmon]
+  Conmon --> OCI[OCI Runtime<br/>crun / runc]
+  OCI --> Process[Container Process]
 ```
 
-上图表示 Podman 路线：命令风格接近 Docker，但核心特点是 daemonless。
+**nerdctl 路线**：跳过 `dockerd`，直接对接 `containerd`。
 
 ```mermaid
-flowchart TD
-  Nerdctl[nerdctl]
-  Containerd[containerd]
-  NerdctlCompose[nerdctl compose]
-  Nerdctl --> Containerd
-  NerdctlCompose --> Nerdctl
+flowchart LR
+  Nerdctl[nerdctl CLI / Compose] --> Containerd[containerd]
+  Containerd --> Shim[containerd-shim]
+  Shim --> OCI[OCI Runtime<br/>runc]
+  OCI --> Process[Container Process]
 ```
 
-上图表示 containerd 路线：`nerdctl` 提供接近 Docker 的 CLI，而真正的运行时核心是 `containerd`。
+三者最终都通过 OCI 兼容的 runtime（如 `runc`、`crun`）创建容器，区别主要在上层管理架构。
 
 ## 3. Podman
 
@@ -213,11 +188,6 @@ Podman 官方文档对自己的描述是：
 可译为：
 
 > Podman 提供了与 Docker CLI 可比拟的命令行体验。
-
-来源：
-
-- Podman 文档  
-  <https://docs.podman.io/en/latest/markdown/podman.1.html>
 
 ### 3.1 Podman 的特点
 
@@ -239,7 +209,7 @@ docker CLI -> dockerd -> containerd / runtime -> container
 而 Podman 更接近下面这条路径：
 
 ```mermaid
-flowchart TD
+flowchart LR
   A[podman CLI] --> B[libpod]
   B --> C[conmon]
   C --> D[OCI Runtime<br/>crun / runc]
@@ -260,9 +230,9 @@ flowchart TD
 - 容器生命周期不绑定在某个中心守护进程上
 - 命令是按次执行的，而不是所有请求都必须先交给一个常驻 daemon
 
-教材中可以把它概括成一句话：
+可以把它概括成一句话：
 
-> Podman 的 daemonless，指的是没有 Docker 那种中心化的 `dockerd`；它并不是“完全没有任何辅助进程”，而是把容器创建与管理拆成了更分散的组件。
+> Podman 的 daemonless，指的是没有 Docker 那种中心化的 `dockerd`；它并不是"完全没有任何辅助进程"，而是把容器创建与管理拆成了更分散的组件。
 
 ### 3.3 Podman 基础命令
 
@@ -276,7 +246,7 @@ podman stop web
 podman rm web
 ```
 
-如果只是单容器开发，很多命令几乎可以直接把 `docker` 替换成 `podman`。
+如果只是单容器场景，很多命令几乎可以直接把 `docker` 替换成 `podman`。
 
 ### 3.4 Podman 与 Compose
 
@@ -296,31 +266,12 @@ Podman 官方文档对 `podman compose` 的说明是：
 
 > `podman compose` 本质上是对外部 compose provider 的一个轻量封装。
 
-来源：
-
-- Podman Compose 文档  
-  <https://docs.podman.io/en/latest/markdown/podman-compose.1.html>
-
 这意味着：
 
 - Podman 可以使用 Compose 风格工作流
 - 但它不是自己重新定义了一套完全独立的 Compose 规范
 - 对常见场景而言，通常可以直接复用 `docker-compose.yaml`
-
-常见命令如下：
-
-```bash
-podman compose up -d
-podman compose ps
-podman compose logs -f
-podman compose down
-```
-
-需要注意的是：
-
-- 可以把它理解成“兼容 Compose 工作流”
-- 但不宜机械理解成与 Docker Compose 100% 完全等价
-- 在较复杂特性上，仍应以实际测试和官方文档为准
+- 但不宜机械理解成与 Docker Compose 100% 完全等价，在较复杂特性上，仍应以实际测试和官方文档为准
 
 ## 4. containerd + nerdctl
 
@@ -338,17 +289,12 @@ podman compose down
 - Supports Docker Compose (`nerdctl compose up`)
 - Supports rootless mode
 
-来源：
-
-- nerdctl 官方仓库  
-  <https://github.com/containerd/nerdctl>
-
 ### 4.1 nerdctl 的特点
 
 - 命令体验接近 Docker
 - 更贴近 `containerd`
 - 支持 Compose
-- 适合解释现代运行时栈
+- 适合理解现代运行时栈
 
 ### 4.2 nerdctl 与 containerd 的关系
 
@@ -357,7 +303,7 @@ podman compose down
 这条关系可以用下图理解：
 
 ```mermaid
-flowchart TD
+flowchart LR
   A[nerdctl CLI] --> B[containerd]
   B --> C[containerd-shim]
   C --> D[OCI Runtime<br/>runc 等]
@@ -370,13 +316,7 @@ flowchart TD
 - `containerd` 负责镜像、容器、快照、运行时等核心管理
 - 下面仍然有后台服务层，并不是 Podman 那种 daemonless 路线
 
-因此，如果把它和 Docker、Podman 对比，可以简单理解为：
-
-- Docker：`docker -> dockerd -> containerd/runtime -> container`
-- Podman：`podman -> libpod/conmon/runtime -> container`
-- nerdctl：`nerdctl -> containerd -> runtime -> container`
-
-所以，`nerdctl` 虽然没有 `dockerd`，但它仍然依赖 `containerd` 这一后台服务。  
+`nerdctl` 虽然没有 `dockerd`，但它仍然依赖 `containerd` 这一后台服务。  
 从这个意义上说，它并不是 Podman 式的 daemonless，只是把后端核心从 `dockerd` 换成了 `containerd`。
 
 ### 4.3 nerdctl 基础命令
@@ -393,25 +333,10 @@ nerdctl rm web
 
 ### 4.4 nerdctl 与 Compose
 
-官方示例直接给出了：
-
-```bash
-nerdctl compose -f ./docker-compose.yaml up
-```
-
-日常可写成：
-
-```bash
-nerdctl compose up -d
-nerdctl compose ps
-nerdctl compose logs -f
-nerdctl compose down
-```
-
-对常见多容器场景而言，`nerdctl compose` 也通常可以直接使用 `docker-compose.yaml`。  
+`nerdctl compose` 也通常可以直接使用 `docker-compose.yaml`。  
 但在复杂特性、边缘配置和兼容性细节上，仍应以实际测试结果为准。
 
-如果 Podman 更像“Docker 的近邻平替”，那么 `nerdctl` 更适合用来帮助理解：
+如果 Podman 更像"Docker 的近邻平替"，那么 `nerdctl` 更适合用来帮助理解：
 
 - Docker 风格 CLI 之下还可以接不同运行时
 - 容器生态并不只等于 `dockerd`
@@ -429,6 +354,8 @@ nerdctl compose down
 | 日志 | `docker logs -f web` | `podman logs -f web` | `nerdctl logs -f web` |
 | 停止 | `docker stop web` | `podman stop web` | `nerdctl stop web` |
 | 删除 | `docker rm web` | `podman rm web` | `nerdctl rm web` |
+
+单容器场景下，三者的命令几乎只是替换了工具名称。
 
 ### 5.2 Compose 类工作流对照
 
@@ -452,16 +379,13 @@ flowchart TD
 
 可以用一句话概括：
 
-- `Docker`
-  - 最通用，教材与生态最成熟
-- `Podman`
-  - 最像 Docker 的平替
-- `nerdctl`
-  - 更贴近 `containerd`
+- `Docker`：最通用，教材与生态最成熟
+- `Podman`：最像 Docker 的平替，daemonless / rootless 体验更好
+- `nerdctl`：更贴近 `containerd`，适合理解底层运行时栈
 
 ## 7. 本节结论
 
-本节最重要的结论不是“Docker 不好”，而是：
+本节最重要的结论不是"Docker 不好"，而是：
 
 > Docker 很重要，但它不是唯一容器方案。
 
@@ -471,4 +395,4 @@ flowchart TD
 - Podman 适合希望保持 Docker 习惯、同时更看重 daemonless/rootless 的场景
 - nerdctl 适合理解更底层的容器运行时栈
 
-因此，学习 Docker 的最终目的，不应停留在“记住几条命令”，而应逐步建立对容器生态分层的认识。
+因此，学习 Docker 的最终目的，不应停留在"记住几条命令"，而应逐步建立对容器生态分层的认识。
