@@ -8,6 +8,12 @@
 - `app`（Flask）
 - `redis`
 
+这也是一个很经典的三层思路：
+
+- `nginx` 可以理解为前端入口层
+- `app`（Flask）可以理解为应用层
+- `redis` 可以理解为数据层
+
 这个实验不追求业务复杂度，而是用于把 Docker Compose 最常见的 5 个知识点一次讲清楚：
 
 1. 卷
@@ -34,8 +40,11 @@ flowchart LR
     Redis
   end
 
-  Redis --> RedisData[(redisdata 卷)]
+ Redis --> RedisData[(redisdata 卷)]
 ```
+
+这里的 `frontend` 和 `backend` 都是 **网络名**，不是“前端应用”和“后端应用”的名字。  
+Compose 里经常会用这种命名方式来表达通信边界，所以第一次看到时很容易误解。
 
 从教学角度，这张图至少能说明 3 件事：
 
@@ -134,21 +143,78 @@ networks:
 
 ### 4.1 `nginx` 服务
 
-`nginx` 是外部入口，所以它具备 4 个典型特征：
+先看 `nginx` 在 Compose 文件中的定义：
+
+```yaml
+nginx:
+  image: nginx:1.29.1
+  depends_on:
+    app:
+      condition: service_healthy
+  ports:
+    - "${WEB_PORT}:80"
+  restart: unless-stopped
+  volumes:
+    - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+  networks:
+    - frontend
+    - backend
+```
+
+在这个实验里，`nginx` 作为外部入口，配置上主要体现为 4 个特点：
 
 - 使用公开镜像 `nginx:1.29.1`
 - 通过 `ports` 把宿主机 `8080` 映射到容器 `80`
 - 通过 bind mount 挂载自定义配置文件
-- 同时连接 `frontend` 和 `backend`
+- 连接两个网络：`frontend` 用来表示入口层，`backend` 用来访问后端服务
 
-这里最值得讲清楚的是 `ports` 和 `networks` 的区别：
+这里最值得讲清楚的是 `ports` 和 `networks` 的区别。  
+在这个实验里，`nginx` 既要对宿主机提供访问入口，也要把请求转发给 `app`，所以示例中把它同时放进了 `frontend` 和 `backend`。
+
+然后再看两者的区别：
 
 - `ports` 决定宿主机如何访问容器
 - `networks` 决定容器之间如何互相访问
 
 ### 4.2 `app` 服务
 
-`app` 不是直接使用镜像，而是用本地 Dockerfile 构建：
+先看 `app` 在 Compose 文件中的定义：
+
+```yaml
+app:
+  build:
+    context: ./app
+  depends_on:
+    redis:
+      condition: service_healthy
+  environment:
+    APP_NAME: "${APP_NAME}"
+    APP_ENV: "${APP_ENV}"
+    APP_PORT: "${APP_PORT}"
+    CACHE_HOST: "${CACHE_HOST}"
+    CACHE_PORT: "${CACHE_PORT}"
+  expose:
+    - "${APP_PORT}"
+  healthcheck:
+    test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:${APP_PORT}/healthz')\""]
+    interval: 10s
+    timeout: 3s
+    retries: 10
+    start_period: 5s
+  restart: unless-stopped
+  user: "10001:10001"
+  networks:
+    - backend
+```
+
+这里能先看出几件事：
+
+- `app` 不是直接拉现成镜像，而是通过 `build` 本地构建
+- 它依赖 `redis` 的健康状态
+- 它通过 `environment` 接收运行参数
+- 它只加入 `backend`，不直接对宿主机开放入口
+
+再看它实际使用的 Dockerfile：
 
 ```dockerfile
 FROM python:3.12-alpine
@@ -178,6 +244,24 @@ CMD ["python", "/app/app.py"]
 它说明容器里的应用不必默认以 root 身份运行。
 
 ### 4.3 `redis` 服务
+
+先看 `redis` 在 Compose 文件中的定义：
+
+```yaml
+redis:
+  image: redis:8.2.3-alpine
+  command: ["redis-server", "--appendonly", "yes"]
+  healthcheck:
+    test: ["CMD", "redis-cli", "ping"]
+    interval: 10s
+    timeout: 3s
+    retries: 10
+  restart: unless-stopped
+  volumes:
+    - redisdata:/data
+  networks:
+    - backend
+```
 
 Redis 负责保存计数器，并且通过具名卷进行持久化：
 
@@ -404,6 +488,39 @@ docker compose config
 cd /docker_k8s_2026/docker/docker_6_compose/lab/basic
 docker compose up -d
 ```
+
+一次典型执行时，可能会看到类似下面的输出：
+
+```text
+✔ Image redis:8.2.3-alpine Pulled
+✔ Image nginx:1.29.1       Pulled
+✔ Image basic-app          Built
+✔ Network basic_backend    Created
+✔ Network basic_frontend   Created
+✔ Volume basic_redisdata   Created
+✔ Container basic-redis-1  Healthy
+✔ Container basic-app-1    Healthy
+✔ Container basic-nginx-1  Started
+```
+
+这段输出可以按 4 组来理解：
+
+- `Image ... Pulled`
+  表示 Compose 发现本地没有对应镜像，于是从镜像仓库拉取了 `redis` 和 `nginx` 的官方镜像。
+- `Image basic-app Built`
+  表示 `app` 服务不是直接使用现成镜像，而是根据当前目录下的 Dockerfile 现场构建出了一个镜像；`basic-app` 这个名字是 Compose 自动生成的。
+- `Network ... Created`、`Volume ... Created`
+  表示 Compose 根据文件里的定义，自动创建了项目需要的网络和具名卷。这里的 `basic_` 是项目名前缀，默认来自当前目录名 `basic`。
+- `Container ... Healthy`、`Started`
+  表示容器已经被创建并启动。其中 `redis` 和 `app` 配置了 `healthcheck`，所以会显示 `Healthy`；`nginx` 没有定义健康检查，因此这里只显示 `Started`。
+
+这段输出也顺手说明了 Compose 的几个特点：
+
+- 不需要手工先执行 `docker network create`
+- 不需要手工先执行 `docker volume create`
+- 需要拉镜像、构建镜像、建网络、建卷、起容器时，Compose 会按依赖顺序自动完成
+
+如果再次执行 `docker compose up -d`，通常就不会再看到 `Pulled`、`Built`、`Created` 这些步骤，因为对应资源已经存在；Compose 会尽量复用已有资源，只在配置或镜像变化时重建。
 
 ## 9. 实验验证
 
