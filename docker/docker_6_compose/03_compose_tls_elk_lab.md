@@ -148,6 +148,20 @@ flowchart TD
 1. 一次性任务可以独立成服务
 2. `depends_on` 的条件可以精确到 `service_completed_successfully` 和 `service_healthy`
 
+这里可以顺手把 `depends_on.condition` 的 3 个常见取值区分清楚：
+
+- `service_started`
+  只要求依赖服务已经启动。
+- `service_healthy`
+  要求依赖服务通过 `healthcheck`。
+- `service_completed_successfully`
+  要求依赖服务执行完毕，而且退出码是 `0`。
+
+在本实验里：
+
+- `cert-init`、`kibana-auth-init` 这类一次性任务，更适合用 `service_completed_successfully`
+- `elasticsearch`、`kibana` 这类长期运行服务，更适合配合 `healthcheck` 使用 `service_healthy`
+
 ## 5. 先读 `.env`
 
 本实验的环境变量文件如下：
@@ -332,18 +346,32 @@ echo "kibana_system password updated"
 - Compose 可以让“初始化脚本”成为应用结构的一部分
 - 这比把初始化过程散落在手工命令里更容易复现
 
-## 9. `kibana`：TLS 终端与被反代服务
+## 9. `kibana`：开启 HTTPS，并作为 Nginx 的上游服务
 
-Kibana 服务本身开启了 HTTPS，并通过如下环境变量连接 Elasticsearch：
+这一节有两个点要同时看：
+
+1. Kibana 自己开启了 HTTPS
+2. Kibana 作为 Nginx 反向代理的上游服务存在
+
+相关环境变量如下：
 
 ```yaml
+SERVER_SSL_ENABLED: "true"
+SERVER_SSL_CERTIFICATE: /usr/share/kibana/config/certs/tls.crt
+SERVER_SSL_KEY: /usr/share/kibana/config/certs/tls.key
+SERVER_PUBLICBASEURL: https://kibana01.qytdocker2026.com
 ELASTICSEARCH_HOSTS: '["https://es01.qytdocker2026.com:9200"]'
 ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES: /usr/share/kibana/config/certs/ca.crt
 ELASTICSEARCH_USERNAME: kibana_system
 ELASTICSEARCH_PASSWORD: ${KIBANA_SYSTEM_PASSWORD}
 ```
 
-这个片段适合用来说明 Compose 中环境变量的两种常见用途：
+从这个片段里，可以读出两层关系：
+
+- 对外，Kibana 自己监听的是 HTTPS，因此 Nginx 反代到 Kibana 时，走的不是明文 HTTP，而是 HTTPS 上游
+- 对内，Kibana 访问 Elasticsearch 时，同样走 HTTPS，并校验证书
+
+这也说明了 Compose 中环境变量的两种常见用途：
 
 1. 环境变量不仅可以传简单参数，也可以传列表或 JSON 形式的复杂值
 2. 只要内部 DNS 名称与证书 SAN 对齐，容器间 TLS 完全可以走 FQDN
@@ -595,6 +623,13 @@ docker compose up -d
 证书生成、密码初始化、主服务启动，都会由 Compose 根据依赖关系完成。
 
 ## 16. 实验验证
+
+下面的 `docker compose` 命令，都默认在实验目录中执行。  
+先进入：
+
+```bash
+cd /docker_k8s_2026/docker/docker_6_compose/lab/elastic_tls
+```
 
 ### 16.1 查看服务状态
 
