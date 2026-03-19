@@ -10,7 +10,7 @@
 
 这也是一个很经典的三层思路：
 
-- `nginx` 可以理解为前端入口层
+- `nginx` 可以理解为入口层
 - `app`（Flask）可以理解为应用层
 - `redis` 可以理解为数据层
 
@@ -40,7 +40,7 @@ flowchart LR
     Redis
   end
 
- Redis --> RedisData[(redisdata 卷)]
+  Redis --> RedisData[(redisdata 卷)]
 ```
 
 这里的 `frontend` 和 `backend` 都是 **网络名**，不是“前端应用”和“后端应用”的名字。  
@@ -48,7 +48,7 @@ Compose 里经常会用这种命名方式来表达通信边界，所以第一次
 
 从教学角度，这张图至少能说明 3 件事：
 
-- `nginx` 是入口服务，所以它既连接 `frontend`，也连接 `backend`
+- `nginx` 是入口服务，所以它同时连接 `frontend` 网络和 `backend` 网络
 - `app` 和 `redis` 不需要对宿主机开放端口
 - Redis 的数据应放在卷中持久化
 
@@ -165,13 +165,13 @@ nginx:
 
 - 使用公开镜像 `nginx:1.29.1`
 - 通过 `ports` 把宿主机 `8080` 映射到容器 `80`
-- 通过 bind mount 挂载自定义配置文件
-- 连接两个网络：`frontend` 用来表示入口层，`backend` 用来访问后端服务
+- 通过 `bind mount` 挂载自定义配置文件
+- 连接两个网络：`frontend` 网络表示入口侧的网络边界，`backend` 网络用于访问后端服务
 
 这里最值得讲清楚的是 `ports` 和 `networks` 的区别。  
 在这个实验里，`nginx` 既要对宿主机提供访问入口，也要把请求转发给 `app`，所以示例中把它同时放进了 `frontend` 和 `backend`。
 
-然后再看两者的区别：
+两者的区别可以直接概括为：
 
 - `ports` 决定宿主机如何访问容器
 - `networks` 决定容器之间如何互相访问
@@ -209,7 +209,7 @@ app:
 
 这里能先看出几件事：
 
-- `app` 不是直接拉现成镜像，而是通过 `build` 本地构建
+- `app` 不是直接使用现成镜像，而是通过 `build` 本地构建
 - 它依赖 `redis` 的健康状态
 - 它通过 `environment` 接收运行参数
 - 它只加入 `backend`，不直接对宿主机开放入口
@@ -263,13 +263,15 @@ redis:
     - backend
 ```
 
-Redis 负责保存计数器，并且通过具名卷进行持久化：
+从这段定义里，最值得先注意的是两点：
 
 ```yaml
+command: ["redis-server", "--appendonly", "yes"]
 volumes:
   - redisdata:/data
 ```
 
+第一，Redis 开启了 AOF 持久化；第二，数据目录挂到了具名卷 `redisdata`。  
 这正是 Compose 中“卷”的最典型用法。  
 对学生来说，要建立这样一个认识：
 
@@ -420,12 +422,12 @@ server {
 - `nginx` 连接两个网络
 - `app` 和 `redis` 只连接 `backend`
 
-这种设计比“所有服务都扔进一个网络”更有教学价值，因为它清楚表达了网络边界。
+这种设计比“所有服务都放进一个网络”更有教学价值，因为它能更直观地表达网络边界。
 
 **关键看点**
 
 - `nginx` 作为入口层，要同时面向外部和内部
-- `redis` 不需要暴露端口，也不需要进入前端网络
+- `redis` 不需要暴露端口，也不需要进入 `frontend` 网络
 - Compose 网络本身就能承载服务发现
 
 ### 6.3 用户权限
@@ -489,7 +491,7 @@ cd /docker_k8s_2026/docker/docker_6_compose/lab/basic
 docker compose up -d
 ```
 
-一次典型执行时，可能会看到类似下面的输出：
+第一次执行时，通常会看到类似下面的输出：
 
 ```text
 ✔ Image redis:8.2.3-alpine Pulled
@@ -503,12 +505,12 @@ docker compose up -d
 ✔ Container basic-nginx-1  Started
 ```
 
-这段输出可以按 4 组来理解：
+这段输出可以按 4 类来理解：
 
 - `Image ... Pulled`
   表示 Compose 发现本地没有对应镜像，于是从镜像仓库拉取了 `redis` 和 `nginx` 的官方镜像。
 - `Image basic-app Built`
-  表示 `app` 服务不是直接使用现成镜像，而是根据当前目录下的 Dockerfile 现场构建出了一个镜像；`basic-app` 这个名字是 Compose 自动生成的。
+  表示 `app` 服务不是直接使用现成镜像，而是根据当前目录下的 Dockerfile 本地构建出了一个镜像；`basic-app` 这个名字是 Compose 自动生成的。
 - `Network ... Created`、`Volume ... Created`
   表示 Compose 根据文件里的定义，自动创建了项目需要的网络和具名卷。这里的 `basic_` 是项目名前缀，默认来自当前目录名 `basic`。
 - `Container ... Healthy`、`Started`
@@ -520,7 +522,7 @@ docker compose up -d
 - 不需要手工先执行 `docker volume create`
 - 需要拉镜像、构建镜像、建网络、建卷、起容器时，Compose 会按依赖顺序自动完成
 
-如果再次执行 `docker compose up -d`，通常就不会再看到 `Pulled`、`Built`、`Created` 这些步骤，因为对应资源已经存在；Compose 会尽量复用已有资源，只在配置或镜像变化时重建。
+如果再次执行 `docker compose up -d`，通常就不会再看到 `Pulled`、`Built`、`Created` 这些步骤，因为对应资源已经存在；Compose 会尽量复用已有资源，只在配置或镜像发生变化时重建。
 
 ## 9. 实验验证
 
@@ -555,7 +557,7 @@ basic-redis-1   redis:8.2.3-alpine   "docker-entrypoint.s…"   redis     2 hour
 curl -s http://127.0.0.1:8080/
 ```
 
-实际输出：
+示例输出：
 
 ```json
 {"app_env":"prod","app_name":"compose-basic-demo","cache_host":"redis","cache_port":6379,"hits":2}
