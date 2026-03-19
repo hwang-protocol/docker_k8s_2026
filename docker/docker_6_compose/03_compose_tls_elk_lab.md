@@ -19,7 +19,7 @@
 - 自定义网络
 - 网络别名
 - 具名卷与共享卷
-- bind mount
+- `bind mount`
 - 环境变量
 - 健康检查
 - 启动顺序控制
@@ -480,6 +480,9 @@ output.elasticsearch:
 文件位置：
 
 - [filebeat.yml](/docker_k8s_2026/docker/docker_6_compose/lab/elastic_tls/filebeat/filebeat.yml)
+
+这里还有一个很容易忽略的小点：`fields` 不是 Filebeat 的控制参数，而是给每条日志额外加上的自定义字段。  
+例如这里的 `service_name: nginx`、`compose_demo: elastic_tls`，就是为了让日志进入 Elasticsearch 后更容易按服务名、实验名做筛选。
 
 教学里最重要的不是 Filebeat 语法，而是这两个 Compose 设计：
 

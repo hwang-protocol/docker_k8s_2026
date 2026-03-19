@@ -421,14 +421,14 @@ Compose 官方参考文档对卷的说明是：
 1. 具名卷
    - 由 Docker 管理
    - 适合数据库、缓存等持久化目录
-2. bind mount
+2. `bind mount`
    - 把宿主机上的具体文件或目录挂进容器
    - 适合配置文件、源码、证书目录
 
 例如：
 
 - `redisdata:/data` 是具名卷
-- `./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro` 是 bind mount
+- `./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro` 是 `bind mount`
 
 ### 5.3 `networks`
 

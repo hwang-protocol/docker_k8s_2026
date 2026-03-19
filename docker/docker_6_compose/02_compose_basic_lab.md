@@ -275,7 +275,7 @@ volumes:
 这正是 Compose 中“卷”的最典型用法。  
 对学生来说，要建立这样一个认识：
 
-- 配置文件常常用 bind mount
+- 配置文件常常用 `bind mount`
 - 数据目录常常用具名卷
 
 ## 5. 应用代码说明
@@ -401,12 +401,12 @@ server {
 
 本实验中出现了两种挂载方式：
 
-- bind mount：`./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro`
-- named volume：`redisdata:/data`
+- `bind mount`：`./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro`
+- `named volume`：`redisdata:/data`
 
 **关键看点**
 
-- 配置文件通常用 bind mount，更直观，方便编辑
+- 配置文件通常用 `bind mount`，更直观，方便编辑
 - 数据目录通常用具名卷，适合持久化
 - `:ro` 表示只读挂载，这是一种值得强调的习惯
 
