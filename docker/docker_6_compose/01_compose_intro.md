@@ -72,6 +72,127 @@ flowchart LR
   C[Docker Compose] --> D[适合多容器应用的声明式编排]
 ```
 
+### 2.1 一个直观对比案例
+
+下面故意选一个很常见、但已经不是“单容器”的需求。  
+这里不要求立即执行，重点是体会两种表达方式的差异。
+
+需求如下：
+
+- 一个 `nginx` 对外提供 `8080`
+- 一个 `app` 负责业务逻辑
+- 一个 `redis` 负责缓存，并且数据要持久化
+- `app` 通过服务名 `redis` 访问缓存
+- 整套环境需要能统一启动、统一停止
+
+如果用 `docker run` 来做，通常至少要写成下面这样：
+
+```bash
+docker network create demo-net
+docker volume create redis-data
+
+docker run -d \
+  --name redis \
+  --network demo-net \
+  -v redis-data:/data \
+  --restart unless-stopped \
+  redis:8.2 \
+  redis-server --appendonly yes
+
+docker run -d \
+  --name app \
+  --network demo-net \
+  -e CACHE_HOST=redis \
+  -e CACHE_PORT=6379 \
+  -e APP_ENV=prod \
+  --restart unless-stopped \
+  myorg/demo-app:1.0
+
+docker run -d \
+  --name nginx \
+  --network demo-net \
+  -p 8080:80 \
+  -v ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro \
+  --restart unless-stopped \
+  nginx:1.29.1
+```
+
+这时读者通常会立刻感受到几个问题：
+
+- 必须先记得创建网络和卷
+- 三个服务分散在三条长命令里
+- `app` 依赖 `redis` 这件事，只能从环境变量里间接看出来
+- 如果要换端口、加卷、改环境变量，就要重新改命令并再次执行
+- 团队协作时，别人往往不容易一次性拼出完整运行方式
+
+同样的需求，用 Compose 表达通常是下面这样：
+
+```yaml
+services:
+  redis:
+    image: redis:8.2
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+  app:
+    image: myorg/demo-app:1.0
+    restart: unless-stopped
+    environment:
+      CACHE_HOST: redis
+      CACHE_PORT: 6379
+      APP_ENV: prod
+    depends_on:
+      - redis
+
+  nginx:
+    image: nginx:1.29.1
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+
+volumes:
+  redis-data:
+```
+
+启动时只需要：
+
+```bash
+docker compose up -d
+```
+
+停止并清理当前项目资源时通常只需要：
+
+```bash
+docker compose down
+```
+
+这个对比里，Compose 的优势不只是“命令更短”，而是“应用结构终于被写出来了”。  
+打开这份 YAML，就能一次性看见：
+
+- 有哪些服务
+- 每个服务用什么镜像
+- 端口怎么映射
+- 哪些目录或卷需要挂载
+- 服务之间谁依赖谁
+
+从教学角度，可以把这种差异概括成下表：
+
+| 对比项 | `docker run` | Compose |
+| --- | --- | --- |
+| 初次启动 | 先建网络、建卷，再逐条启动容器 | 一条 `docker compose up -d` |
+| 阅读结构 | 需要从多条命令里自己拼关系 | 打开 YAML 就能看到整体结构 |
+| 修改配置 | 反复改长命令，容易漏项 | 改 Compose 文件即可 |
+| 团队协作 | 常依赖文档、聊天记录、命令历史 | 配置文件本身就是文档 |
+| 停止清理 | 需要分别停容器、删网络、删卷 | 可以按项目统一管理 |
+
+因此，`docker run` 的问题不在于“不能启动多个容器”，而在于当容器一多，整个应用的结构会散落在命令历史里；Compose 的价值，就是把这些零散信息收拢成一份可以阅读、可以复用、可以版本管理的应用清单。
+
 ## 3. Compose 与 Dockerfile 的关系
 
 Docker 官方文档写道：
