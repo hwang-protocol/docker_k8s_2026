@@ -53,6 +53,20 @@ Docker 官方文档对 Compose 的描述非常直接：
 docker run -d --name web -p 8080:80 nginx:1.29.1
 ```
 
+同一个“单容器”需求，用 Compose 也可以写，例如在项目目录下放一个 `compose.yaml`：
+
+```yaml
+services:
+  web:                          # 服务名，对应 docker run 的 --name web
+    image: nginx:1.29.1         # 使用镜像
+    ports:
+      - "8080:80"                # 宿主机端口:容器端口，对应 -p 8080:80
+```
+
+用 `docker compose up -d` 即可启动，效果与上面这条 `docker run` 等价。Compose 文件还支持注释，方便写清每项含义、方便团队协作；单容器时配置可版本管理、可复现，多容器时则更能体现编排优势。
+
+**Compose 文件名**：在项目目录下执行 `docker compose` 时，默认会查找当前目录下的 `compose.yaml` 或 `compose.yml`（也兼容旧名 `docker-compose.yaml`、`docker-compose.yml`），按此顺序找到第一个即用。若文件名不同或文件不在当前目录，可用 `-f` 指定，例如：`docker compose -f /path/to/compose.yaml up -d` 或 `docker compose -f ./subdir/docker-compose.yml up -d`。
+
 但当一个应用由多个容器组成时，问题会很快出现：
 
 - 启动命令越来越长
@@ -456,6 +470,32 @@ Docker 官方文档对变量替换写得很明确：
 
 - Docker Docs, *Variable interpolation*
   - <https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/>
+
+需要区分清楚：`.env` 是给 **Compose 自己**用的——在解析、执行 `docker compose up` 时，用其中的变量去替换 compose 文件里的 `${VAR}` 占位符；**不是**自动发给每个容器。若要让某个服务（容器）读到某个变量，必须在对应服务的 `environment` 或 `env_file` 里显式写出来，或在该服务里引用 `${VAR}`（此时 Compose 会先把变量代入，再传给该服务）。用 YAML 片段说明如下。
+
+**1. Compose 用 `.env` 做文件内替换**（例如端口、镜像名等，与“是否进容器”无关）：
+
+```yaml
+# .env 中有 APP_PORT=8080、NGINX_IMAGE=nginx:1.29.1
+services:
+  web:
+    image: ${NGINX_IMAGE}      # Compose 解析时替换为 nginx:1.29.1
+    ports:
+      - "${APP_PORT}:80"       # 解析时替换为 8080:80
+```
+
+**2. 只有写进服务的 `environment`（或 `env_file`），容器内才能读到**：
+
+```yaml
+services:
+  web:
+    image: nginx:1.29.1
+    environment:
+      - APP_NAME=${APP_NAME}   # Compose 先代入 .env 中的 APP_NAME，再作为环境变量传入容器
+    # 或者用 env_file 把整份文件交给该服务：
+    # env_file:
+    #   - .env
+```
 
 `.env` 的价值不只是少打几次字，更重要的是：
 
