@@ -53,7 +53,7 @@ Docker 官方文档对 Compose 的描述非常直接：
 docker run -d --name web -p 8080:80 nginx:1.29.1
 ```
 
-同一个“单容器”需求，用 Compose 也可以写，例如在项目目录下放一个 `compose.yaml`：
+同一个“单容器”需求，用 Compose 也可以描述，例如在项目目录下放一个 `compose.yaml`：
 
 ```yaml
 services:
@@ -63,9 +63,10 @@ services:
       - "8080:80"                # 宿主机端口:容器端口，对应 -p 8080:80
 ```
 
-用 `docker compose up -d` 即可启动，效果与上面这条 `docker run` 等价。Compose 文件还支持注释，方便写清每项含义、方便团队协作；单容器时配置可版本管理、可复现，多容器时则更能体现编排优势。
+用 `docker compose up -d` 即可启动，效果与上面这条 `docker run` 等价。  
+Compose 文件还支持注释，便于写清每项含义、纳入版本管理；单容器时能提升可复现性，多容器时则更能体现编排优势。
 
-**Compose 文件名**：在项目目录下执行 `docker compose` 时，默认会查找当前目录下的 `compose.yaml` 或 `compose.yml`（也兼容旧名 `docker-compose.yaml`、`docker-compose.yml`），按此顺序找到第一个即用。若文件名不同或文件不在当前目录，可用 `-f` 指定，例如：`docker compose -f /path/to/compose.yaml up -d` 或 `docker compose -f ./subdir/docker-compose.yml up -d`。
+**Compose 文件名**：通常推荐使用 `compose.yaml` 或 `compose.yml`（也兼容旧名 `docker-compose.yaml`、`docker-compose.yml`）。如果文件名不同，或文件不在当前工作目录下，可以用 `-f` 指定，例如：`docker compose -f /path/to/compose.yaml up -d` 或 `docker compose -f ./subdir/docker-compose.yml up -d`。
 
 但当一个应用由多个容器组成时，问题会很快出现：
 
@@ -174,13 +175,15 @@ volumes:
   redis-data:
 ```
 
+这里没有显式定义 `networks`，因为 Compose 会自动为项目创建默认网络；因此 `app` 仍然可以直接通过服务名 `redis` 访问缓存。
+
 启动时只需要：
 
 ```bash
 docker compose up -d
 ```
 
-停止并清理当前项目资源时通常只需要：
+停止并删除当前项目资源时通常只需要：
 
 ```bash
 docker compose down
@@ -225,7 +228,7 @@ Docker 官方文档写道：
 因此，两者的职责可以明确区分：
 
 - `Dockerfile` 解决“镜像怎么构建”
-- `docker-compose.yaml` 解决“容器怎么组织和运行”
+- `Compose 文件` 解决“容器怎么组织和运行”
 
 这也是实际项目中最常见的组合方式：
 
@@ -239,7 +242,7 @@ Docker 官方文档写道：
 
 ### 4.1 用一个文件描述一个应用
 
-一份 `docker-compose.yaml` 可以集中定义：
+一份 Compose 文件可以集中定义：
 
 - 有哪些服务
 - 每个服务使用什么镜像，或者如何构建镜像
@@ -352,8 +355,13 @@ Docker 官方文档指出：
 
 例如数据库容器通常很快就会进入 `Up` 状态，但此时它仍可能在初始化数据目录、加载系统表或回放日志，应用立即连接仍然可能失败。
 
-因此，`depends_on` 只能表达启动顺序，不能天然保证前一个服务已经可用。  
-在需要初始化时间的服务前面，通常还要配合 `healthcheck`。
+因此，`depends_on` 需要分两种情况理解：
+
+- 如果使用短语法（如 `depends_on: [redis]`），它主要表达启动顺序，不能保证前一个服务已经可用
+- 如果需要等待服务真正就绪，应给被依赖服务配置 `healthcheck`，并在 `depends_on` 中使用 `condition: service_healthy`
+- 如果依赖的是一次性初始化任务，则常见写法是 `condition: service_completed_successfully`
+
+这也是为什么在实际项目里，`depends_on` 往往要和 `healthcheck` 搭配使用，而不是单独理解成“已经准备好了”。
 
 ## 5. Compose 文件中的核心对象
 
@@ -509,7 +517,7 @@ Compose 的常见使用流程可以概括为下面 6 步：
 
 ```mermaid
 flowchart TD
-  A[编写 docker-compose.yaml] --> B[准备 .env 与配置文件]
+  A[编写 Compose 文件] --> B[准备 .env 与配置文件]
   B --> C[docker compose config]
   C --> D[docker compose up -d]
   D --> E[docker compose ps / logs]
@@ -601,8 +609,8 @@ docker compose down -v
 
 ### 8.2 `depends_on` 不等于服务就绪
 
-`depends_on` 可以解决启动顺序问题，但不能替代健康检查。  
-只要后端服务需要初始化时间，就应优先考虑增加 `healthcheck`。
+短语法 `depends_on` 只能解决启动顺序问题，不能替代健康检查。  
+如果希望依赖“就绪状态”，应给被依赖服务定义 `healthcheck`，再配合 `condition: service_healthy`；对于一次性初始化任务，则可使用 `condition: service_completed_successfully`。
 
 ### 8.3 卷不仅用于持久化，也用于共享
 
