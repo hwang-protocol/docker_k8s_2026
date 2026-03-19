@@ -7,7 +7,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         target = sys.argv[1]
     else:
-        target = "https://www.qytang.com"
+        target = "https://www.jd.com"
 
     req_result = requests.get(target, timeout=10)
 

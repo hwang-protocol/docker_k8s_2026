@@ -49,10 +49,25 @@
 
 ## 实验准备
 
-以下所有命令均在**实验目录**下执行。实验目录即包含 `Dockerfile.env`、`hello.sh`、`Dockerfile.entrypoint`、`entrypoint_demo.py`、`Dockerfile.copydir`、`Dockerfile.copy`、`Dockerfile.add` 以及用于生成 `site.tar.gz` 的 `site/` 目录的那一层；若使用本仓库，则为 `docker/docker_5_DockerFile/lab`。进入实验目录后，先生成 COPY/ADD 实验所需的压缩包（若已有 `site.tar.gz` 可跳过）：
+以下命令均在**实验目录**下执行。本仓库中实验目录为 `/docker_k8s_2026/docker/docker_5_DockerFile/lab`，结构如下（共 7 个文件与 1 个目录 `site/`，`site/` 用于打包生成 `site.tar.gz`）：
+
+```text
+lab/
+├── Dockerfile.add
+├── Dockerfile.copy
+├── Dockerfile.copydir
+├── Dockerfile.entrypoint
+├── Dockerfile.env
+├── entrypoint_demo.py
+├── hello.sh
+└── site/
+    └── index.html
+```
+
+进入实验目录后，先生成 COPY/ADD 实验所需的压缩包（若已有 `site.tar.gz` 可跳过）：
 
 ```bash
-cd docker/docker_5_DockerFile/lab   # 按你的实际路径调整
+cd /docker_k8s_2026/docker/docker_5_DockerFile/lab
 tar -czf site.tar.gz -C site .
 ```
 
@@ -123,7 +138,7 @@ ENV APP_NAME=dockerfile-demo \
 
 EXPOSE 8080
 
-CMD ["/app/hello.sh"]
+CMD ["./hello.sh"]
 ```
 
 配套脚本 `hello.sh`：
@@ -153,8 +168,8 @@ echo "PWD=$(pwd)"
   设置镜像默认环境变量。
 - `EXPOSE 8080`
   声明镜像打算使用 `8080` 端口。
-- `CMD ["/app/hello.sh"]`
-  指定容器启动后的默认命令。
+- `CMD ["./hello.sh"]`
+  指定容器启动后的默认命令，在 WORKDIR（此处为 `/app`）下执行。
 
 ### 第三步：构建第一个镜像
 
@@ -205,7 +220,7 @@ docker image inspect df-demo:env --format $'Labels={{json .Config.Labels}}\nEnv=
 Labels={"course":"docker2026","maintainer":"collinsctk"}
 Env=["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","APP_NAME=dockerfile-demo","APP_ENV=prod","APP_PORT=8080"]
 ExposedPorts={"8080/tcp":{}}
-Cmd=["/app/hello.sh"]
+Cmd=["./hello.sh"]
 WorkingDir=/app
 ```
 
@@ -214,7 +229,7 @@ WorkingDir=/app
 - `Labels=...` 对应 Dockerfile 里的 `LABEL`
 - `Env=...` 对应 Dockerfile 里的 `ENV`
 - `ExposedPorts={"8080/tcp":{}}` 对应 Dockerfile 里的 `EXPOSE`
-- `Cmd=["/app/hello.sh"]` 对应 Dockerfile 里的 `CMD`
+- `Cmd=["./hello.sh"]` 对应 Dockerfile 里的 `CMD`（相对路径依赖 `WorkingDir=/app`）
 - `WorkingDir=/app` 对应 Dockerfile 里的 `WORKDIR`
 
 这里也顺手记住：
@@ -243,7 +258,7 @@ PWD=/app
 
 - `APP_NAME`、`APP_ENV`、`APP_PORT` 都来自 Dockerfile 里的 `ENV`
 - `PWD=/app` 说明容器启动时默认工作目录已经是 `WORKDIR /app`
-- 直接执行的就是 `CMD ["/app/hello.sh"]`
+- 直接执行的就是 `CMD ["./hello.sh"]`
 
 再看一下这个容器的状态：
 
@@ -317,7 +332,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         target = sys.argv[1]
     else:
-        target = "https://www.qytang.com"
+        target = "https://www.jd.com"
 
     req_result = requests.get(target, timeout=10)
 
@@ -344,8 +359,8 @@ if __name__ == "__main__":
 
 - 如果容器内部实际执行的效果接近于 `python3 /app/entrypoint_demo.py https://www.baidu.com`
   那么 `sys.argv` 里就会看到 `https://www.baidu.com`
-- 如果容器内部实际执行的效果接近于 `python3 /app/entrypoint_demo.py https://www.qytang.com`
-  那么 `sys.argv` 里就会看到 `https://www.qytang.com`
+- 如果容器内部实际执行的效果接近于 `python3 /app/entrypoint_demo.py https://www.jd.com`
+  那么 `sys.argv` 里就会看到 `https://www.jd.com`
 
 所以这段脚本的作用，本质上就是把：
 
@@ -398,13 +413,11 @@ WorkingDir=/app
 - `Entrypoint=["python3","/app/entrypoint_demo.py"]` 表示容器启动时默认执行的是这个 Python 程序
 - `Cmd=["https://www.baidu.com"]` 表示默认给这个程序再传入一个参数 `https://www.baidu.com`
 
-把它们拼在一起看，容器内部的实际执行效果接近：
+把它们拼在一起看，容器内部的实际执行效果接近（👁️ **仅作示意，勿在宿主机执行**）：
 
 ```bash
 python3 /app/entrypoint_demo.py https://www.baidu.com
 ```
-
-这里表达的是容器内部的执行效果，不是让你在宿主机终端里直接敲这条命令。
 
 ### 第八步：第一次运行，不额外传参
 
@@ -427,20 +440,20 @@ status_code=200
 ### 第九步：第二次运行，手工传入一个新参数
 
 ```bash
-docker run --rm df-demo:entry https://www.qytang.com
+docker run --rm df-demo:entry https://www.jd.com
 ```
 
 原始输出：
 
 ```text
-sys.argv=['/app/entrypoint_demo.py', 'https://www.qytang.com']
-url=https://www.qytang.com
+sys.argv=['/app/entrypoint_demo.py', 'https://www.jd.com']
+url=https://www.jd.com
 status_code=200
 ```
 
 说明：
 
-- 运行容器时追加的 `https://www.qytang.com`，替换掉了原来的 `CMD ["https://www.baidu.com"]`
+- 运行容器时追加的 `https://www.jd.com`，替换掉了原来的 `CMD ["https://www.baidu.com"]`
 - 但 `ENTRYPOINT` 仍然没有变
 
 ### 第十步：第三次运行，直接改掉入口命令
@@ -507,6 +520,8 @@ COPY site /data/site
 
 CMD ["sh", "-c", "find /data -maxdepth 3 -type f | sort"]
 ```
+
+含义：容器启动后默认执行这条命令——在 `/data` 下最多找 3 层目录，列出其中的**文件**（不含目录），再按路径排序输出。用来直观看到 COPY 进镜像里的文件有哪些。
 
 构建镜像：
 
