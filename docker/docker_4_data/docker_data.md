@@ -44,6 +44,8 @@ Docker 容器运行时，除了镜像本身的只读层，还会有一层容器�
 
 如果没有额外挂载，容器里新建文件、修改配置、写入数据，默认都会落在这一层。
 
+![容器可写层示意](images/writeable_container.png)
+
 问题在于：
 
 - 容器停止，不会立刻丢数据
@@ -106,6 +108,8 @@ docker run -d \
 - Docker 负责管理卷
 - 很适合数据库数据目录
 
+**具名卷在宿主机上的位置**：Docker 默认把具名卷放在宿主机目录 `/var/lib/docker/volumes/<卷名>/_data` 下。例如上面命令里的 `pgdata_demo`，实际路径就是 `/var/lib/docker/volumes/pgdata_demo/_data`。该目录由 Docker 创建和管理，一般不需要直接改里面的文件；要查数据是否落盘，可用 `docker volume inspect pgdata_demo` 看 `Mountpoint` 字段。
+
 你可以先记一句最实用的话：
 
 - 配置、日志、上传文件、证书：优先宿主机目录挂载
@@ -149,6 +153,8 @@ docker run -d \
 在 `PGDATA` 相关说明里，官方原文提到：
 
 > The Dockerfile of the image declares a volume at `/var/lib/postgresql/data` and if no data volume is mounted there, then `docker run` will automatically create an anonymous volume. [该镜像的 Dockerfile 在 `/var/lib/postgresql/data` 上声明了一个卷；如果该路径上没有挂载数据卷，那么执行 `docker run` 时会自动创建一个匿名卷。]
+
+**镜像是怎么“声明”卷的？** 在 Dockerfile 里用 **`VOLUME`** 指令即可，例如：`VOLUME /var/lib/postgresql/data`。这不是 postgres 镜像独有的写法，任何 Dockerfile 都可以用 `VOLUME` 指定一个或多个路径。效果是：构建出的镜像会带上“卷声明”；运行容器时，如果该路径没有被 `-v` 挂载，Docker 就会在该路径下自动挂载一个匿名卷，从而把数据写到卷里而不是容器可写层。所以“自动带匿名卷”是 **Docker 对 `VOLUME` 的默认行为**，镜像本身并不特殊，只是利用了这一机制。
 
 ## 4. 主线实验：从空开始，跑到空结束
 
@@ -216,21 +222,6 @@ docker run -d \
   --name pg-demo \
   -e POSTGRES_PASSWORD=123456 \
   postgres:16
-```
-
-等待数据库就绪：
-
-```bash
-until docker exec pg-demo pg_isready -U postgres >/dev/null 2>&1; do
-  sleep 1
-done
-echo ready
-```
-
-原始输出：
-
-```text
-ready
 ```
 
 现在查看挂载信息：
@@ -339,21 +330,6 @@ docker run -d \
   postgres:16
 ```
 
-等待数据库就绪：
-
-```bash
-until docker exec pg-demo pg_isready -U postgres >/dev/null 2>&1; do
-  sleep 1
-done
-echo ready
-```
-
-原始输出：
-
-```text
-ready
-```
-
 写入一条测试数据：
 
 ```bash
@@ -441,21 +417,6 @@ docker run -d \
   postgres:16
 ```
 
-等待数据库就绪：
-
-```bash
-until docker exec pg-demo pg_isready -U postgres >/dev/null 2>&1; do
-  sleep 1
-done
-echo ready
-```
-
-原始输出：
-
-```text
-ready
-```
-
 再查一次刚才的数据：
 
 ```bash
@@ -526,21 +487,6 @@ docker run -d \
   -e POSTGRES_PASSWORD=123456 \
   -v /data/pg_bind_demo:/var/lib/postgresql/data \
   postgres:16
-```
-
-等待数据库就绪：
-
-```bash
-until docker exec pg-demo pg_isready -U postgres >/dev/null 2>&1; do
-  sleep 1
-done
-echo ready
-```
-
-原始输出：
-
-```text
-ready
 ```
 
 写入一条测试数据：
@@ -630,21 +576,6 @@ docker run -d \
   postgres:16
 ```
 
-等待数据库就绪：
-
-```bash
-until docker exec pg-demo pg_isready -U postgres >/dev/null 2>&1; do
-  sleep 1
-done
-echo ready
-```
-
-原始输出：
-
-```text
-ready
-```
-
 再查一次数据：
 
 ```bash
@@ -675,17 +606,24 @@ docker exec -i pg-demo psql -U postgres -d postgres -c "select * from demo_bind;
 
 例如 `nginx` 配置文件、证书文件、静态资源描述文件，都很适合只读挂载。
 
-本文目录里已经准备了一个 `nginx.conf`：
+本文目录里已经准备了一个 `nginx.conf`，内容如下：
 
-```bash
-grep 'X-Course-Version\|docker data ro' /docker_k8s_2026/docker/docker_4_data/nginx.conf
-```
+```nginx
+events {}
 
-原始输出：
+http {
+    server {
+        listen 80;
+        server_name _;
+        default_type text/plain;
 
-```text
         add_header X-Course-Version "v1" always;
+
+        location / {
             return 200 "docker data ro v1\n";
+        }
+    }
+}
 ```
 
 先拉取 `nginx` 镜像：
@@ -863,11 +801,11 @@ docker rmi nginx:1.29.6 >/dev/null 2>&1 || true
 最终验证：
 
 ```bash
-docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | rg '^(pg-demo)\b' || true
-docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | rg '^(app-demo)\b' || true
-docker volume ls --format '{{.Name}}' | rg '^(pgdata_demo)$' || true
-docker images --format '{{.Repository}}:{{.Tag}}' | rg '^postgres:16$' || true
-docker images --format '{{.Repository}}:{{.Tag}}' | rg '^nginx:1.29.6$' || true
+docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | grep -E '^(pg-demo)\b' || true
+docker ps -a --format '{{.Names}}\t{{.Image}}\t{{.Status}}' | grep -E '^(app-demo)\b' || true
+docker volume ls --format '{{.Name}}' | grep -x 'pgdata_demo' || true
+docker images --format '{{.Repository}}:{{.Tag}}' | grep -x 'postgres:16' || true
+docker images --format '{{.Repository}}:{{.Tag}}' | grep -x 'nginx:1.29.6' || true
 test -d /data/pg_bind_demo && echo exists || echo missing
 ```
 
