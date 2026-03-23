@@ -152,7 +152,7 @@ flowchart LR
 这样做的原因是：
 
 - 保证快照恢复后结果一致
-- 避免仓库候选版本漂移
+- 避免仓库补丁版本漂移
 - 避免 `kubeadm`、`kubelet`、`kubectl` 之间版本不一致
 
 如果不锁版本，后续可能出现：
@@ -214,9 +214,8 @@ flowchart LR
 
 1. 导入 Kubernetes APT 仓库签名密钥
 2. 写入 Kubernetes APT 仓库配置
-3. 校验候选版本是否为 `1.33.9-1.1`
-4. 安装固定版本软件包
-5. 对软件包执行 `apt-mark hold`
+3. 直接安装固定版本软件包
+4. 对软件包执行 `apt-mark hold`
 
 ### 关键动作 1：导入仓库密钥
 
@@ -244,29 +243,7 @@ deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io
 
 - 节点应从哪个固定 Minor 仓库安装 Kubernetes 工具
 
-### 关键动作 3：校验候选版本
-
-脚本不会盲目安装，而是先检查：
-
-```bash
-apt-cache madison kubeadm
-apt-cache madison kubectl
-```
-
-并确保候选版本正好是：
-
-```text
-1.33.9-1.1
-```
-
-如果不是这个版本，脚本会直接退出。
-
-这一步的意义是：
-
-- 保证文档版本与实际安装版本一致
-- 避免仓库内容变化导致课程漂移
-
-### 关键动作 4：安装并锁定版本
+### 关键动作 3：直接安装并锁定固定版本
 
 脚本会安装：
 
@@ -289,7 +266,22 @@ apt-mark hold kubelet kubeadm kubectl
 kubectl=1.33.9-1.1
 ```
 
-### 关键动作 5：启用 `kubelet`
+这里不再额外判断“当前候选版本是不是最新课程版本”，而是直接按课程冻结版本安装。
+
+如果未来某一天仓库里已经不存在：
+
+```text
+1.33.9-1.1
+```
+
+那么 `apt-get install kubeadm=1.33.9-1.1 ...` 会直接失败。
+
+这反而更符合课程目标：
+
+- 课程版本继续锁死为 `v1.33.9`
+- 不跟随仓库里的更新补丁自动漂移
+
+### 关键动作 4：启用 `kubelet`
 
 脚本安装完成后会检查：
 
