@@ -22,6 +22,17 @@
 - 前面的步骤只是在准备运行时、仓库、入口和工具链
 - 从本步开始，控制平面对象会第一次在 `cp01` 上正式生成
 
+## 本步顺序
+
+下面动作默认都在 `ops` 节点上发起：
+
+1. 让 `cp01` 下载 `kubeadm` 初始化配置文件
+2. 在 `cp01` 执行 `kubeadm init`
+3. 在 `cp01` 生成本机可用的 `kubectl` 配置
+4. 在 `cp01` 生成 Worker 与控制平面 join 命令文件
+5. 把 `admin.conf` 拷回 `ops`
+6. 在 `ops` 验证 `kubectl`
+
 ## 问题背景
 
 到当前步骤为止，已经完成了下面这些基础准备：
@@ -49,6 +60,88 @@
 - 集群管理员 kubeconfig
 
 ## 理论说明
+
+### 经典的四个控制平面组件
+
+从本步开始，下面这 4 个经典组件会第一次真正出现在 `cp01` 上。
+
+#### `kube-apiserver`
+
+原文：
+
+> The API server is a component of the Kubernetes control plane that exposes the Kubernetes API. The API server is the front end for the Kubernetes control plane.
+
+翻译：
+
+- `kube-apiserver` 是 Kubernetes 控制平面中对外暴露 Kubernetes API 的组件
+- 它是整个控制平面的前端入口
+
+你可以先把它粗略理解为：
+
+- 控制平面的“接待员”
+- 几乎所有管理操作，都会先到 `kube-apiserver`
+
+#### `etcd`
+
+原文：
+
+> Consistent and highly-available key value store used as Kubernetes' backing store for all cluster data.
+
+翻译：
+
+- `etcd` 是一个具备一致性和高可用能力的键值数据库
+- 它是 Kubernetes 保存集群全部关键数据的后端存储
+
+你可以先把它粗略理解为：
+
+- Kubernetes 的“数据库”
+- 集群对象、状态、配置，最终都要落到 `etcd`
+
+#### `kube-scheduler`
+
+原文：
+
+> Control plane component that watches for newly created Pods with no assigned node, and selects a node for them to run on.
+
+翻译：
+
+- `kube-scheduler` 会持续观察那些新创建但还没有分配到节点的 Pod
+- 然后为这些 Pod 选择一个合适的节点，并完成调度绑定
+
+你可以先把它粗略理解为：
+
+- “分配员”
+- 它负责决定一个 Pod 最终应该落到哪台 Node
+
+#### `kube-controller-manager`
+
+原文：
+
+> Control Plane component that runs controller processes.
+>
+> Logically, each controller is a separate process, but to reduce complexity, they are all compiled into a single binary and run in a single process.
+
+翻译：
+
+- `kube-controller-manager` 是负责运行各类控制器进程的控制平面组件
+- 从逻辑上看，每个控制器都像是一个独立进程
+- 但为了降低复杂度，它们被编译进同一个二进制，并运行在同一个进程中
+
+常见控制器示例：
+
+- `Node controller`
+  - 关注节点状态，发现节点掉线后作出响应
+- `Replication controller`
+  - 维护系统中副本对象的期望 Pod 数量
+- `Endpoints controller`
+  - 填充 `Endpoints` 对象，把 `Service` 和后端 `Pod` 关联起来
+- `Service Account & Token controllers`
+  - 为新命名空间创建默认服务账户和 API 访问令牌
+
+你可以先把它粗略理解为：
+
+- “管理者”
+- 它持续把集群实际状态往期望状态拉齐
 
 ### `kubeadm init` 到底在做什么
 
@@ -127,12 +220,16 @@ flowchart TD
 
 当前最关键的字段包括：
 
+- `advertiseAddress`
+- `bindPort`
 - `kubernetesVersion`
 - `controlPlaneEndpoint`
 - `imageRepository`
 - `serviceSubnet`
 - `podSubnet`
+- `dnsDomain`
 - `certSANs`
+- `criSocket`
 - `cgroupDriver`
 
 ### 本步配置文件关键字段示意
@@ -141,6 +238,15 @@ flowchart TD
 
 ```yaml
 apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: 10.1.1.101
+  bindPort: 6443
+nodeRegistration:
+  criSocket: unix:///run/containerd/containerd.sock
+  name: cp01
+---
+apiVersion: kubeadm.k8s.io/v1beta4
 kind: ClusterConfiguration
 kubernetesVersion: v1.33.9
 controlPlaneEndpoint: api.qytk8s.com:6443
@@ -148,10 +254,22 @@ imageRepository: harbor.qytk8s.com/k8s
 networking:
   serviceSubnet: 10.96.0.0/12
   podSubnet: 10.244.0.0/16
+  dnsDomain: cluster.local
+apiServer:
+  certSANs:
+    - api.qytk8s.com
+    - 10.1.1.10
+    - cp01
+    - cp02
+    - cp03
 ```
 
 关键字段说明：
 
+- `advertiseAddress`
+  - 固定 `cp01` 本机对外通告的 API Server 地址
+- `bindPort`
+  - 固定 API Server 监听端口为 `6443`
 - `kubernetesVersion`
   - 固定控制平面版本为 `v1.33.9`
 - `controlPlaneEndpoint`
@@ -162,17 +280,85 @@ networking:
   - 固定 Service 网段
 - `podSubnet`
   - 固定后续 Pod 网段
+- `dnsDomain`
+  - 固定集群内部 DNS 域为 `cluster.local`
+- `certSANs`
+  - 让 API Server 证书同时覆盖域名、VIP 和控制平面节点名
+- `criSocket`
+  - 固定 `kubeadm` 对接的容器运行时套接字
 
 同一份配置文件中还定义了：
 
 ```yaml
-nodeRegistration:
-  criSocket: unix:///run/containerd/containerd.sock
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
 ```
 
 这表示：
 
 - 本课程明确让 `kubeadm` 通过 `containerd` 作为容器运行时
+- `kubelet` 继续固定使用 `systemd` 作为 cgroup 驱动
+
+这里可以先做一个很简单的理解：
+
+- `serviceSubnet = 10.96.0.0/12`
+  - 这是集群里 `Service` 使用的虚拟地址段
+  - 例如 `kubernetes.default` 这种 Service，拿到的就是这个网段里的虚拟 IP
+- `podSubnet = 10.244.0.0/16`
+  - 这是后续 Pod 使用的地址段
+  - CNI 安装完成后，Pod 之间通信会基于这个网段展开
+
+下面这张图描述的是“网络平面补齐之后”的完整访问关系，用来帮助理解这两个网段各自承担什么角色。
+
+```mermaid
+flowchart TD
+  client[集群内访问者]
+  dns[CoreDNS]
+  svcname[Service 名称<br/>如 kubernetes.default]
+
+  subgraph cluster[Kubernetes 集群]
+    svc[Service ClusterIP<br/>10.96.0.0/12]
+    ebpf[Cilium eBPF<br/>Service 转发]
+
+    subgraph node1[Node A]
+      pod1[Pod A<br/>10.244.1.10]
+    end
+
+    subgraph node2[Node B]
+      pod2[Pod B<br/>10.244.2.15]
+    end
+  end
+
+  client --> svcname
+  svcname --> dns
+  dns --> svc
+  svc --> ebpf
+  ebpf --> pod1
+  ebpf --> pod2
+```
+
+这张图想表达的是：
+
+- 集群内通常先通过 `CoreDNS` 把 `Service` 名称解析成 `ClusterIP`
+- `Service` 拿到的是 `serviceSubnet` 里的虚拟 IP
+- 后端真正运行的是 `podSubnet` 里的 Pod IP
+- 访问路径通常是“先访问 Service，再由 Service 转到后端 Pod”
+- 在这套课程主线里，`Service -> Pod` 这段转发能力由 `Cilium eBPF` 提供
+
+### `advertiseAddress` 和 `controlPlaneEndpoint` 不要混淆
+
+这两个字段都和 API Server 有关，但职责不同：
+
+- `advertiseAddress = 10.1.1.101`
+  - 表示 `cp01` 这台控制平面节点，对外通告自己的真实地址
+- `controlPlaneEndpoint = api.qytk8s.com:6443`
+  - 表示整个控制平面对外统一使用的访问入口
+
+可以简单理解为：
+
+- `advertiseAddress` 是“这台机器自己是谁”
+- `controlPlaneEndpoint` 是“整个控制平面统一从哪里进”
 
 ### 为什么本步完成后节点通常仍是 `NotReady`
 
@@ -227,6 +413,8 @@ HTTP 发布地址：
 
 - `http://ops:9000/01-k8s-architecture/manifests/kubeadm-init-cp01.yaml`
 
+下面脚本默认在 `ops` 上执行。
+
 ## 脚本内部在做什么
 
 ### 脚本执行主线
@@ -234,7 +422,7 @@ HTTP 发布地址：
 脚本整体分为 4 个阶段：
 
 1. 让 `cp01` 从 `ops` 下载 `kubeadm` 初始化配置文件
-2. 在 `cp01` 执行 `kubeadm init --config ... --upload-certs`
+2. 在 `cp01` 执行初始化，包括 `kubeadm init`、本机 `kubectl` 配置、join 命令生成
 3. 将 `admin.conf` 拷回 `ops`
 4. 在 `ops` 立即验证 `kubectl`
 
@@ -255,6 +443,11 @@ ssh root@cp01 "curl -fsSL http://ops:9000/01-k8s-architecture/manifests/kubeadm-
 脚本在 `cp01` 上执行：
 
 ```bash
+if [[ -f /etc/kubernetes/admin.conf ]]; then
+  kubeadm reset -f
+  rm -rf /etc/cni/net.d /etc/kubernetes /var/lib/etcd /root/.kube
+fi
+
 kubeadm init \
   --config /root/kubeadm-init.yaml \
   --upload-certs
@@ -268,6 +461,12 @@ kubeadm init \
   - 表示使用固定配置文件
 - `--upload-certs`
   - 表示为后续控制平面加入准备证书分发基础
+
+同时要注意：
+
+- 如果 `cp01` 上已经存在旧的初始化结果，脚本会先执行 `kubeadm reset -f`
+- 并清理 `/etc/cni/net.d`、`/etc/kubernetes`、`/var/lib/etcd`、`/root/.kube`
+- 也就是说，这个脚本天然适合“重刷第一台控制平面”的场景
 
 ### 关键动作 3：配置 `cp01` 本机 kubectl
 
@@ -311,6 +510,8 @@ scp root@cp01:/etc/kubernetes/admin.conf /root/.kube/config
 
 ## 执行命令
 
+下面命令默认在 `ops` 上执行。
+
 先给脚本增加执行权限：
 
 ```bash
@@ -324,6 +525,8 @@ bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/08_kubeadm_init_remote.sh
 ```
 
 ## 验证方法
+
+下面命令默认也在 `ops` 上执行。
 
 ### 验证 1：在 `cp01` 上检查节点列表
 

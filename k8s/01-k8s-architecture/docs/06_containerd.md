@@ -138,6 +138,10 @@ flowchart TD
 - `pause` 不是“创建完就消失”的临时动作，它通常会持续存在，直到这个 `Pod` 被删除
 - 所以 `pause` 不是业务定义的一部分，但它是 `Pod` 运行时实现的基础
 
+<p align="center">
+  <img src="../images/pause.png" alt="Pod Sandbox 与业务容器关系图" width="560">
+</p>
+
 ### 为什么必须设置 `SystemdCgroup = true`
 
 这一点是本步最关键的配置项。
