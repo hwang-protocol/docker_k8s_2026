@@ -31,7 +31,108 @@
 - `HAProxy`：负责把 `6443` 端口的流量转发给控制平面节点
 - `Keepalived`：负责提供漂移 VIP
 
+## 先看整体关系图
+
+### 图 1：API Server 高可用入口全景图
+
+```mermaid
+flowchart LR
+  user[运维人员 / kubeadm / kubectl]
+  dns[DNS<br/>api.qytk8s.com]
+  vip[VIP<br/>10.1.1.10:6443]
+
+  subgraph lbs[负载均衡层]
+    lb01[lb01<br/>HAProxy + Keepalived<br/>MASTER]
+    lb02[lb02<br/>HAProxy + Keepalived<br/>BACKUP]
+  end
+
+  subgraph cps[控制平面]
+    cp01[cp01<br/>apiserver:6443]
+    cp02[cp02<br/>apiserver:6443]
+    cp03[cp03<br/>apiserver:6443]
+  end
+
+  user --> dns
+  dns --> vip
+  vip --> lb01
+  vip -. 漂移备用 .-> lb02
+  lb01 --> cp01
+  lb01 --> cp02
+  lb01 --> cp03
+  lb02 --> cp01
+  lb02 --> cp02
+  lb02 --> cp03
+```
+
+这张图对应的是本步最核心的访问链路：
+
+- 客户端不直接访问 `cp01/cp02/cp03`
+- 客户端只访问 `api.qytk8s.com:6443`
+- 域名先解析到 VIP `10.1.1.10`
+- VIP 当前挂在哪台 LB 上，就由哪台机器上的 `HAProxy` 负责转发到 3 台控制平面
+
+### 图 2：`lb01` 故障后的漂移关系
+
+```mermaid
+flowchart LR
+  dns[api.qytk8s.com]
+  vip[10.1.1.10]
+
+  subgraph before[正常状态]
+    lb01m[lb01<br/>MASTER<br/>持有 VIP]
+    lb02b[lb02<br/>BACKUP]
+  end
+
+  subgraph after[lb01 故障后]
+    lb01down[lb01<br/>故障]
+    lb02m[lb02<br/>接管 VIP]
+  end
+
+  dns --> vip
+  vip --> lb01m
+  vip -. 故障漂移 .-> lb02m
+```
+
+这张图用来讲“为什么客户端配置不用改”：
+
+- 无论 `lb01` 是否故障，客户端都还是访问 `api.qytk8s.com`
+- 变化的只是 VIP 实际挂载在哪台负载均衡节点上
+- 这就是 `Keepalived` 在高可用入口里的价值
+
 ## 两个组件分别做什么
+
+### 图 3：`HAProxy` 和 `Keepalived` 的配合关系
+
+```mermaid
+flowchart LR
+  client[客户端<br/>kubectl / kubeadm / join]
+  domain[api.qytk8s.com:6443]
+  vip[VIP<br/>10.1.1.10]
+
+  subgraph keepalived_role[Keepalived]
+    ka[决定 VIP 在 lb01 还是 lb02]
+  end
+
+  subgraph haproxy_role[HAProxy]
+    ha[监听 6443]
+    cp1[cp01:6443]
+    cp2[cp02:6443]
+    cp3[cp03:6443]
+  end
+
+  client --> domain
+  domain --> vip
+  ka --> vip
+  vip --> ha
+  ha --> cp1
+  ha --> cp2
+  ha --> cp3
+```
+
+这张图只强调职责边界：
+
+- `Keepalived` 负责决定 VIP 挂在哪台负载均衡节点上
+- `HAProxy` 负责接住进入 `6443` 的流量，并转发到后端控制平面
 
 ### HAProxy 做什么
 
@@ -64,6 +165,115 @@
 这样，外部永远只访问一个固定入口：
 
 - `api.qytk8s.com:6443`
+
+## 健康检查与 VIP 漂移
+
+### 图 4：健康检查脚本如何影响 VIP 漂移
+
+```mermaid
+flowchart LR
+  check[check_haproxy.sh]
+  ha[HAProxy 进程]
+  ka[Keepalived]
+  vip[VIP<br/>10.1.1.10]
+
+  check --> ha
+  check --> ka
+  ka --> vip
+```
+
+这张图补的是“切换条件”：
+
+- `Keepalived` 不是无脑持有 VIP
+- 它会通过 `check_haproxy.sh` 检查本机 `HAProxy` 是否正常
+- 如果本机 `HAProxy` 异常，`Keepalived` 才有理由放弃 VIP，让另一台接管
+
+这一段建议直接结合原始配置一起理解。
+
+#### 关键代码 1：健康检查脚本本体
+
+```bash
+#!/usr/bin/env bash
+systemctl is-active --quiet haproxy
+```
+
+解释：
+
+- 这个脚本非常短，但作用很明确
+- 它只检查一件事：本机 `haproxy` 服务是否处于 `active`
+- 如果 `haproxy` 正常，脚本返回 `0`
+- 如果 `haproxy` 异常，脚本返回非 `0`
+
+#### 关键代码 2：`Keepalived` 如何引用这个脚本
+
+以 `lb01` 为例，核心配置是：
+
+```conf
+vrrp_script chk_haproxy {
+   script "/etc/keepalived/check_haproxy.sh"
+   interval 2
+   weight 10
+}
+```
+
+解释：
+
+- `chk_haproxy` 是一个自定义健康检查项
+- `script` 指定实际执行的脚本路径
+- `interval 2` 表示每 `2` 秒检查一次
+- `weight 10` 表示这个检查结果会影响当前节点的 VRRP 选举能力
+
+#### 关键代码 3：把健康检查挂到 VIP 实例上
+
+```conf
+vrrp_instance VI_K8S_API {
+    state MASTER
+    interface ens160
+    virtual_router_id 51
+    priority 200
+    advert_int 1
+
+    virtual_ipaddress {
+        10.1.1.10/24 dev ens160
+    }
+
+    track_script {
+        chk_haproxy
+    }
+}
+```
+
+解释：
+
+- `vrrp_instance VI_K8S_API` 就是这组 VIP 漂移实例
+- `priority 200` 说明 `lb01` 默认优先级更高，所以正常情况下它持有 VIP
+- `track_script { chk_haproxy }` 表示这个 VIP 实例会持续参考 `chk_haproxy` 的检查结果
+- 也就是说，VIP 是否继续留在本机，不只看 VRRP 主备关系，还要看本机 `haproxy` 是否健康
+
+#### 关键代码 4：为什么 `lb02` 能接管
+
+`lb02` 的核心差异是：
+
+```conf
+vrrp_instance VI_K8S_API {
+    state BACKUP
+    priority 150
+}
+```
+
+解释：
+
+- `lb02` 默认是 `BACKUP`
+- 它的优先级低于 `lb01`
+- 但如果 `lb01` 因为 `haproxy` 异常而不再适合持有 VIP，`lb02` 就会接管 `10.1.1.10`
+
+所以这条链路可以直接理解成：
+
+1. `check_haproxy.sh` 检查本机 `haproxy`
+2. `Keepalived` 每 2 秒执行一次这个检查
+3. `track_script` 把检查结果绑定到 VIP 实例
+4. `lb01` 正常时持有 VIP
+5. `lb01` 的 `haproxy` 异常时，VIP 才会漂移到 `lb02`
 
 ## 本步固定参数
 
@@ -433,26 +643,6 @@ nopreempt
 
 - 默认：有抢占
 - 写了 `nopreempt`：不抢占
-
-### `check_haproxy.sh` 为什么必须有
-
-这个文件现在也已经单独保存在 Git 项目中：
-
-- `k8s/01-k8s-architecture/configs/loadbalancer/check_haproxy.sh`
-
-```bash
-#!/usr/bin/env bash
-systemctl is-active --quiet haproxy
-```
-
-如果没有这段检查，可能会出现一种危险情况：
-
-- `Keepalived` 进程还活着
-- 但 `HAProxy` 已经挂了
-- VIP 仍然留在故障节点
-- 最终导致 `api.qytk8s.com:6443` 表面可达，实际无法转发
-
-所以这段脚本虽然很短，但它是 VIP 故障切换逻辑的关键一环。
 
 ## 本步完成标准
 
