@@ -12,15 +12,24 @@
 - `sandbox_image` 已切换为 `harbor.qytk8s.com/k8s/pause:3.10`
 - `containerd` 重启后保持 `active (running)`
 
+这里先做的是“让节点具备从 Harbor 受信任拉取镜像的能力”，不是提前把所有镜像预拉到所有节点。
+
 ## 执行标记
 
 - **执行标记：必须执行**
-
-说明：
-
 - 即使 Harbor 本身已保留并恢复正常，本步仍然必须执行
 - 因为前一步只是安装了 `containerd`，并没有让每个 Kubernetes 节点信任 Harbor
 - 如果跳过本步，后续 `kubeadm init` 和 Pod 沙箱拉取都可能无法正确从 Harbor 获取镜像
+
+## 本步顺序
+
+下面动作默认都在 `ops` 节点上发起：
+
+1. 向 7 台 Kubernetes 节点分发 Harbor CA
+2. 在各节点写入 Harbor 对应的 `hosts.toml`
+3. 修改 `containerd` 的 `config_path` 与 `sandbox_image`
+4. 重启各节点上的 `containerd`
+5. 抽查节点配置与服务状态
 
 ## 问题背景
 
@@ -187,6 +196,8 @@ flowchart LR
 
 - `k8s/01-k8s-architecture/scripts/06_config_containerd_harbor_remote.sh`
 
+这个脚本默认在 `ops` 节点执行。
+
 这个脚本会完成下面 5 项动作：
 
 1. 从 `ops` 向所有 Kubernetes 节点分发 Harbor CA
@@ -291,6 +302,8 @@ systemctl restart containerd
 
 ## 执行命令
 
+下面命令默认在 `ops` 上执行。
+
 先给脚本增加执行权限：
 
 ```bash
@@ -309,6 +322,8 @@ bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/06_config_containerd_harbo
 
 - `cp01`
 - `wk-app01`
+
+下面命令默认也在 `ops` 上执行。
 
 ### 验证 1：检查 Harbor CA 是否存在
 
