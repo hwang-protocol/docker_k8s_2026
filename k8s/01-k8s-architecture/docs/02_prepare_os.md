@@ -16,6 +16,15 @@
 - `open-iscsi` 已安装，为后续 Longhorn 做准备
 - 自动更新服务不会在课堂执行过程中抢占 `apt/dpkg` 锁
 
+## 本步顺序
+
+这一小节建议按下面顺序执行：
+
+1. 先按要求处理快照
+2. 确认相关虚拟机已经正常开机
+3. 登录 `ops`，执行 `01_prepare_os_remote.sh`
+4. 抽查 `cp01` 和任意一台 Worker，确认系统初始化结果正确
+
 ## 为什么要做这一步
 
 ### 1. 为什么要关闭 swap
@@ -42,7 +51,7 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 因为第五章会用到 `Longhorn`。  
 我们现在先把基础依赖装好，后面就不用再回头补环境。
 
-### 6. 为什么要优化启动速度
+### 6. 为什么要优化启动速度（Ubuntu 默认安装的一些问题）
 
 实验环境为纯 CLI，不需要图形界面。默认的 `graphical.target` 会等待 GDM、snapd.seeded、e2scrub_reap 等大量服务，导致到登录界面需 3 分钟以上。优化后通常可缩至 1 分钟内：
 
@@ -66,9 +75,39 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 
 本步重点不是手工处理 `apt/dpkg` 冲突，而是让所有节点进入统一、可继续安装 Kubernetes 的基础状态。
 
+## 执行前准备：先恢复快照，再执行脚本
+
+这一章默认你是从一套“可复现的基础环境”重新开始。  
+因此这里先只处理两件事：
+
+1. 按下面的要求处理快照
+2. 恢复快照后确认相关虚拟机已经正常开机
+
+下面表格中的名称使用的是虚拟化平台里的 **VM 名称**。
+
+| VM 名称 | 快照名称 / 快照要求 |
+| :--- | :--- |
+| `K8S-cp01` | `免密+网络+DNS` |
+| `K8S-cp02` | `免密+网络+DNS` |
+| `K8S-cp03` | `免密+网络+DNS` |
+| `K8S-git` | `免密+网络+DNS` |
+| `K8S-lb01` | `免密+网络+DNS` |
+| `K8S-lb02` | `免密+网络+DNS` |
+| `K8S-harbor` | `不要恢复` |
+| `K8S-ops` | `不要恢复` |
+| `K8S-Win2019` | `不要恢复` |
+| `K8S2026-VyOS` | `不要恢复` |
+| `K8S-wk-app01` | `添加100g硬盘, 推荐快照` |
+| `K8S-wk-app02` | `添加100g硬盘, 推荐快照` |
+| `K8S-wk-edge01` | `添加100g硬盘, 推荐快照` |
+| `K8S-wk-obs01` | `添加100g硬盘, 推荐快照` |
+
 ## 本步涉及节点
 
-这一步会处理下面这些节点（含 ops，实现所有 Linux 统一优化）：
+下面这些是脚本里实际使用的 **Linux 主机名**。  
+也就是说，前一节表格写的是虚拟化平台里的 VM 名称，这一节写的是脚本里通过 SSH 访问的主机名。
+
+这一步会处理下面这些节点（含 `ops`，实现所有 Linux 统一优化）：
 
 - `ops`
 - `lb01`
@@ -83,11 +122,14 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 - `harbor`
 - `git`
 
-说明：
+补充：
 
 - `win2019` 不属于本步范围
+- 在执行本步脚本前，先完成上一节中的快照处理并开机
 
 ## 先看脚本
+
+这个脚本在 `ops` 上执行，目标节点使用的是上面这一节中的主机名。
 
 脚本路径：
 
@@ -102,7 +144,18 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 
 这就是最典型的 **Shell 自动化批量运维** 思路。
 
+脚本内部已经写了详细注释，阅读脚本本身即可：
+
+- `k8s/01-k8s-architecture/scripts/01_prepare_os_remote.sh`
+
 ## 执行命令
+
+下面这些命令都在 `ops` 上执行。
+
+在执行下面命令之前，先确认两件事：
+
+- 需要恢复 `免密+网络+DNS` 快照的机器已经恢复完成并成功开机
+- 其他机器也已经按表格要求处理完成并正常开机
 
 先给脚本增加执行权限：
 
@@ -124,7 +177,7 @@ bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/01_prepare_os_remote.sh wk
 
 ## 你会看到什么
 
-正常情况下，脚本会按节点逐台输出，类似下面这种结构：
+正常情况下，你会在 `ops` 上看到脚本按节点逐台输出，类似下面这种结构：
 
 ```text
 =========================================================
@@ -155,83 +208,78 @@ OK
 
 建议你至少抽查一台控制平面节点和一台工作节点。
 
-例如检查 `cp01`：
+下面示例仍然在 `ops` 上执行。  
+例如检查 `cp01`，可以直接整段执行下面这段命令：
 
 ```bash
-ssh root@cp01
-```
+ssh root@cp01 'bash -s' <<'EOF'
+echo '+++ cp01 output begin +++'
 
-进入后执行：
-
-```bash
+echo '========== swap =========='
 swapon --show
+
+echo '========== kernel modules =========='
 lsmod | grep br_netfilter
 lsmod | grep overlay
+
+echo '========== ip_forward =========='
 sysctl net.ipv4.ip_forward
+
+echo '========== timezone =========='
 timedatectl
+
+echo '========== iscsid =========='
 systemctl status iscsid --no-pager
-exit
+
+echo '+++ cp01 output end +++'
+EOF
 ```
 
-## 预期结果
-
-### 1. swap
-
-```bash
-swapon --show
-```
-
-预期：
-
-- 没有输出
-
-### 2. 内核模块
-
-```bash
-lsmod | grep br_netfilter
-lsmod | grep overlay
-```
-
-预期：
-
-- 都能看到对应模块
-
-### 3. 转发参数
-
-```bash
-sysctl net.ipv4.ip_forward
-```
-
-预期：
+正常情况下，你会看到类似下面的输出：
 
 ```text
++++ cp01 output begin +++
+
+========== swap ==========
+
+========== kernel modules ==========
+br_netfilter           32768  0
+bridge                421888  1 br_netfilter
+overlay               212992  0
+
+========== ip_forward ==========
 net.ipv4.ip_forward = 1
+
+========== timezone ==========
+               Local time: Mon 2026-03-23 09:00:00 CST
+           Universal time: Mon 2026-03-23 01:00:00 UTC
+                 RTC time: Mon 2026-03-23 01:00:00
+                Time zone: Asia/Shanghai (CST, +0800)
+System clock synchronized: yes
+              NTP service: active
+          RTC in local TZ: no
+
+========== iscsid ==========
+● iscsid.service - iSCSI initiator daemon (iscsid)
+     Loaded: loaded (...)
+     Active: active (running) ...
+
++++ cp01 output end +++
 ```
 
-### 4. 时区
+判断标准：
 
-```bash
-timedatectl
-```
-
-预期：
-
-- 时区为 `Asia/Shanghai`
-
-### 5. iscsid
-
-```bash
-systemctl status iscsid --no-pager
-```
-
-预期：
-
-- 服务存在并已启动，或至少已正确安装
+- `swap` 这一段没有输出，表示 swap 已关闭
+- `kernel modules` 这一段能看到 `br_netfilter` 和 `overlay`
+- `ip_forward` 这一段应为 `net.ipv4.ip_forward = 1`
+- `timezone` 这一段能看到 `Asia/Shanghai`
+- `iscsid` 这一段显示 `active (running)` 或至少服务已经正确安装
 
 ## 本步完成标准
 
 只要满足下面条件，就可以进入下一步：
 
+- 相关虚拟机已经按要求处理快照并正常开机
 - 所有目标节点（含 ops）脚本执行完成
 - 启动优化已生效（重启后到登录界面时间明显缩短）
 - 至少抽查 1 台控制平面节点和 1 台工作节点
