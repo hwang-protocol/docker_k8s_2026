@@ -110,6 +110,94 @@
 - `etcd-ca`
 - `front-proxy-ca`
 
+### 控制平面证书全景图
+
+下面这张图改成“纵向三条证书链”，避免横向铺得太宽。
+
+```mermaid
+flowchart TD
+  subgraph main[Main control plane certificate chain]
+    direction TB
+    CA[ca]
+    subgraph maincerts[certificate files]
+      APISERVER[apiserver]
+      AKC[apiserver-kubelet-client]
+    end
+    subgraph mainconf[kubeconfig files / .conf]
+      ADMIN[admin.conf]
+      SUPER[super-admin.conf]
+      CMCONF[controller-manager.conf]
+      SCHCONF[scheduler.conf]
+    end
+    subgraph mainuse[used by]
+      APISERVERCMP[kube-apiserver]
+      KUBELETCMP[kubelet]
+      KUBECTLCMP[kubectl / admin]
+      CMCMP[kube-controller-manager]
+      SCHCMP[kube-scheduler]
+    end
+
+    CA --> APISERVER --> APISERVERCMP
+    CA --> AKC --> KUBELETCMP
+    CA --> ADMIN --> KUBECTLCMP
+    CA --> SUPER --> KUBECTLCMP
+    CA --> CMCONF --> CMCMP
+    CA --> SCHCONF --> SCHCMP
+  end
+
+  subgraph etcdchain[etcd certificate chain]
+    direction TB
+    ETCDCA[etcd-ca]
+    subgraph etcdcerts[certificate files]
+      AEC[apiserver-etcd-client]
+      ESRV[etcd-server]
+      EPEER[etcd-peer]
+      EHC[etcd-healthcheck-client]
+    end
+    subgraph etcduse[used by]
+      ETCDCMP[etcd]
+      ETCDCLUSTER[3-member etcd trust]
+    end
+
+    ETCDCA --> AEC --> ETCDCMP
+    ETCDCA --> ESRV --> ETCDCMP
+    ETCDCA --> EHC --> ETCDCMP
+    ETCDCA --> EPEER --> ETCDCLUSTER
+  end
+
+  subgraph proxy[front-proxy certificate chain]
+    direction TB
+    FPCA[front-proxy-ca]
+    subgraph proxycerts[certificate files]
+      FPC[front-proxy-client]
+    end
+    subgraph proxyuse[used by]
+      AGG[API aggregation layer]
+    end
+
+    FPCA --> FPC --> AGG
+  end
+```
+
+这张图想表达的是：
+
+- `ca` 主要负责签发 Kubernetes 主控制面这条信任链
+- `etcd-ca` 主要负责签发 `etcd` 相关信任链
+- `front-proxy-ca` 主要负责签发 `front-proxy` 这条信任链
+- `apiserver` 是 API Server 对外服务端证书
+- `apiserver-kubelet-client` 是 API Server 访问 `kubelet` 时使用的客户端证书
+- `apiserver-etcd-client` 是 API Server 访问 `etcd` 时使用的客户端证书
+- `etcd-server`、`etcd-peer`、`etcd-healthcheck-client` 都属于 `etcd` 证书体系
+- `.conf` 不是单独的 CA 或普通证书文件，它本质上是 `kubeconfig`
+- `admin.conf`、`controller-manager.conf`、`scheduler.conf`、`super-admin.conf` 内部包含访问地址、CA 信息以及客户端证书 / 私钥引用或内容
+
+可以先用一句话记住：
+
+- `ca` 管主控制面
+- `etcd-ca` 管 `etcd`
+- `front-proxy-ca` 管 `front-proxy`
+- 其余大多数都是被这些 CA 签出来、供具体组件使用的 certificate files 或 kubeconfig files
+
 ### 当前这套 kubeadm 集群的默认有效期认知
 
 对这套课程环境，可以先建立一个很实用的默认认知：
@@ -218,6 +306,11 @@ ssh root@cp03 'systemctl restart kubelet'
 - `etcd`
 
 这类静态 Pod 都由 `kubelet` 管理，重启 `kubelet` 后会触发它们重新加载证书。
+
+可以再简单记一句：
+
+- 如果这次续期的是 `apiserver`、`etcd`、`controller-manager`、`scheduler` 这些控制平面相关证书，就主要处理控制平面节点
+- 只有在后续真的涉及 CA 更换，或者 Worker 自己的 `kubelet` 证书异常时，才需要单独处理 Worker 节点
 
 ### 续期 3：再次检查结果
 
