@@ -33,6 +33,17 @@
 
 ---
 
+## 本步顺序
+
+下面动作默认都在 `ops` 节点上发起：
+
+1. 从 `cp01` 读取 Worker join 命令
+2. 依次让 `wk-app01`、`wk-app02`、`wk-edge01`、`wk-obs01` 加入集群
+3. 在 `ops` 上给 4 台 Worker 写入课程角色标签
+4. 在 `ops` 上查看节点列表和标签结果
+
+---
+
 ## 问题背景
 
 上一步已经完成：
@@ -103,6 +114,71 @@ Worker 节点加入时，不需要扩展控制面组件，也不需要额外接�
 - 把后续调度逻辑前置固化
 - 让课程中的节点角色从第一章开始就具有一致性
 - 避免后续章节再重复做“节点职责初始化”
+
+### 标签整体关系图
+
+```mermaid
+flowchart LR
+  subgraph controlplane[3 台控制平面]
+    cp1[cp01]
+    cp2[cp02]
+    cp3[cp03]
+  end
+
+  subgraph workers[4 台 Worker]
+    app1[wk-app01]
+    app2[wk-app02]
+    edge[wk-edge01]
+    obs[wk-obs01]
+  end
+
+  subgraph tags[node-role 标签]
+    tc[node-role.kubernetes.io/control-plane]
+    t1[node-role=app]
+    t2[node-role=edge]
+    t3[node-role=observability]
+  end
+
+  subgraph usage[后续课程用途]
+    u0[控制面组件]
+    u1[业务应用调度]
+    u2[北向入口角色]
+    u3[可观测性组件调度]
+  end
+
+  cp1 --> tc
+  cp2 --> tc
+  cp3 --> tc
+  app1 --> t1
+  app2 --> t1
+  edge --> t2
+  obs --> t3
+
+  tc --> u0
+  t1 --> u1
+  t2 --> u2
+  t3 --> u3
+```
+
+这张图想表达的是：
+
+- 控制平面节点也有标签，不只是 Worker 才有标签
+- `cp01`、`cp02`、`cp03` 的控制平面身份，主要通过 `node-role.kubernetes.io/control-plane` 表达
+- 4 台 Worker 并不是“先加入再说”，而是从第一章就已经规划好课程角色
+- Worker 的课程角色通过自定义标签 `node-role=*` 表达
+- 后续章节的调度、入口规划和组件落点，都会基于这组标签展开
+
+### 标签规划总表
+
+| 节点名 | 标签 | 标签来源 | 课程角色 | 后续主要用途 |
+| :--- | :--- | :--- | :--- | :--- |
+| `cp01` | `node-role.kubernetes.io/control-plane` | `kubeadm` 自动写入 | 控制平面节点 | 承载控制面组件 |
+| `cp02` | `node-role.kubernetes.io/control-plane` | `kubeadm` 自动写入 | 控制平面节点 | 承载控制面组件 |
+| `cp03` | `node-role.kubernetes.io/control-plane` | `kubeadm` 自动写入 | 控制平面节点 | 承载控制面组件 |
+| `wk-app01` | `node-role=app` | 本步脚本写入 | 应用节点 | 承载业务应用 |
+| `wk-app02` | `node-role=app` | 本步脚本写入 | 应用节点 | 承载业务应用 |
+| `wk-edge01` | `node-role=edge` | 本步脚本写入 | 入口节点 | 承担北向入口相关角色 |
+| `wk-obs01` | `node-role=observability` | 本步脚本写入 | 观测节点 | 承载可观测性组件 |
 
 ### `wk-edge01` 和 `wk-obs01` 到底特殊在哪里
 
@@ -175,6 +251,7 @@ flowchart LR
 - Worker join 命令由 `cp01` 提供
 - 4 台 Worker 依次加入现有集群
 - 加入完成后，节点角色通过标签显式写入集群对象
+- 上一张图偏“标签总览”，这一张图偏“本步执行过程”
 
 ### 为什么现在节点仍可能不是 `Ready`
 
@@ -292,6 +369,8 @@ kubectl label node wk-obs01 node-role=observability --overwrite
 
 ## 执行命令
 
+下面命令默认在 `ops` 上执行。
+
 先给脚本增加执行权限：
 
 ```bash
@@ -307,6 +386,8 @@ bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/10_join_workers_remote.sh
 ---
 
 ## 验证方法
+
+下面命令默认也在 `ops` 上执行。
 
 ### 验证 1：查看完整节点列表
 
@@ -330,21 +411,23 @@ kubectl get nodes -o wide
 - 4 台 Worker 是否已全部出现
 - 当前 `STATUS` 仍可能为 `NotReady`
 
-### 验证 2：查看标签
+### 验证 2：查看标签总览
 
 ```bash
-kubectl get nodes --show-labels | grep 'node-role='
+kubectl get nodes --show-labels | grep -E 'control-plane|node-role='
 ```
 
 预期结果：
 
+- `cp01`、`cp02`、`cp03` 应带有 `node-role.kubernetes.io/control-plane`
 - `wk-app01`、`wk-app02` 应带有 `node-role=app`
 - `wk-edge01` 应带有 `node-role=edge`
 - `wk-obs01` 应带有 `node-role=observability`
 
 关键看点：
 
-- 只关注 4 台 Worker 的自定义标签是否正确
+- 先确认 3 台控制平面标签存在
+- 再确认 4 台 Worker 的自定义标签是否正确
 
 ### 验证 3：查看节点角色分布
 
