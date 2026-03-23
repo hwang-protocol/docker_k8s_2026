@@ -6,6 +6,8 @@
 
 <img src="../../images/top.png" alt="实验环境整体拓扑与设备布局" style="width:80%; height:auto;" />
 
+---
+
 ## 本章目标
 
 本章的目标不是立刻把所有云原生组件一次性装完，而是先完成一套 **Kubernetes 高可用基础架构**。
@@ -19,6 +21,8 @@
 - 所有 Kubernetes 基础镜像优先从本地 Harbor 获取
 - 因为本章暂时**还不安装 CNI**，所以节点最终出现 `NotReady` 是正常现象
 
+---
+
 ## 本章学习方式
 
 这一章采用“**文档主导 + 小脚本辅助**”的方式进行。
@@ -30,12 +34,16 @@
 3. 每执行一步，都先验证，再继续下一步
 4. 如果某一步命令较多，就调用一个小型 Bash 脚本
 
+---
+
 ## 执行标记说明
 
 为了便于你在 `ops` 上直接“贴贴贴”，本章对每个脚本都做执行标记：
 
 - **必须执行**：本轮从第一章重新开始时，默认需要实际执行
 - **只读验证**：这一项主要用于检查结果，不会改配置
+
+---
 
 ## 本章脚本执行矩阵
 
@@ -53,6 +61,8 @@
 | 10 | `11_join_workers.md` | `scripts/10_join_workers_remote.sh` | 必须执行 | 加入 4 台 Worker，并打标签 |
 | 11 | `12_cluster_certificates.md` | 无 | 只读理解 | 说明控制平面证书有效期与后续续期方法 |
 | 12 | `13_verify.md` | 无 | 只读验证 | 本章最终验收，不改配置 |
+
+---
 
 ## 课程文件 HTTP 服务
 
@@ -114,6 +124,8 @@ curl -s http://ops:9000/01-k8s-architecture/manifests/kubeadm-init-cp01.yaml | h
 - 需要查看 YAML：浏览器访问 `http://ops:9000/` 或查看 `manifests/` 目录
 - 脚本中需要下载 YAML：使用 `curl -fsSL http://ops:9000/...`
 - 后续 `kubectl apply -f`：直接引用 HTTP 地址
+
+---
 
 ## 版本冻结
 

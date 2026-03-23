@@ -12,6 +12,8 @@
 - Harbor 使用 HTTPS
 - 我们已经拥有一套本课程自己的 Harbor CA 和 Harbor 服务端证书
 
+---
+
 ## 执行标记
 
 - **执行标记：条件执行**
@@ -20,6 +22,8 @@
 
 - 当环境中尚未部署 Harbor 时，执行本步
 - 当 Harbor 已保留，且 `https://harbor.qytk8s.com` 可正常访问时，本步按验证流程执行
+
+---
 
 ## 为什么本章先部署 Harbor
 
@@ -37,6 +41,8 @@
 
 这样后续的 `kubeadm init` 和节点加入过程会更可控，也更符合生产思路。
 
+---
+
 ## 本步使用的固定参数
 
 为了保证可复现性，这一步统一写死下面这些参数：
@@ -46,6 +52,8 @@
 - Harbor 版本：`v2.13.0`
 - Harbor 管理员账号：`admin`
 - Harbor 管理员密码：`Harbor12345`
+
+---
 
 ## 证书设计说明
 
@@ -60,6 +68,8 @@
 
 - 后续可以把同一个 CA 分发给 Kubernetes 节点，让 `containerd` 信任 Harbor
 - 课程环境完全自洽，不依赖外部证书服务
+
+---
 
 ## 对应脚本
 
@@ -77,6 +87,8 @@
 6. 配置 Harbor HTTPS
 7. 执行 Harbor 安装
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -90,6 +102,8 @@ chmod +x /docker_k8s_2026/k8s/01-k8s-architecture/scripts/02_install_harbor_remo
 ```bash
 bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/02_install_harbor_remote.sh
 ```
+
+---
 
 ## 你会看到什么
 
@@ -107,6 +121,8 @@ bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/02_install_harbor_remote.s
 ```text
 OK: Harbor 部署完成
 ```
+
+---
 
 ## 执行后的验证
 
@@ -180,6 +196,8 @@ trivy: healthy
 - 用户名：`admin`
 - 密码：`Harbor12345`
 
+---
+
 ## 本步完成标准
 
 只要满足下面条件，就可以进入下一步：
@@ -189,11 +207,15 @@ trivy: healthy
 - 管理员账号可以登录
 - Harbor 健康接口返回正常
 
+---
+
 ## 下一步
 
 下一步进入 Kubernetes 基础镜像预热：
 
 - `docs/04_push_k8s_images.md`
+
+---
 
 ## 附录：Harbor 在快照恢复或主机重启后未正常启动时如何修复
 

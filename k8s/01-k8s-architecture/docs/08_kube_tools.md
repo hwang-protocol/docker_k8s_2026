@@ -20,6 +20,8 @@
 - 所有节点的 Kubernetes 工具版本统一固定为 `v1.33.9`
 - 所有 Kubernetes 节点上的 `kubelet` 已设置为开机自启
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -28,6 +30,8 @@
 
 - 前两步只解决了容器运行时与 Harbor 信任链问题
 - 本步才真正为后续 `kubeadm init`、控制平面加入、工作节点加入准备 Kubernetes 基础工具
+
+---
 
 ## 问题背景
 
@@ -51,6 +55,8 @@
 - `kubeadm`
 - `kubelet`
 - `kubectl`
+
+---
 
 ## 理论说明
 
@@ -181,6 +187,8 @@ flowchart LR
 
 本步的作用是把“节点运行容器的基础条件”推进到“节点已经具备 Kubernetes 初始化与加入能力”。
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -191,6 +199,8 @@ flowchart LR
 
 1. 在 `ops` 本机安装固定版本的 `kubectl`
 2. 在所有 Kubernetes 节点安装固定版本的 `kubeadm`、`kubelet`、`kubectl`
+
+---
 
 ## 脚本内部在做什么
 
@@ -293,6 +303,8 @@ systemctl is-enabled kubelet
 
 - 即使集群还未初始化，`kubelet` 也应作为节点长期组件提前进入受管状态
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -306,6 +318,8 @@ chmod +x /docker_k8s_2026/k8s/01-k8s-architecture/scripts/07_install_kube_tools_
 ```bash
 bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/07_install_kube_tools_remote.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -368,6 +382,8 @@ ssh root@cp01 "apt-mark showhold | grep -E 'kubeadm|kubelet|kubectl'"
 
 - 这代表版本锁定已经生效
 
+---
+
 ## 预期结果
 
 本步执行完成后，整体应呈现下面状态：
@@ -376,6 +392,8 @@ ssh root@cp01 "apt-mark showhold | grep -E 'kubeadm|kubelet|kubectl'"
 - 所有 Kubernetes 节点都具备初始化与加入集群所需工具
 - `kubelet` 已进入受管状态
 - 工具版本已固定，不会在后续刷课过程中自动漂移
+
+---
 
 ## 通过标准
 
@@ -386,6 +404,8 @@ ssh root@cp01 "apt-mark showhold | grep -E 'kubeadm|kubelet|kubectl'"
 - 抽查节点工具版本均为 `v1.33.9`
 - 抽查节点 `kubelet` 状态为 `enabled`
 - 抽查节点已对 `kubeadm`、`kubelet`、`kubectl` 执行 `apt-mark hold`
+
+---
 
 ## 下一步
 

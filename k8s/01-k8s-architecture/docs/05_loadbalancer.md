@@ -12,6 +12,8 @@
 - VIP `10.1.1.10` 在正常情况下漂移到 `lb01`
 - 后续 `kubeadm init` 可以把 `api.qytk8s.com:6443` 作为控制平面统一入口
 
+---
+
 ## 为什么需要这一步
 
 我们这一章不是单控制平面，而是：
@@ -30,6 +32,8 @@
 
 - `HAProxy`：负责把 `6443` 端口的流量转发给控制平面节点
 - `Keepalived`：负责提供漂移 VIP
+
+---
 
 ## 先看整体关系图
 
@@ -99,6 +103,8 @@ flowchart LR
 - 变化的只是 VIP 实际挂载在哪台负载均衡节点上
 - 这就是 `Keepalived` 在高可用入口里的价值
 
+---
+
 ## 两个组件分别做什么
 
 ### 图 3：`HAProxy` 和 `Keepalived` 的配合关系
@@ -165,6 +171,8 @@ flowchart LR
 这样，外部永远只访问一个固定入口：
 
 - `api.qytk8s.com:6443`
+
+---
 
 ## 健康检查与 VIP 漂移
 
@@ -275,6 +283,8 @@ vrrp_instance VI_K8S_API {
 4. `lb01` 正常时持有 VIP
 5. `lb01` 的 `haproxy` 异常时，VIP 才会漂移到 `lb02`
 
+---
+
 ## 本步固定参数
 
 - VIP：`10.1.1.10`
@@ -282,6 +292,8 @@ vrrp_instance VI_K8S_API {
 - 网卡：`ens160`
 - `lb01`：主节点（MASTER）
 - `lb02`：备节点（BACKUP）
+
+---
 
 ## 对应脚本
 
@@ -303,6 +315,8 @@ vrrp_instance VI_K8S_API {
 3. 把 `haproxy.cfg`、`keepalived.conf` 和健康检查脚本下发到远端
 4. 启动并设置服务开机自启
 
+---
+
 ## 脚本内部在做什么
 
 下面对脚本内部关键动作进行拆解说明。
@@ -312,6 +326,8 @@ vrrp_instance VI_K8S_API {
 - 配置文件单独放在 Git 项目里
 - 脚本本身只负责安装、读取本地文件、下发到远端、启动服务
 - 原始配置与自动化脚本的职责边界更加清晰
+
+---
 
 ## 脚本执行主线
 
@@ -328,6 +344,8 @@ vrrp_instance VI_K8S_API {
    - 启动服务并检查状态
 
 也就是说，这个脚本已经不再承担“定义配置内容”的责任，而是只承担“把 Git 中的标准配置落到远端节点并启动”的责任。
+
+---
 
 ## 先看脚本的核心函数
 
@@ -431,6 +449,8 @@ configure_node "lb02" "${KEEPALIVED_LB02}"
 
 也就是说，这个脚本已经变成了一个非常标准的“配置编排器”。
 
+---
+
 ## 按 `lb01` 展开后，实际执行命令长什么样
 
 如果把 `configure_node "lb01" "${KEEPALIVED_LB01}"` 展开看，它最终做的事情可以近似理解为下面这组动作：
@@ -456,6 +476,8 @@ configs/loadbalancer/keepalived-lb02.conf
 
 这一段说明脚本的本质是对一组明确系统命令的顺序编排。
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -469,6 +491,8 @@ chmod +x /docker_k8s_2026/k8s/01-k8s-architecture/scripts/04_setup_haproxy_keepa
 ```bash
 bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/04_setup_haproxy_keepalived_remote.sh
 ```
+
+---
 
 ## 执行后的验证
 
@@ -528,6 +552,8 @@ ssh root@lb01 "cat /etc/keepalived/keepalived.conf"
 
 - `HAProxy` 后端包含 `cp01`、`cp02`、`cp03`
 - `Keepalived` 已配置 VIP `10.1.1.10`
+
+---
 
 ## 配置文件关键内容解读
 
@@ -644,6 +670,8 @@ nopreempt
 - 默认：有抢占
 - 写了 `nopreempt`：不抢占
 
+---
+
 ## 本步完成标准
 
 只要满足下面条件，就可以进入下一步：
@@ -652,6 +680,8 @@ nopreempt
 - `lb01` 和 `lb02` 的 `keepalived` 正常运行
 - VIP `10.1.1.10` 已成功漂移到主节点
 - `api.qytk8s.com` 已成为后续 kubeadm 可以使用的统一入口
+
+---
 
 ## 下一步
 

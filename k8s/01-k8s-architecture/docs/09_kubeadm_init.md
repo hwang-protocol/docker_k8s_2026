@@ -12,6 +12,8 @@
 - `ops` 已拿到可用的 `kubectl` 配置文件
 - `cp01` 上已生成后续节点加入所需的 join 命令文件
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -21,6 +23,8 @@
 - 本步是第一章真正意义上的“集群诞生点”
 - 前面的步骤只是在准备运行时、仓库、入口和工具链
 - 从本步开始，控制平面对象会第一次在 `cp01` 上正式生成
+
+---
 
 ## 本步顺序
 
@@ -32,6 +36,8 @@
 4. 在 `cp01` 生成 Worker 与控制平面 join 命令文件
 5. 把 `admin.conf` 拷回 `ops`
 6. 在 `ops` 验证 `kubectl`
+
+---
 
 ## 问题背景
 
@@ -58,6 +64,8 @@
 - `Scheduler`
 - `etcd`
 - 集群管理员 kubeconfig
+
+---
 
 ## 理论说明
 
@@ -399,6 +407,8 @@ flowchart LR
 
 本步是后续控制平面扩展和 Worker 加入的前提。
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -414,6 +424,8 @@ HTTP 发布地址：
 - `http://ops:9000/01-k8s-architecture/manifests/kubeadm-init-cp01.yaml`
 
 下面脚本默认在 `ops` 上执行。
+
+---
 
 ## 脚本内部在做什么
 
@@ -508,6 +520,8 @@ scp root@cp01:/etc/kubernetes/admin.conf /root/.kube/config
 
 - `ops -> 集群` 的统一管理入口
 
+---
+
 ## 执行命令
 
 下面命令默认在 `ops` 上执行。
@@ -523,6 +537,8 @@ chmod +x /docker_k8s_2026/k8s/01-k8s-architecture/scripts/08_kubeadm_init_remote
 ```bash
 bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/08_kubeadm_init_remote.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -597,6 +613,8 @@ ssh root@cp01 "kubectl get pods -n kube-system -o wide"
 - 此时 `coredns` 可能尚未正常运行
 - 这是因为第一章尚未安装 CNI，属于标准现象
 
+---
+
 ## 预期结果
 
 本步执行完成后，第一台控制平面已经存在，整体应呈现下面状态：
@@ -609,6 +627,8 @@ ssh root@cp01 "kubectl get pods -n kube-system -o wide"
 
 这些现象在第一章当前阶段都属于标准结果。
 
+---
+
 ## 通过标准
 
 满足下面条件即可通过本步：
@@ -619,6 +639,8 @@ ssh root@cp01 "kubectl get pods -n kube-system -o wide"
 - `/root/kubeadm-join-worker.sh` 已生成
 - `/root/kubeadm-join-control-plane.sh` 已生成
 - `kube-system` 中已出现 `kube-apiserver`、`controller-manager`、`scheduler`、`etcd` 对应核心 Pod
+
+---
 
 ## 下一步
 

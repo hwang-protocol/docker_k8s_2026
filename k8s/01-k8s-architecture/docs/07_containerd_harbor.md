@@ -14,12 +14,16 @@
 
 这里先做的是“让节点具备从 Harbor 受信任拉取镜像的能力”，不是提前把所有镜像预拉到所有节点。
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
 - 即使 Harbor 本身已保留并恢复正常，本步仍然必须执行
 - 因为前一步只是安装了 `containerd`，并没有让每个 Kubernetes 节点信任 Harbor
 - 如果跳过本步，后续 `kubeadm init` 和 Pod 沙箱拉取都可能无法正确从 Harbor 获取镜像
+
+---
 
 ## 本步顺序
 
@@ -30,6 +34,8 @@
 3. 修改 `containerd` 的 `config_path` 与 `sandbox_image`
 4. 重启各节点上的 `containerd`
 5. 抽查节点配置与服务状态
+
+---
 
 ## 问题背景
 
@@ -47,6 +53,8 @@
 - `containerd` 默认的 Pod 沙箱镜像也不是 Harbor 中的 `pause:3.10`
 
 因此，如果不继续补这一层配置，后续节点在拉取 Harbor 镜像时会缺少受信任证书链，Pod 沙箱镜像路径也不会统一落到本地仓库。
+
+---
 
 ## 理论说明
 
@@ -190,6 +198,8 @@ flowchart LR
 
 它的作用是把“能运行容器”推进到“能稳定从本地 Harbor 拉取控制面和 Pod 沙箱镜像”。
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -205,6 +215,8 @@ flowchart LR
 3. 把 `config_path` 指向 `/etc/containerd/certs.d`
 4. 把 `sandbox_image` 改为 `harbor.qytk8s.com/k8s/pause:3.10`
 5. 重启 `containerd`
+
+---
 
 ## 脚本内部在做什么
 
@@ -300,6 +312,8 @@ systemctl restart containerd
 - `config_path`
 - `sandbox_image`
 
+---
+
 ## 执行命令
 
 下面命令默认在 `ops` 上执行。
@@ -315,6 +329,8 @@ chmod +x /docker_k8s_2026/k8s/01-k8s-architecture/scripts/06_config_containerd_h
 ```bash
 bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/06_config_containerd_harbor_remote.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -418,6 +434,8 @@ k8s/pause
 - 真正的 Pod 沙箱镜像拉取会在后续 `kubeadm init`、节点加入集群以及 Pod 创建过程中自然发生
 - 因此这里不使用 `crictl` 作为验证手段
 
+---
+
 ## 预期结果
 
 本步执行完成后，节点侧应满足下面这些条件：
@@ -426,6 +444,8 @@ k8s/pause
 - Harbor 仓库访问规则已写入 `hosts.toml`
 - Pod 沙箱镜像已统一改为 Harbor 版本
 - 后续控制面和节点启动会优先走本地 Harbor
+
+---
 
 ## 通过标准
 
@@ -436,6 +456,8 @@ k8s/pause
 - 抽查节点上 `config_path = "/etc/containerd/certs.d"`
 - 抽查节点上 `sandbox_image = "harbor.qytk8s.com/k8s/pause:3.10"`
 - 抽查节点上 `containerd` 服务状态为 `active (running)`
+
+---
 
 ## 下一步
 

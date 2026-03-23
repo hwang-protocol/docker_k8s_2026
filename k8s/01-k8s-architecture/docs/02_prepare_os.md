@@ -16,6 +16,8 @@
 - `open-iscsi` 已安装，为后续 Longhorn 做准备
 - 自动更新服务不会在课堂执行过程中抢占 `apt/dpkg` 锁
 
+---
+
 ## 本步顺序
 
 这一小节建议按下面顺序执行：
@@ -24,6 +26,8 @@
 2. 确认相关虚拟机已经正常开机
 3. 登录 `ops`，执行 `01_prepare_os_remote.sh`
 4. 抽查 `cp01` 和任意一台 Worker，确认系统初始化结果正确
+
+---
 
 ## 为什么要做这一步
 
@@ -69,11 +73,15 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 
 对于课程环境和快照复现环境，更适合先关闭自动更新，保证每次执行结果稳定、可控。
 
+---
+
 ## 包管理执行机制
 
 脚本会先处理 Ubuntu 后台自动更新与包管理锁，确保系统初始化过程连续完成。
 
 本步重点不是手工处理 `apt/dpkg` 冲突，而是让所有节点进入统一、可继续安装 Kubernetes 的基础状态。
+
+---
 
 ## 执行前准备：先恢复快照，再执行脚本
 
@@ -102,6 +110,8 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 | `K8S-wk-edge01` | `添加100g硬盘, 推荐快照` |
 | `K8S-wk-obs01` | `添加100g硬盘, 推荐快照` |
 
+---
+
 ## 本步涉及节点
 
 下面这些是脚本里实际使用的 **Linux 主机名**。  
@@ -127,6 +137,8 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 - `win2019` 不属于本步范围
 - 在执行本步脚本前，先完成上一节中的快照处理并开机
 
+---
+
 ## 先看脚本
 
 这个脚本在 `ops` 上执行，目标节点使用的是上面这一节中的主机名。
@@ -147,6 +159,8 @@ Pod 网络转发依赖 `net.ipv4.ip_forward=1`。
 脚本内部已经写了详细注释，阅读脚本本身即可：
 
 - `k8s/01-k8s-architecture/scripts/01_prepare_os_remote.sh`
+
+---
 
 ## 执行命令
 
@@ -174,6 +188,8 @@ bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/01_prepare_os_remote.sh
 ```bash
 bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/01_prepare_os_remote.sh wk-app02
 ```
+
+---
 
 ## 你会看到什么
 
@@ -203,6 +219,8 @@ dns=10.1.1.100
 gateway=10.1.1.254
 OK
 ```
+
+---
 
 ## 执行后的验证
 
@@ -275,6 +293,8 @@ System clock synchronized: yes
 - `timezone` 这一段能看到 `Asia/Shanghai`
 - `iscsid` 这一段显示 `active (running)` 或至少服务已经正确安装
 
+---
+
 ## 本步完成标准
 
 只要满足下面条件，就可以进入下一步：
@@ -288,6 +308,8 @@ System clock synchronized: yes
 - DNS 仍然保持为 `10.1.1.100`
 - SSH 登录速度明显改善
 - `unattended-upgrades` 不再干扰课堂安装过程
+
+---
 
 ## 下一步
 

@@ -12,6 +12,8 @@
 - `/etc/containerd/config.toml` 已生成
 - `SystemdCgroup = true` 已生效
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -20,6 +22,8 @@
 
 - 第一章从基础环境起点开始时，本步必须实际执行
 - 本步完成后，后续 `kubeadm`、`kubelet` 与 Pod 沙箱创建才有统一的容器运行时基础
+
+---
 
 ## 问题背景
 
@@ -38,6 +42,8 @@ Kubernetes 并不直接负责启动容器。
 - `containerd`
 
 如果没有这一步，后面的 `kubeadm init` 即使成功生成了控制面配置，节点也没有实际能力去创建 Pod 沙箱和业务容器。
+
+---
 
 ## 理论说明
 
@@ -216,6 +222,8 @@ flowchart LR
 - 再安装 `kubeadm`、`kubelet`、`kubectl`
 - 最后再做 `kubeadm init`
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -228,6 +236,8 @@ flowchart LR
 2. 生成默认配置文件 `/etc/containerd/config.toml`
 3. 将 `SystemdCgroup` 从 `false` 改为 `true`
 4. 启动 `containerd` 并设置开机自启
+
+---
 
 ## 脚本内部在做什么
 
@@ -317,6 +327,8 @@ systemctl restart containerd
 - 立即启动 `containerd`
 - 确保节点重启后自动拉起
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -330,6 +342,8 @@ chmod +x /docker_k8s_2026/k8s/01-k8s-architecture/scripts/05_install_containerd_
 ```bash
 bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/05_install_containerd_remote.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -392,6 +406,8 @@ ssh root@wk-app01 "ls -l /etc/containerd/config.toml"
 
 - `/etc/containerd/config.toml` 文件存在
 
+---
+
 ## 预期结果
 
 本步执行完成后，节点整体应呈现下面状态：
@@ -409,6 +425,8 @@ ssh root@wk-app01 "ls -l /etc/containerd/config.toml"
 
 本步只是为后续 `kubeadm` 与 `kubelet` 提供稳定运行时基础。
 
+---
+
 ## 通过标准
 
 满足下面条件即可通过本步：
@@ -418,11 +436,15 @@ ssh root@wk-app01 "ls -l /etc/containerd/config.toml"
 - 全部 7 台节点均已生成 `/etc/containerd/config.toml`
 - 抽查节点上 `SystemdCgroup = true`
 
+---
+
 ## 下一步
 
 下一步进入 Harbor 信任与 `pause` 沙箱镜像配置：
 
 - `docs/07_containerd_harbor.md`
+
+---
 
 ## 附录：受限网络环境下为 `containerd` 配置上游镜像代理（可选）
 

@@ -20,6 +20,8 @@
 - `wk-edge01` -> `node-role=edge`
 - `wk-obs01` -> `node-role=observability`
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -28,6 +30,8 @@
 
 - 本步完成后，第一章规划中的 `3 控制平面 + 4 Worker` 拓扑才完整落地
 - 节点标签也是后续章节调度、发布与观测规划的重要基础，不是附属动作
+
+---
 
 ## 问题背景
 
@@ -48,6 +52,8 @@
 - `wk-obs01` 承载可观测性组件
 
 因此，本步不仅要完成 Worker 加入，还要把这些节点职责提前固化成标签。
+
+---
 
 ## 理论说明
 
@@ -206,6 +212,8 @@ flowchart LR
 
 本步完成后，第一章规划的节点拓扑与基础角色划分才算全部到位。
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -217,6 +225,8 @@ flowchart LR
 1. 从 `cp01` 读取 Worker join 命令
 2. 依次让 4 台 Worker 节点加入集群
 3. 在 `ops` 上通过 `kubectl label node` 给节点写入角色标签
+
+---
 
 ## 脚本内部在做什么
 
@@ -278,6 +288,8 @@ kubectl label node wk-obs01 node-role=observability --overwrite
 
 这一步把节点职责显式写入集群对象中。
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -291,6 +303,8 @@ chmod +x /docker_k8s_2026/k8s/01-k8s-architecture/scripts/10_join_workers_remote
 ```bash
 bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/10_join_workers_remote.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -348,6 +362,8 @@ kubectl get nodes
 - 这里的课程角色是通过自定义标签 `node-role=*` 来表达
 - Worker 的 Kubernetes 原生 `ROLES` 一列仍可能显示为 `<none>`
 
+---
+
 ## 预期结果
 
 本步执行完成后，集群整体应呈现下面状态：
@@ -357,6 +373,8 @@ kubectl get nodes
 - 节点课程角色标签已提前准备好
 - 第一章的节点规划与职责划分已经全部落地
 
+---
+
 ## 通过标准
 
 满足下面条件即可通过本步：
@@ -365,6 +383,8 @@ kubectl get nodes
 - 节点列表中已出现全部 7 台 Kubernetes 节点
 - 4 台 Worker 的 `node-role=*` 标签已正确写入
 - 已能区分控制平面节点与 Worker 节点的角色分工
+
+---
 
 ## 下一步
 

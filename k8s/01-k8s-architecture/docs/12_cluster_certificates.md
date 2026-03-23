@@ -11,6 +11,8 @@
 
 这一页用于把第一章控制平面证书的查看与续期方法真正测试一遍。
 
+---
+
 ## 执行标记
 
 - **执行标记：测试与验证**
@@ -21,6 +23,8 @@
 - 而是要在第一章结束后，实际查看一次控制平面证书状态
 - 如有需要，也可以现场执行一次续期测试
 - 这一页没有新增脚本，直接在控制平面节点执行 `kubeadm` 相关命令即可
+
+---
 
 ## 问题背景
 
@@ -44,6 +48,8 @@
 - API Server 到 `etcd` 的通信
 - 控制平面组件互信
 - 多控制平面长期运行
+
+---
 
 ## 理论说明
 
@@ -130,6 +136,8 @@
 
 而证书续期正是控制平面维护的基础知识之一。
 
+---
+
 ## 查看当前证书状态
 
 在任意控制平面节点上执行：
@@ -176,6 +184,8 @@ front-proxy-ca          Mar 09, 2036 13:53 UTC   9y              no
   - 哪些是普通证书
   - 哪些是 CA
 
+---
+
 ## 如何续期
 
 ### 续期 1：在控制平面节点上续期 kubeadm 管理的证书
@@ -220,6 +230,8 @@ ssh root@cp01 'kubeadm certs check-expiration'
 - 普通证书的到期时间应被刷新
 - CA 到期时间通常不会因为这一步发生变化
 
+---
+
 ## 验证结果
 
 在完成续期后，可以用下面这组命令进行验证：
@@ -236,6 +248,8 @@ ssh root@cp01 'kubeadm certs check-expiration'
 - 普通证书到期时间被刷新到了新的时间点
 - 控制平面静态 Pod 在重启 `kubelet` 后会重新加载证书
 
+---
+
 ## 边界说明
 
 这一页讲的是：
@@ -250,6 +264,8 @@ ssh root@cp01 'kubeadm certs check-expiration'
 - `netdevops.qytk8s.com`
 - `grafana.qytk8s.com`
 - `jaeger.qytk8s.com`
+
+---
 
 ## 生产实践建议
 
@@ -267,6 +283,8 @@ ssh root@cp01 'kubeadm certs check-expiration'
 - 重新签发证书
 - 重新更新对应 Secret 或服务配置
 
+---
+
 ## 本步完成标准
 
 满足下面条件即可进入第一章总验收：
@@ -275,6 +293,8 @@ ssh root@cp01 'kubeadm certs check-expiration'
 - 你知道当前集群应使用 `kubeadm certs check-expiration` 查看剩余时间
 - 你知道后续可使用 `kubeadm certs renew all` 续期普通控制平面证书
 - 你知道课程中手工签发的业务域名证书不属于这一套续期范围
+
+---
 
 ## 下一步
 

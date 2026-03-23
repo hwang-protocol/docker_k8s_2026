@@ -6,6 +6,8 @@
 
 这样做完之后，后面的 `kubeadm init` 和节点加入操作，就可以优先从本地 Harbor 拉取镜像，而不是依赖公网仓库。
 
+---
+
 ## 执行标记
 
 - **执行标记：条件执行**
@@ -14,6 +16,8 @@
 
 - 当 Harbor 中尚未准备 `k8s` 项目或本章所需镜像时，执行本步
 - 当 Harbor 中已保留 `k8s` 项目和本章所需镜像时，本步按验证流程执行
+
+---
 
 ## 为什么要做这一步
 
@@ -38,6 +42,8 @@
 2. 重新打标签
 3. 推送到 `harbor.qytk8s.com/k8s`
 
+---
+
 ## 本步固定版本
 
 本课程已经冻结 Kubernetes 版本为：
@@ -56,6 +62,8 @@
 | etcd | `registry.k8s.io/etcd:3.5.24-0` | `harbor.qytk8s.com/k8s/etcd:3.5.24-0` |
 | coredns | `registry.k8s.io/coredns/coredns:v1.12.0` | `harbor.qytk8s.com/k8s/coredns:v1.12.0` |
 
+---
+
 ## 为什么 `coredns` 要单独说明
 
 `CoreDNS` 的上游镜像路径是：
@@ -72,6 +80,8 @@ harbor.qytk8s.com/k8s/coredns:v1.12.0
 
 这一步需要提前统一处理，确保后续 `kubeadm` 使用的 `coredns` 镜像路径保持一致。
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -82,6 +92,8 @@ harbor.qytk8s.com/k8s/coredns:v1.12.0
 
 1. 调用 Harbor API，创建 **公开的** `k8s` 项目
 2. 在 `harbor` 节点执行 `docker pull / tag / push`
+
+---
 
 ## 执行命令
 
@@ -96,6 +108,8 @@ chmod +x /docker_k8s_2026/k8s/01-k8s-architecture/scripts/03_push_k8s_images_rem
 ```bash
 bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/03_push_k8s_images_remote.sh
 ```
+
+---
 
 ## 你会看到什么
 
@@ -118,6 +132,8 @@ bash /docker_k8s_2026/k8s/01-k8s-architecture/scripts/03_push_k8s_images_remote.
 ```text
 OK: Kubernetes 核心镜像已推送到 Harbor
 ```
+
+---
 
 ## 执行后的验证
 
@@ -211,6 +227,8 @@ ssh root@harbor "docker images | grep 'harbor.qytk8s.com/k8s'"
 
 - 可以看到所有刚刚推送过的目标镜像
 
+---
+
 ## 本步完成标准
 
 只要满足下面条件，就可以进入下一步：
@@ -219,6 +237,8 @@ ssh root@harbor "docker images | grep 'harbor.qytk8s.com/k8s'"
 - Harbor 项目 `k8s` 为公开项目
 - 所有第一章核心镜像都已推送到 Harbor
 - Harbor API 可以列出这些仓库
+
+---
 
 ## 下一步
 
