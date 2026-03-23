@@ -91,30 +91,58 @@ flowchart LR
 
 Kubernetes 中一个 Pod 并不是“直接把业务容器跑起来”这么简单。
 
-在大多数实现里，Pod 会先创建一个基础沙箱容器：
+在大多数实现里，Pod 在节点上会先落地成一个 `Pod Sandbox`：
 
 - 通常就是 `pause` 镜像
 
-这个沙箱负责承载 Pod 级别的基础命名空间，例如：
+这个 `Pod Sandbox` 负责承载 Pod 级别的基础命名空间，例如：
 
-- 网络命名空间
-- IPC
-- UTS
+- 网络命名空间：决定 Pod 看到的网卡、IP、路由等网络环境
+- IPC：决定 Pod 内容器之间如何共享进程间通信资源，例如共享内存、信号量、消息队列
+- UTS：决定 Pod 看到的主机名与域名标识
 
-后续业务容器再加入这个 Pod 沙箱。
+后续业务容器再加入这个 `Pod Sandbox`。
 
 也就是说：
 
 - 没有容器运行时，就没有 Pod 沙箱
 - 没有 Pod 沙箱，就谈不上真正创建 Pod
 
-这也是为什么后续第 6 步要继续把 `sandbox_image` 指向本地 Harbor 中的 `pause:3.10`
+也正因为节点在创建 `Pod Sandbox` 时需要实际拉取 `pause` 镜像，所以后续第 6 步要继续把 `sandbox_image` 固定指向本地 Harbor 中的 `pause:3.10`
+
+```mermaid
+flowchart TD
+  pod[Pod<br/>Kubernetes 逻辑对象]
+
+  subgraph runtime[节点上的运行时实现]
+    sandbox[Pod Sandbox<br/>通常就是 pause]
+    shared[由 Sandbox 持有并维持的共享环境<br/>Network / IPC / UTS]
+    app_a[业务容器 A]
+    app_b[业务容器 B]
+    keep[Sandbox 持续存在<br/>直到 Pod 被删除]
+  end
+
+  pod --> sandbox
+  sandbox --> shared
+  sandbox --> keep
+  app_a --> shared
+  app_b --> shared
+```
+
+这张图要表达的是：
+
+- `Pod` 是 Kubernetes 里的逻辑对象
+- 在节点运行时层面，`Pod` 会先落地为一个 `Pod Sandbox`
+- 这个 `Pod Sandbox` 通常就是 `pause`
+- 业务容器不是先各自独立启动，而是加入这组由 `Sandbox` 持有的共享环境
+- `pause` 不是“创建完就消失”的临时动作，它通常会持续存在，直到这个 `Pod` 被删除
+- 所以 `pause` 不是业务定义的一部分，但它是 `Pod` 运行时实现的基础
 
 ### 为什么必须设置 `SystemdCgroup = true`
 
 这一点是本步最关键的配置项。
 
-Ubuntu Server 24.04 使用 `systemd` 作为系统初始化与服务管理器。Kubernetes 节点上的 `kubelet` 也更适合与 `systemd` 风格的 cgroup 管理保持一致。
+Ubuntu Server 24.04 使用 `systemd` 作为系统初始化与服务管理器。Kubernetes 节点上的 `kubelet` 也更适合与 `systemd` 方式的 cgroup 管理保持一致。
 
 如果 `containerd` 与 `kubelet` 的 cgroup 驱动不一致，后续可能出现：
 
@@ -127,6 +155,33 @@ Ubuntu Server 24.04 使用 `systemd` 作为系统初始化与服务管理器。K
 ```text
 SystemdCgroup = true
 ```
+
+```mermaid
+flowchart TD
+  systemd[宿主机使用 systemd]
+  kubelet[kubelet<br/>使用 systemd cgroup 驱动]
+  choice[containerd 选择哪种 cgroup 驱动]
+  ok[SystemdCgroup=true<br/>containerd 也走 systemd]
+  bad[SystemdCgroup=false<br/>containerd 改走 cgroupfs]
+  result_ok[结果：与 kubelet 一致]
+  result_bad[结果：与 kubelet 不一致]
+
+  systemd --> kubelet
+  choice --> ok
+  choice --> bad
+  ok --> result_ok
+  bad --> result_bad
+```
+
+这张图要表达的是：
+
+- 宿主机本身使用 `systemd`
+- `kubelet` 本身更适合按 `systemd` 方式管理 cgroup
+- `containerd` 有两种常见方式：
+  - `SystemdCgroup=true`：通过 `systemd` 管理 cgroup
+  - `SystemdCgroup=false`：通过 `cgroupfs` 管理 cgroup
+- 所谓“不一致”，就是 `kubelet` 固定走 `systemd`，但 `containerd` 选成了 `cgroupfs`
+- 本课程把 `SystemdCgroup` 固定为 `true`，就是为了让 `containerd` 与 `kubelet` 保持一致
 
 ### 本步在第一章中的位置
 
@@ -320,7 +375,7 @@ ssh root@wk-app01 "containerd config dump | grep SystemdCgroup | head -n 1"
 SystemdCgroup = true
 ```
 
-这代表节点运行时已经按课程统一标准切换到 `systemd` 风格的 cgroup 驱动。
+这代表节点运行时已经按课程统一标准切换到 `systemd` 方式的 cgroup 驱动。
 
 ### 验证 4：检查配置文件是否存在
 
@@ -364,3 +419,143 @@ ssh root@wk-app01 "ls -l /etc/containerd/config.toml"
 下一步进入 Harbor 信任与 `pause` 沙箱镜像配置：
 
 - `docs/07_containerd_harbor.md`
+
+## 附录：受限网络环境下为 `containerd` 配置上游镜像代理（可选）
+
+这一段不属于本课程默认主线，只适用于下面这种情况：
+
+- 当前环境访问 `docker.io`、`registry.k8s.io` 存在明显网络限制
+- 需要先让节点具备更稳定的上游拉取能力
+- 但当前环境还没有完全切到 Harbor，或者只是临时排障
+
+如果你当前实验环境网络直连正常，这一段可以跳过。
+
+也就是说，本课程主线仍然是：
+
+1. 第 5 步先安装并启用 `containerd`
+2. 第 6 步再把 Harbor 信任关系和 `pause` 镜像切到本地 Harbor
+
+下面这一段只是一个“受限网络备用方案”。
+
+### 适用思路
+
+`containerd` 支持按镜像仓库目录写入 `hosts.toml`：
+
+- `/etc/containerd/certs.d/docker.io/hosts.toml`
+- `/etc/containerd/certs.d/registry.k8s.io/hosts.toml`
+
+这样可以告诉 `containerd`：
+
+- 当访问 `docker.io` 时，优先尝试哪些代理地址
+- 当访问 `registry.k8s.io` 时，优先尝试哪些代理地址
+
+### 示例配置
+
+下面示例只是说明 `hosts.toml` 的写法，不代表这些公共代理地址长期稳定可用。  
+实际使用前应逐一验证；如果只是公共代理，更保守的做法通常是优先只授予 `pull` 能力。
+
+下面示例可以在节点上手工执行：
+
+```bash
+mkdir -p /etc/containerd/certs.d/docker.io
+
+cat > /etc/containerd/certs.d/docker.io/hosts.toml <<'EOF'
+server = "https://docker.io"
+
+[host."https://docker-0.unsee.tech"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.1panel.live"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://registry.dockermirror.com"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.imgdb.de"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.m.daocloud.io"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://hub.firefly.store"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://hub.littlediary.cn"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://hub.rat.dev"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://dhub.kubesre.xyz"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://cjie.eu.org"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.kejilion.pro"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.1panelproxy.com"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.hlmirror.com"]
+  capabilities = ["pull", "resolve"]
+EOF
+
+mkdir -p /etc/containerd/certs.d/registry.k8s.io
+
+cat > /etc/containerd/certs.d/registry.k8s.io/hosts.toml <<'EOF'
+server = "https://registry.k8s.io"
+
+[host."https://docker-0.unsee.tech"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.1panel.live"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://registry.dockermirror.com"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.imgdb.de"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.m.daocloud.io"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://hub.firefly.store"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://hub.littlediary.cn"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://hub.rat.dev"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://dhub.kubesre.xyz"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://cjie.eu.org"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.kejilion.pro"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.1panelproxy.com"]
+  capabilities = ["pull", "resolve"]
+
+[host."https://docker.hlmirror.com"]
+  capabilities = ["pull", "resolve"]
+EOF
+
+systemctl daemon-reload
+systemctl restart containerd
+systemctl enable containerd
+```
+
+### 使用时要注意什么
+
+- 这些代理地址属于外部可变资源，不属于课程固定资产
+- 某些地址今天可用，不代表以后仍然可用
+- 这一段更适合“受限网络临时应急”或“实验备用方案”
+- 如果后续已经按第 6 步切到 Harbor，课程镜像仍应优先走 Harbor，而不是长期依赖外部代理
+- `harbor.qytk8s.com` 的 `hosts.toml` 配置与这里的 `docker.io`、`registry.k8s.io` 目录配置可以并存
