@@ -116,13 +116,30 @@ OK: Harbor 部署完成
 ssh root@harbor "docker ps --format 'table {{.Names}}\t{{.Status}}'"
 ```
 
-预期：
+正常情况下，你会看到类似下面的原始输出：
 
-- 可以看到 `harbor-core`
-- 可以看到 `harbor-db`
-- 可以看到 `harbor-portal`
-- 可以看到 `registry`
-- 可以看到 `nginx`
+```text
+NAMES               STATUS
+nginx               Up 7 days (healthy)
+harbor-jobservice   Up 7 days (healthy)
+harbor-core         Up 7 days (healthy)
+trivy-adapter       Up 7 days (healthy)
+redis               Up 7 days (healthy)
+harbor-db           Up 7 days (healthy)
+registryctl         Up 7 days (healthy)
+registry            Up 7 days (healthy)
+harbor-portal       Up 7 days (healthy)
+harbor-log          Up 7 days (healthy)
+```
+
+判断重点：
+
+- 能看到 `nginx`
+- 能看到 `harbor-core`
+- 能看到 `harbor-db`
+- 能看到 `harbor-portal`
+- 能看到 `registry`
+- 更理想的情况是上面这些 Harbor 相关容器都处于 `Up ... (healthy)` 状态
 
 ### 验证 2：检查 Harbor 健康接口
 
