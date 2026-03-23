@@ -45,22 +45,27 @@
 
 ---
 
-## 本章脚本执行矩阵
+## 本章小单元与对应脚本
 
-| 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
+下表可以直接回答两个问题：
+
+- 每一个小单元主要在完成什么任务
+- 这个小单元对应哪个脚本
+
+| 步骤 | 文档 | 主要任务 | 对应脚本 | 执行标记 |
 | :--- | :--- | :--- | :--- | :--- |
-| 1 | `02_prepare_os.md` | `scripts/01_prepare_os_remote.sh` | 必须执行 | 在所有 Ubuntu 节点完成系统初始化 |
-| 2 | `03_harbor.md` | `scripts/02_install_harbor_remote.sh` | 必须执行 | 部署本课程统一使用的 Harbor 私有镜像仓库 |
-| 3 | `04_push_k8s_images.md` | `scripts/03_push_k8s_images_remote.sh` | 必须执行 | 将 Kubernetes 基础镜像推送到 Harbor 的 `k8s` 项目 |
-| 4 | `05_loadbalancer.md` | `scripts/04_setup_haproxy_keepalived_remote.sh` | 必须执行 | 需要为控制平面准备统一 VIP 入口 |
-| 5 | `06_containerd.md` | `scripts/05_install_containerd_remote.sh` | 必须执行 | 所有 K8s 节点都需要 containerd |
-| 6 | `07_containerd_harbor.md` | `scripts/06_config_containerd_harbor_remote.sh` | 必须执行 | 让 containerd 信任 Harbor，并切换 pause 镜像 |
-| 7 | `08_kube_tools.md` | `scripts/07_install_kube_tools_remote.sh` | 必须执行 | 安装 kubeadm、kubelet、kubectl |
-| 8 | `09_kubeadm_init.md` | `scripts/08_kubeadm_init_remote.sh` | 必须执行 | 初始化第一个控制平面 `cp01` |
-| 9 | `10_join_control_planes.md` | `scripts/09_join_control_planes_remote.sh` | 必须执行 | 把 `cp02`、`cp03` 加入控制平面 |
-| 10 | `11_join_workers.md` | `scripts/10_join_workers_remote.sh` | 必须执行 | 加入 4 台 Worker，并打标签 |
-| 11 | `12_cluster_certificates.md` | 无 | 只读理解 | 说明控制平面证书有效期与后续续期方法 |
-| 12 | `13_verify.md` | 无 | 只读验证 | 本章最终验收，不改配置 |
+| 1 | `02_prepare_os.md` | 在所有 Ubuntu 节点完成系统初始化 | `scripts/01_prepare_os_remote.sh` | 必须执行 |
+| 2 | `03_harbor.md` | 部署本课程统一使用的 Harbor 私有镜像仓库 | `scripts/02_install_harbor_remote.sh` | 必须执行 |
+| 3 | `04_push_k8s_images.md` | 将 Kubernetes 基础镜像推送到 Harbor 的 `k8s` 项目 | `scripts/03_push_k8s_images_remote.sh` | 必须执行 |
+| 4 | `05_loadbalancer.md` | 为控制平面准备统一 VIP 入口 | `scripts/04_setup_haproxy_keepalived_remote.sh` | 必须执行 |
+| 5 | `06_containerd.md` | 在所有 Kubernetes 节点安装 `containerd` | `scripts/05_install_containerd_remote.sh` | 必须执行 |
+| 6 | `07_containerd_harbor.md` | 让 `containerd` 信任 Harbor，并切换 `pause` 镜像 | `scripts/06_config_containerd_harbor_remote.sh` | 必须执行 |
+| 7 | `08_kube_tools.md` | 安装 `kubeadm`、`kubelet`、`kubectl` | `scripts/07_install_kube_tools_remote.sh` | 必须执行 |
+| 8 | `09_kubeadm_init.md` | 初始化第一个控制平面 `cp01` | `scripts/08_kubeadm_init_remote.sh` | 必须执行 |
+| 9 | `10_join_control_planes.md` | 把 `cp02`、`cp03` 加入控制平面 | `scripts/09_join_control_planes_remote.sh` | 必须执行 |
+| 10 | `11_join_workers.md` | 加入 4 台 Worker，并写入课程角色标签 | `scripts/10_join_workers_remote.sh` | 必须执行 |
+| 11 | `12_cluster_certificates.md` | 说明控制平面证书有效期与后续续期方法 | 无 | 只读理解 |
+| 12 | `13_verify.md` | 执行第一章最终验收 | 无 | 只读验证 |
 
 ---
 
