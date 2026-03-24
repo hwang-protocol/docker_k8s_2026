@@ -13,31 +13,13 @@
 ## 执行标记
 
 - **执行标记：必须执行**
-
-说明：
-
-- 这一页不是重复第二章的 `hubble observe`
-- 它的意义是把第二章的网络观测能力，正式带入第三章的北向发布场景
+- 这一页把第二章的观测能力正式带入第三章的北向发布场景
 
 ---
 
 ## 问题背景
 
-第二章已经证明：
-
-- `Hubble` 可以观察东西向流量
-
-第三章已经证明：
-
-- `app.qytk8s.com` 可以通过 `Gateway API + MetalLB + HTTPS` 正式对外发布
-
-这一页要把这两条能力真正合起来：
-
-- 先把 `Hubble UI` 自己发布出来
-- 再制造一条外部访问 `app.qytk8s.com` 的流量
-- 最后从图形界面中直接看到这条流量
-
-这会让第三章的展示效果比单纯的 CLI 更完整。
+第二章已经证明 `Hubble` 可以观察东西向流量，第三章也已经证明 `app.qytk8s.com` 可以通过 `Gateway API + MetalLB + HTTPS` 正式对外发布。这一页就是把这两条能力接到一起：先把 `Hubble UI` 自己发布出来，再从图形界面里观察第三章北向流量。
 
 ---
 
@@ -47,46 +29,40 @@
 
 ```mermaid
 flowchart LR
-  user[浏览器 / 客户端]
-  app[app.qytk8s.com]
-  appvip[10.1.1.60]
-  gateway[Gateway]
-  backend[whoami Service / Pod]
-  hubbleui[hubble.qytk8s.com]
-  hubblevip[10.1.1.61]
-  observe[Hubble UI]
+  user["浏览器 / 客户端"]
+  app["app.qytk8s.com"]
+  appvip["10.1.1.60"]
+  gateway["Gateway"]
+  backend["whoami Service / Pod"]
+  hubble["Hubble UI GUI<br/>hubble.qytk8s.com"]
 
   user --> app
   app --> appvip
   appvip --> gateway
   gateway --> backend
-  user --> hubbleui
-  hubbleui --> hubblevip
-  hubblevip --> observe
-  backend --> observe
+  backend -.北向流量记录.-> hubble
 ```
 
-这张图说明：
-
-- `app.qytk8s.com` 负责产生真实的北向业务流量
-- `hubble.qytk8s.com` 负责把这条流量以图形方式展示出来
+这张图只表达一件事：`app.qytk8s.com` 负责产生真实的北向业务流量，`Hubble UI GUI` 则在旁路把这条流量可视化展示出来。
 
 ### 本步对象关系图
 
-对新手来说，可以先把这一页涉及的对象关系理解成下面这样：
+这一页涉及的对象关系，可以先理解成下面这样：
 
 ```mermaid
 flowchart LR
-  cert["06_publish_hubble_ui.sh<br/>动态生成 TLS Secret"]
-  gwyaml["21_hubble_ui_gateway.yaml<br/>Gateway + HTTPRoute"]
-  gw["Gateway: hubble-ui-gateway"]
-  route1["HTTPRoute: hubble-ui-http-redirect"]
-  route2["HTTPRoute: hubble-ui-https-backend"]
-  svc["Service: kube-system/hubble-ui"]
-  trigger["07_trigger_north_south_traffic.sh<br/>触发 app.qytk8s.com 流量"]
-  ui["浏览器打开 hubble.qytk8s.com"]
+  cert["1. 06_publish_hubble_ui.sh<br/>动态生成 TLS Secret"]
+  secret["2. Secret<br/>hubble-qytk8s-com-tls"]
+  gwyaml["3. 21_hubble_ui_gateway.yaml<br/>Gateway + HTTPRoute"]
+  gw["4. Gateway<br/>hubble-ui-gateway"]
+  route1["5. HTTPRoute<br/>hubble-ui-http-redirect"]
+  route2["6. HTTPRoute<br/>hubble-ui-https-backend"]
+  svc["7. 既有 Service<br/>kube-system/hubble-ui"]
+  trigger["8. 07_trigger_north_south_traffic.sh<br/>触发 app.qytk8s.com 流量"]
+  ui["9. 浏览器打开<br/>hubble.qytk8s.com"]
 
-  cert --> gw
+  cert --> secret
+  secret --> gw
   gwyaml --> gw
   gw --> route1
   gw --> route2
@@ -94,34 +70,42 @@ flowchart LR
   trigger --> ui
 ```
 
-这张图只说明配置和观察关系：
-
-- `21_hubble_ui_gateway.yaml` 负责定义 Hubble UI 的入口对象
-- 发布脚本会动态生成 `hubble-qytk8s-com-tls` 这个 TLS Secret
-- `Gateway` 用这个 Secret 终止 HTTPS
-- `HTTPRoute` 决定是跳转还是转发到 `kube-system/hubble-ui`
-- 最后再用单独脚本触发 `app.qytk8s.com` 流量，回到 `Hubble UI` 中观察
+这张图只说明配置和观察关系：第二章里已经存在 `kube-system/hubble-ui` 这个后端 `Service`，本步不重新安装 `Hubble UI`，只补齐 `Secret`、`Gateway` 和 `HTTPRoute`，把它正式发布成 `https://hubble.qytk8s.com`。
 
 ### 为什么这一页值得独立成一步
 
-如果只在第二章看 `hubble observe`，学员看到的更多还是集群内部实验流量。
+这一页单独保留出来，主要是为了说明两件事：
 
-而第三章里把 `Hubble UI` 也正式发布出来，可以额外讲清：
+- 平台组件本身也可以按第三章同样的发布模型对外暴露
+- `Gateway API + MetalLB + HTTPS` 这套入口模型不只服务业务应用，也服务运维与观测界面
 
-- 观测平台本身也可以作为正式北向服务发布
-- 第三章的北向访问链路并不是只服务业务应用，也服务平台组件
-- `Gateway API + MetalLB + HTTPS` 是一套可复用的发布模型
+### 本步关键 `YAML` 一次看清
 
-### 本步关键清单
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 来源：</strong><code>kubectl create secret tls ... --dry-run=client -o yaml</code><br/>
+<strong>本页重点对象：</strong><code>Secret/hubble-qytk8s-com-tls</code><br/>
+<strong>作用：</strong>为 <code>hubble.qytk8s.com</code> 动态生成并导入 TLS Secret，供后续 <code>Gateway</code> 的 <code>HTTPS listener</code> 引用
+</div>
 
-本步会使用下面这份清单：
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hubble-qytk8s-com-tls
+  namespace: kube-system
+type: kubernetes.io/tls
+data:
+  tls.crt: <base64-encoded certificate>
+  tls.key: <base64-encoded private key>
+```
 
-- `manifests/21_hubble_ui_gateway.yaml`
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #7fd1b9; border-radius: 6px; background: rgba(127,209,185,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/21_hubble_ui_gateway.yaml</code><br/>
+<strong>本页重点对象：</strong><code>Gateway/hubble-ui-gateway + HTTPRoute/hubble-ui-http-redirect + HTTPRoute/hubble-ui-https-backend</code><br/>
+<strong>作用：</strong>给 <code>Hubble UI</code> 创建正式北向入口：固定 <code>VIP</code>、监听 <code>80/443</code>、把 <code>HTTP</code> 重定向到 <code>HTTPS</code>，并把业务流量转发到 <code>kube-system/hubble-ui</code>
+</div>
 
 #### `Hubble UI Gateway`
-
-- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
-- 对象类型：`Gateway`
 
 ```yaml
 kind: Gateway
@@ -139,16 +123,19 @@ spec:
 关键字段说明：
 
 - `namespace: kube-system`
-  - 因为 `hubble-ui` Service 本身就在 `kube-system`
+  - 因为第二章已经安装好的 `hubble-ui` Service 本身就在 `kube-system`
 - `gatewayClassName: cilium`
   - 继续复用第三章已经启用的 `Cilium Gateway API`
 - `metallb.io/loadBalancerIPs: 10.1.1.61`
   - 为 `Hubble UI` 固定一个独立 VIP
 
-#### `HTTPS listener` 与证书
+补充说明：
 
-- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
-- 对象类型：`Gateway.spec.listeners[]`
+- 应用 `Gateway` 后，`Cilium Gateway API` 会自动生成一个对应的 `LoadBalancer Service`
+- 本页里这个自动生成的对象就是 `cilium-gateway-hubble-ui-gateway`
+- 后续看到的 `10.1.1.61`，就是分配给这个 `Service` 的对外入口地址
+
+#### `HTTPS listener` 与证书
 
 ```yaml
 - name: https
@@ -169,10 +156,36 @@ spec:
 - `hubble-qytk8s-com-tls`
   - 本页脚本会为这个域名生成并导入对应 TLS Secret
 
-#### `HTTPRoute` 后端转发
+#### `HTTP -> HTTPS` 跳转规则
 
-- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
-- 对象类型：`HTTPRoute`
+```yaml
+kind: HTTPRoute
+metadata:
+  name: hubble-ui-http-redirect
+spec:
+  parentRefs:
+    - name: hubble-ui-gateway
+      sectionName: http
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            statusCode: 301
+```
+
+关键字段说明：
+
+- `sectionName: http`
+  - 这条路由只挂在 `Gateway` 的 `http` listener 上
+- `RequestRedirect`
+  - 表示这条路由不转后端，而是直接返回重定向
+- `scheme: https`
+  - 强制跳转到 HTTPS
+- `statusCode: 301`
+  - 用标准永久重定向表达正式发布入口行为
+
+#### `HTTPRoute` 后端转发
 
 ```yaml
 kind: HTTPRoute
@@ -227,31 +240,9 @@ kubectl -n "${NAMESPACE}" create secret tls "${SECRET_NAME}" \
 
 关键介绍：
 
-- Hubble UI 使用独立域名与独立证书
-- Secret 直接创建在 `kube-system`
-
-对应 YAML 关键内容：
-
-- 来源方式：由 `scripts/06_publish_hubble_ui.sh` 运行时动态生成
-- 对象类型：`Secret`
-- 说明：这里没有独立静态 YAML 文件，对象来自上面的 `kubectl create secret tls ... --dry-run=client -o yaml`
-
-```yaml
-kind: Secret
-type: kubernetes.io/tls
-metadata:
-  name: hubble-qytk8s-com-tls
-  namespace: kube-system
-```
-
-关键字段说明：
-
-- `type: kubernetes.io/tls`
-  - 明确这是标准 TLS Secret
-- `name: hubble-qytk8s-com-tls`
-  - 后续 `Gateway` 的 HTTPS listener 会直接引用这个名字
-- `namespace: kube-system`
-  - 要和 `hubble-ui-gateway` 所在命名空间一致
+- `Hubble UI` 使用独立域名与独立证书
+- `Secret` 直接创建在 `kube-system`
+- 详细字段已在上文卡片中说明
 
 ### 关键任务 2：发布 `Hubble UI` 对应的 `Gateway` 与 `HTTPRoute`
 
@@ -265,42 +256,7 @@ kubectl apply -f "${GATEWAY_URL}"
 
 - 应用的就是 `manifests/21_hubble_ui_gateway.yaml`
 - 一次性下发 `Gateway`、HTTP 跳转路由和 HTTPS 后端路由
-
-对应 YAML 关键内容：
-
-- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
-- 对象类型：`Gateway`
-
-```yaml
-kind: Gateway
-metadata:
-  name: hubble-ui-gateway
-  namespace: kube-system
-```
-
-以及：
-
-- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
-- 对象类型：`HTTPRoute`
-
-```yaml
-kind: HTTPRoute
-metadata:
-  name: hubble-ui-http-redirect
-  namespace: kube-system
-```
-
-以及：
-
-- 来源文件：`manifests/21_hubble_ui_gateway.yaml`
-- 对象类型：`HTTPRoute`
-
-```yaml
-kind: HTTPRoute
-metadata:
-  name: hubble-ui-https-backend
-  namespace: kube-system
-```
+- 详细字段已在上文卡片中说明
 
 ### 关键任务 3：处理 `EndpointSlice` 兼容标签并等待 VIP
 
@@ -319,8 +275,7 @@ current="$(kubectl get svc -n "${NAMESPACE}" "${GATEWAY_SERVICE}" -o jsonpath='{
 
 关键介绍：
 
-- 这一步和 `app.qytk8s.com` 的发布逻辑一致
-- 最终目标是让 `hubble-ui-gateway` 获得固定 VIP `10.1.1.61`
+- 最终目标是让自动生成的 `LoadBalancer Service cilium-gateway-hubble-ui-gateway` 获得固定 VIP `10.1.1.61`
 
 ### 关键任务 4：触发第三章北向业务流量
 
