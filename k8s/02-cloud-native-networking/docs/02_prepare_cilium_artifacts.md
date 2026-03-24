@@ -18,29 +18,7 @@
 
 - **执行标记：必须执行**
 
-说明：
-
-- 第二章后续安装依赖本步准备的 chart、CLI 和镜像
-- 本步的目标不是“安装 Cilium”，而是“把安装 Cilium 所需的制品准备完整”
-
----
-
-## 问题背景
-
-第二章的正式安装动作主要发生在下一步，但如果不先做制品预热，执行过程中会遇到下面这些不确定性：
-
-- 运行到安装步骤时才临时下载 Helm chart
-- 运行到验证步骤时才发现 `cilium` CLI 不存在
-- 节点首次拉取镜像时受公网波动影响
-- Harbor 中还没有第二章所需项目和镜像
-
-因此，本步要先把下面这些对象准备完整：
-
-1. `Helm chart`
-2. `cilium CLI`
-3. `hubble CLI`
-4. `Cilium` 主线镜像
-5. 第二章 demo 镜像
+第二章后续安装依赖本步准备的 chart、CLI 和镜像；本步的目标是把安装 `Cilium` 所需的制品准备完整。
 
 ---
 
@@ -48,87 +26,63 @@
 
 ### 为什么第二章要先做制品预热
 
-第二章是第一章之后的第一个“网络平面切换章”。
+先把 chart、CLI 和镜像准备完整，下一步就只专注 `Cilium` 的安装、配置与验收。
 
-这里的目标不是只让某个 YAML 跑起来，而是要完成：
+### 什么是 Helm
 
-- CNI 接管
-- `eBPF kube-proxy replacement`
-- `Hubble`
-- 观测与策略演示
+`Helm` 可以理解为 Kubernetes 的包管理工具。
 
-这类章节如果把所有下载、拉取、推送动作都留到安装当下，会把教学主线打散。
+它把一组 Kubernetes 资源和参数组织成一个 `chart`，安装时再结合 `values` 渲染出最终 YAML。
 
-因此，本步先把制品准备完整，后续安装页才可以把重点集中到：
+第二章中，`Cilium` 就通过 `Helm chart` 安装，因此本步需要先准备 `Helm` 和固定版本的 `chart`。
 
-- Cilium 为什么这样安装
-- 配置为什么这样写
-- 验证结果应该看什么
+### Helm 在这里的意义
+
+`Helm` 体现的是云原生交付方式的一部分：把组件做成可复用、可参数化、可版本化的安装包。
+
+在第二章里，只需要把握一点：`Cilium` 不是靠手工拼接大量 YAML 安装，而是通过 `chart` 和 `values` 统一交付。
+
+### 第二章中会用到的 Helm 命令
+
+第二章会用到下面几条 `Helm` 命令：
+
+| 命令 | 作用 |
+| :--- | :--- |
+| `helm version --short` | 检查 `Helm` 是否已安装，并确认版本 |
+| `helm repo add cilium https://helm.cilium.io/` | 添加 `Cilium` 官方 chart 仓库 |
+| `helm repo update` | 更新本地 chart 索引 |
+| `helm pull cilium/cilium --version 1.19.1 --destination artifacts/` | 下载固定版本的 `Cilium` chart 到本地 |
+| `helm upgrade --install cilium artifacts/cilium-1.19.1.tgz --namespace kube-system --values manifests/cilium-values.yaml` | 在第 2 步中使用本地 chart 和本地 values 安装或升级 `Cilium` |
+
+- 第 1 步主要用到 `repo add`、`repo update`、`pull`
+- 第 2 步主要用到 `upgrade --install`
+- `manifests/cilium-values.yaml` 在下一步安装时才实际使用，本步只做准备
 
 ### 本步制品关系图
 
 ```mermaid
 flowchart LR
-  internet[上游仓库 / Release]
-  ops[ops]
-  harbor[Harbor cilium 项目]
-  nodes[所有 Kubernetes 节点]
-  install[下一步安装 Cilium]
+  upstream[上游仓库 / Release]
+  step1[1. ops<br/>下载 Helm chart 和 CLI]
+  step2[2. Harbor cilium 项目<br/>同步 Cilium / Hubble / demo 镜像]
+  step3[3. 所有 Kubernetes 节点<br/>预拉关键镜像]
+  step4[4. 下一步安装 Cilium<br/>直接使用本地制品]
 
-  internet --> ops
-  internet --> harbor
-  ops --> harbor
-  harbor --> nodes
-  ops --> install
-  harbor --> install
-  nodes --> install
+  upstream -. 下载来源 .-> step1
+  upstream -. 镜像来源 .-> step2
+  step1 --> step4
+  step2 --> step3 --> step4
 ```
 
-这张图说明：
-
-- `ops` 负责准备 Helm chart 和 CLI
-- `harbor` 负责承载第二章镜像
-- 所有 Kubernetes 节点提前预拉关键镜像
-- 下一步安装真正依赖的是本步准备好的本地制品
+图中 `1` 到 `4` 就是本步顺序：先在 `ops` 准备 chart 和 CLI，再把镜像同步到 Harbor，并在节点预拉，最后下一步安装直接使用这些本地制品。
 
 ### 第二章制品分层
 
-本步涉及的制品可以按下面三层理解：
+本步制品可分为三类：
 
-#### 1. `ops` 本地工具层
-
-包括：
-
-- `helm`
-- `cilium CLI`
-- `hubble CLI`
-
-这一层解决的是：
-
-- 后续安装和验证命令能否直接在 `ops` 上执行
-
-#### 2. `ops` 本地文件层
-
-包括：
-
-- `artifacts/cilium-1.19.1.tgz`
-- 第二章后续会使用的 `manifests/` 与本地 values 文件
-
-这一层解决的是：
-
-- 安装所需文件是否已在 Git 项目和 `ops` 本地准备好
-
-#### 3. Harbor 与节点镜像层
-
-包括：
-
-- Harbor 项目 `cilium`
-- `Cilium` / `Hubble` / demo 镜像
-- 各节点的预拉镜像缓存
-
-这一层解决的是：
-
-- 安装时是否能够优先走本地 Harbor，而不是临时依赖公网
+- `ops` 本地工具：`helm`、`cilium CLI`、`hubble CLI`
+- `ops` 本地文件：`artifacts/`、`manifests/`、本地 values 文件
+- Harbor 与节点镜像：`cilium` 项目、课程镜像、各节点预拉缓存
 
 ---
 
@@ -141,13 +95,10 @@ flowchart LR
 - `cilium CLI`：`v0.19.1`
 - `hubble CLI`：`v1.18.6`
 
-补充说明：
+`Hubble UI` 课程固定镜像为：
 
-- `Hubble UI` 的上游基础版本仍然是 `v0.13.3`
-- 但课程里实际安装的前后端镜像标签固定为 `v0.13.3-qyfix`
-- 第二章执行时统一从 Harbor 拉取这组课程固定镜像：
-  - `harbor.qytk8s.com/cilium/hubble-ui:v0.13.3-qyfix`
-  - `harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix`
+- `harbor.qytk8s.com/cilium/hubble-ui:v0.13.3-qyfix`
+- `harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix`
 
 ---
 
@@ -172,26 +123,17 @@ harbor.qytk8s.com/cilium
 
 - `k8s/02-cloud-native-networking/scripts/01_prepare_cilium_artifacts.sh`
 
-本步不会把 Helm values、Kubernetes YAML 等配置直接写进脚本中。
-
-第二章中真正用于安装和演示的配置文件仍然保留在项目目录中，例如：
+脚本负责下载、安装、下发、预热；安装时真正使用的配置仍保留在项目目录中，例如：
 
 - `artifacts/cilium-1.19.1.tgz`
 - `manifests/cilium-values.yaml`
 - 后续 demo YAML 文件
-
-这符合课程中“制品、配置、脚本职责分离”的原则：
-
-- 脚本负责下载、安装、下发、预热
-- 原始配置和 manifests 保留在项目目录中
 
 ---
 
 ## 脚本内部在做什么
 
 ### 脚本执行主线
-
-如果把 `01_prepare_cilium_artifacts.sh` 看作一个制品预热器，它的主线如下：
 
 1. 准备本地目录
 2. 安装 Helm
