@@ -19,11 +19,7 @@
 ## 执行标记
 
 - **执行标记：必须执行**
-
-说明：
-
-- 这一页不是在补充安装动作，而是在验证 `Cilium` 已经具备协议感知的安全控制能力
-- 它是第二章从“网络已通”走向“网络可控”的关键一步
+- 第二章从“网络已通”进入“网络可控”的关键验证
 
 ---
 
@@ -44,58 +40,30 @@ flowchart LR
   l7 --> identity
 ```
 
-这张图说明：
-
-- 本步不是一上来就讲复杂的零信任体系
-- 而是先从最容易理解的 3 层递进关系入手：
-  - 默认全通
-  - 先按工作负载身份控制
-  - 再按 HTTP 行为控制
+本步按 3 层关系递进：默认全通，先按工作负载身份控制，再按 HTTP 行为控制。
 
 ### `L3/L4` 与 `L7` 的区别
 
-在 Kubernetes 网络策略里，常见的第一层控制是：
+这里先看两层控制：
 
 - 来源是谁
 - 目标是谁
 - 访问哪个端口
 
-这就是这里的 `L3/L4` 控制。
+这就是这里的 `L3/L4` 控制。`L7` 则在此基础上继续限制 HTTP 方法和路径。
 
-例如本步第一份策略表达的是：
-
-- 只有 `app=client` 的工作负载可以访问 `app=whoami`
-- 只允许访问 TCP `80`
-
-第二份策略进一步把规则收紧到 HTTP 层，表达的是：
-
-- 依旧只允许 `client`
-- 依旧只允许访问 `whoami:80`
-- 但只允许 `GET /`
-
-因此，本步最重要的教学结论是：
+本步可直接记成：
 
 - `L3/L4` 解决“谁可以连过来”
 - `L7` 解决“连过来以后允许做什么”
 
 ### 为什么这一页要引入 `other`
 
-如果只有 `client` 和 `whoami` 两个工作负载，本步只能证明“访问是通的”，但不容易说明“控制是收紧的”。
+`other` 作为对照组，用来说明“基线可访问，策略收紧后不再允许”。
 
-因此额外引入：
+### 本步策略清单与关键字段
 
-- `other`
-
-它的作用是成为一个对照组，用来明确说明：
-
-- 基线下可以访问
-- 加 `L3/L4` 规则后不再允许
-
-这样策略效果会更直观。
-
-### 本步策略清单关键字段示意
-
-本步会使用下面 3 份清单：
+本步使用下面 3 份清单：
 
 - `manifests/21_other.yaml`
 - `manifests/30_cnp_l3l4_allow_client.yaml`
@@ -173,16 +141,13 @@ spec:
 
 - `k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh`
 
-本步使用的原始清单仍然独立保存在项目目录中，而不是写死在脚本里：
+原始清单独立保存在项目目录中：
 
 - `manifests/21_other.yaml`
 - `manifests/30_cnp_l3l4_allow_client.yaml`
 - `manifests/31_cnp_l7_allow_get.yaml`
 
-说明：
-
-- `k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh` 用于把下面这些测试动作串联成批量执行过程
-- 本页执行过程按手动测试展开
+文档按手动测试展开；脚本只是把这些动作串联起来。
 
 ---
 
@@ -222,9 +187,22 @@ whoami-578dd87854-j4hpd   1/1     Running   0          57m
   - `client`
   - `other`
   - `whoami`
-- 这一步的意义是先把“对照组”准备好，后面策略收紧时才能直观看出谁被允许、谁被拒绝
 
 ### 步骤 2：验证基线状态
+
+基线访问关系图：
+
+```mermaid
+flowchart LR
+  client["1. client Pod<br/>curl http://whoami/"]
+  other["2. other Pod<br/>curl http://whoami/"]
+  svc["3. whoami Service<br/>稳定入口"]
+  pod["4. whoami Pod<br/>后端服务"]
+
+  client -->|允许访问| svc
+  other -->|允许访问| svc
+  svc -->|转发到后端| pod
+```
 
 执行命令：
 
@@ -239,9 +217,22 @@ kubectl exec -n net-demo deployment/other -- \
 
 - `client` 与 `other` 都应能访问 `whoami`
 - 两个 HTTP 返回码都应为 `200`
-- 这一步的价值是先建立“默认全通”的基线
 
 ### 步骤 3：应用 `L3/L4` 策略并观察结果
+
+`L3/L4` 策略后关系图：
+
+```mermaid
+flowchart LR
+  client["1. client Pod"]
+  other["2. other Pod"]
+  svc["3. whoami Service"]
+  pod["4. whoami Pod"]
+
+  client -->|允许访问| svc
+  svc -->|转发到后端| pod
+  other -.拒绝访问.-> svc
+```
 
 执行命令：
 
@@ -258,9 +249,22 @@ kubectl exec -n net-demo deployment/other -- \
 
 - `client` 应继续返回 `200`
 - `other` 应不再返回 `200`
-- 这一步说明策略已经能按工作负载身份收紧访问范围
 
 ### 步骤 4：切换为 `L7 GET-only` 策略并观察结果
+
+`L7 GET-only` 策略后关系图：
+
+```mermaid
+flowchart LR
+  client_get["1. client Pod<br/>GET /"]
+  client_post["2. client Pod<br/>POST /"]
+  svc["3. whoami Service"]
+  pod["4. whoami Pod"]
+
+  client_get -->|允许访问| svc
+  svc -->|转发到后端| pod
+  client_post -.拒绝访问.-> svc
+```
 
 执行命令：
 
@@ -279,9 +283,22 @@ kubectl exec -n net-demo deployment/client -- \
 - `GET /` 应返回 `200`
 - `POST /` 应返回非 `200`
 - 常见拒绝结果为 `403`
-- 这一步说明策略已经从“能不能访问”继续收紧到“允许什么 HTTP 行为”
 
 ### 步骤 5：查看当前策略对象与端点对象
+
+策略对象与端点对象关系图：
+
+```mermaid
+flowchart LR
+  cnp["1. CiliumNetworkPolicy<br/>whoami-l7-allow-get"]
+  whoami["2. CiliumEndpoint<br/>whoami"]
+  client["3. CiliumEndpoint<br/>client"]
+  other["4. CiliumEndpoint<br/>other"]
+
+  cnp -->|endpointSelector: app=whoami| whoami
+  client -.fromEndpoints 匹配.-> cnp
+  other -.来源标签不匹配.-> cnp
+```
 
 执行命令：
 
@@ -297,24 +314,23 @@ kubectl get cep -n net-demo
   - 用来查看当前命名空间中的 Cilium 策略对象
 - `cep`
   - `CiliumEndpoint`
-  - 用来查看 Cilium 为每个 Pod 维护的端点对象
+  - 用来查看 Cilium 为每个 Pod 自动生成并维护的端点对象
 
-可以先把它们简单理解成：
+说明：
 
-- `cnp`：规则本身
-- `cep`：被规则作用的端点对象
+- `cnp` 通常来自手工应用的策略 YAML
+- `cep` 不是手工创建的业务清单，而是 Pod 被 Cilium 接管后自动生成的运行时对象
 
 结果看点：
 
 - 当前通常会看到 `whoami-l7-allow-get`
 - 能看到 `whoami`、`client`、`other` 对应的 `CiliumEndpoint`
-- 这一步的意义是把“策略对象”和“端点身份”同时展示出来，便于对照观察
 
 ---
 
 ## 关键看点
 
-本步不要只看“通不通”，要优先观察下面 3 件事：
+本步优先观察下面 3 件事：
 
 - 基线阶段，`client` 与 `other` 都应返回 `200`
 - `L3/L4` 阶段，`client` 继续 `200`，`other` 不再 `200`
