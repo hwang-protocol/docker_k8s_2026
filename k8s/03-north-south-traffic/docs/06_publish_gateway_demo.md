@@ -14,31 +14,13 @@
 ## 执行标记
 
 - **执行标记：必须执行**
-
-说明：
-
-- 这是第三章真正把内部服务发布为外部 HTTPS 服务的一步
-- 本步完成后，第三章主线会第一次形成完整闭环
+- 第三章第一次把内部服务正式发布为外部 `HTTPS` 服务
 
 ---
 
 ## 问题背景
 
-到本步之前，第三章已经具备：
-
-- `MetalLB`
-- `Gateway API`
-- `app.qytk8s.com` 对应证书
-
-但这些能力此时还没有真正串成一条对外访问链路。
-
-这一页要完成的事情是：
-
-- 部署演示应用
-- 创建 `Gateway`
-- 创建 `HTTPRoute`
-- 让 `Gateway` 获取固定 VIP
-- 从命令行和浏览器两侧确认 HTTPS 已经真正可用
+到本步之前，第三章已经具备 `MetalLB`、`Gateway API` 和 `app.qytk8s.com` 对应证书，但这些能力还没有真正串成一条对外访问链路。本步就是把它们接成完整入口。
 
 ---
 
@@ -64,11 +46,7 @@ flowchart LR
   svc --> pod
 ```
 
-这张图说明：
-
-- `Gateway` 负责监听 `80/443`
-- 一个 `HTTPRoute` 负责 `HTTP -> HTTPS` 跳转
-- 另一个 `HTTPRoute` 负责把 HTTPS 流量转发到后端 `whoami Service`
+这张图说明：`Gateway` 负责监听 `80/443`；一个 `HTTPRoute` 负责 `HTTP -> HTTPS` 跳转，另一个 `HTTPRoute` 负责把 `HTTPS` 流量转发到后端 `whoami Service`。
 
 ### 本步清单关系图
 
@@ -91,13 +69,7 @@ flowchart LR
   route2 --> app
 ```
 
-这张图只说明配置关系：
-
-- `gateway-demo` 是这些对象统一所在的命名空间
-- `whoami Service` 是最终后端
-- `Gateway` 负责入口监听
-- 两个 `HTTPRoute` 分别负责跳转和转发
-- TLS Secret 不是本步新建，但会在本步被 `Gateway` 引用
+这张图只说明配置关系：`gateway-demo` 是统一命名空间；`whoami Service` 是最终后端；`Gateway` 负责入口监听；两个 `HTTPRoute` 分别负责跳转和转发；`TLS Secret` 不是本步新建，但会在本步被 `Gateway` 引用。
 
 ### 为什么这里同时创建两个 `HTTPRoute`
 
@@ -109,17 +81,26 @@ flowchart LR
 
 这更符合真实发布场景，也更适合作为教材演示“正式入口模型”。
 
-### 本步关键清单
+### 本步关键 `YAML` 一次看清
 
-本步会使用下面两份清单：
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/00_gateway_demo_namespace.yaml</code><br/>
+<strong>本页重点对象：</strong><code>Namespace/gateway-demo</code><br/>
+<strong>作用：</strong>给第三章发布演示统一提供命名空间，后续 <code>Gateway</code>、<code>HTTPRoute</code>、<code>whoami</code> 都放在这里
+</div>
 
-- `manifests/10_demo_whoami.yaml`
-- `manifests/20_gateway_https_demo.yaml`
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gateway-demo
+```
 
-#### `whoami` 演示应用
-
-- 来源文件：`manifests/10_demo_whoami.yaml`
-- 对象类型：`Service`
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/10_demo_whoami.yaml</code><br/>
+<strong>本页重点对象：</strong><code>Deployment/whoami + Service/whoami</code><br/>
+<strong>作用：</strong>部署一个简单稳定的后端服务，供后续 <code>Gateway</code> 和 <code>HTTPRoute</code> 转发
+</div>
 
 ```yaml
 kind: Service
@@ -138,10 +119,13 @@ spec:
 
 - `whoami Service` 是 `Gateway` 最终要转发到的目标
 
-#### `Gateway` 关键字段
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #7fd1b9; border-radius: 6px; background: rgba(127,209,185,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/20_gateway_https_demo.yaml</code><br/>
+<strong>本页重点对象：</strong><code>Gateway/app-gateway + HTTPRoute/app-http-redirect + HTTPRoute/app-https-backend</code><br/>
+<strong>作用：</strong>创建正式北向入口：固定 <code>VIP</code>、监听 <code>80/443</code>、把 <code>HTTP</code> 重定向到 <code>HTTPS</code>，并把业务流量转发到 <code>whoami Service</code>
+</div>
 
-- 来源文件：`manifests/20_gateway_https_demo.yaml`
-- 对象类型：`Gateway`
+#### `Gateway` 关键字段
 
 ```yaml
 kind: Gateway
@@ -166,9 +150,6 @@ spec:
 
 #### `HTTPS listener` 与证书
 
-- 来源文件：`manifests/20_gateway_https_demo.yaml`
-- 对象类型：`Gateway.spec.listeners[]`
-
 ```yaml
 - name: https
   hostname: app.qytk8s.com
@@ -189,9 +170,6 @@ spec:
   - 直接引用上一页已经创建好的 TLS Secret
 
 #### `HTTP -> HTTPS` 跳转规则
-
-- 来源文件：`manifests/20_gateway_https_demo.yaml`
-- 对象类型：`HTTPRoute`
 
 ```yaml
 kind: HTTPRoute
@@ -221,9 +199,6 @@ spec:
   - 用标准永久重定向表达正式发布入口行为
 
 #### `HTTPS -> 后端 Service` 转发规则
-
-- 来源文件：`manifests/20_gateway_https_demo.yaml`
-- 对象类型：`HTTPRoute`
 
 ```yaml
 kind: HTTPRoute
@@ -297,25 +272,8 @@ kubectl apply -f "${NAMESPACE_URL}"
 
 关键介绍：
 
-- `NAMESPACE_URL` 实际对应的是：
-  - `manifests/00_gateway_demo_namespace.yaml`
-
-对应 YAML 关键内容：
-
-- 来源文件：`manifests/00_gateway_demo_namespace.yaml`
-- 对象类型：`Namespace`
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: gateway-demo
-```
-
-关键字段说明：
-
-- `name: gateway-demo`
-  - 让第三章所有发布对象收敛到同一命名空间，便于观察和验收
+- `NAMESPACE_URL` 实际对应 `manifests/00_gateway_demo_namespace.yaml`
+- 详细字段已在上文卡片中说明
 
 ### 关键任务 1：部署演示应用
 
@@ -329,39 +287,8 @@ kubectl -n gateway-demo rollout status deploy/whoami --timeout=180s
 关键介绍：
 
 - 先确保有一个稳定、简单的后端服务可用于发布演示
-- `WHOAMI_URL` 实际对应的是：
-  - `manifests/10_demo_whoami.yaml`
-
-对应 YAML 关键内容：
-
-- 来源文件：`manifests/10_demo_whoami.yaml`
-- 对象类型：`Deployment`
-
-```yaml
-kind: Deployment
-metadata:
-  name: whoami
-  namespace: gateway-demo
-```
-
-以及：
-
-```yaml
-kind: Service
-metadata:
-  name: whoami
-  namespace: gateway-demo
-```
-
-- 来源文件：`manifests/10_demo_whoami.yaml`
-- 对象类型：`Service`
-
-关键字段说明：
-
-- `namespace: gateway-demo`
-  - 让第三章所有演示对象集中在一个命名空间中
-- `name: whoami`
-  - 作为后续 `HTTPRoute` 的明确后端目标
+- `WHOAMI_URL` 实际对应 `manifests/10_demo_whoami.yaml`
+- 详细字段已在上文卡片中说明
 
 ### 关键任务 2：创建 `Gateway` 与 `HTTPRoute`
 
@@ -371,49 +298,7 @@ metadata:
 kubectl apply -f "${GATEWAY_URL}"
 ```
 
-关键介绍：
-
-- 一次性下发 `Gateway`
-- `HTTP -> HTTPS` 跳转路由
-- `HTTPS -> whoami` 后端路由
-- `GATEWAY_URL` 实际对应的是：
-  - `manifests/20_gateway_https_demo.yaml`
-
-对应 YAML 关键内容：
-
-- 来源文件：`manifests/20_gateway_https_demo.yaml`
-- 对象类型：`Gateway`
-
-```yaml
-kind: Gateway
-metadata:
-  name: app-gateway
-  namespace: gateway-demo
-```
-
-以及：
-
-- 来源文件：`manifests/20_gateway_https_demo.yaml`
-- 对象类型：`HTTPRoute`
-
-```yaml
-kind: HTTPRoute
-metadata:
-  name: app-http-redirect
-  namespace: gateway-demo
-```
-
-以及：
-
-- 来源文件：`manifests/20_gateway_https_demo.yaml`
-- 对象类型：`HTTPRoute`
-
-```yaml
-kind: HTTPRoute
-metadata:
-  name: app-https-backend
-  namespace: gateway-demo
-```
+关键介绍：一次性下发 `Gateway`、`HTTP -> HTTPS` 跳转路由和 `HTTPS -> whoami` 后端路由。`GATEWAY_URL` 实际对应 `manifests/20_gateway_https_demo.yaml`，详细字段已在上文卡片中说明。
 
 ### 关键任务 3：处理 `Cilium Gateway` 与 `MetalLB` 的兼容标签
 
@@ -425,10 +310,7 @@ kubectl -n gateway-demo label endpointslice "${slice_name}" \
   kubernetes.io/service-name="${GATEWAY_SERVICE}" --overwrite
 ```
 
-关键介绍：
-
-- 在当前版本组合中，`Gateway` 自动生成的 `EndpointSlice` 需要补充 `MetalLB` 识别所需 label
-- 脚本已经把这一步自动化处理
+关键介绍：在当前版本组合中，`Gateway` 自动生成的 `EndpointSlice` 需要补充 `MetalLB` 识别所需 `label`；脚本已经把这一步自动化处理。
 
 ### 关键任务 4：等待 `Gateway` 获取固定 VIP
 
@@ -441,10 +323,7 @@ if [[ "${current}" == "${VIP}" ]]; then
 fi
 ```
 
-关键介绍：
-
-- 持续等待 `LoadBalancer Service` 真正拿到 `10.1.1.60`
-- 这是第三章业务发布能否成功的关键节点
+关键介绍：持续等待 `LoadBalancer Service` 真正拿到 `10.1.1.60`，这是第三章业务发布能否成功的关键节点。
 
 ### 关键任务 5：本机验证 HTTP 跳转与 HTTPS 访问
 
@@ -455,10 +334,7 @@ curl -I --resolve "${DOMAIN}:80:${VIP}" "http://${DOMAIN}/"
 curl --resolve "${DOMAIN}:443:${VIP}" --cacert "${CA_CERT}" "https://${DOMAIN}/"
 ```
 
-关键介绍：
-
-- 第一条命令验证 `HTTP -> HTTPS` 是否成立
-- 第二条命令验证 HTTPS 证书和业务内容是否都成立
+关键介绍：第一条命令验证 `HTTP -> HTTPS` 是否成立；第二条命令验证 `HTTPS` 证书和业务内容是否都成立。
 
 ---
 
@@ -563,7 +439,7 @@ https://app.qytk8s.com
 
 ## 关键看点
 
-这一页真正要确认的是：
+这一页主要确认：
 
 - `Gateway`、`HTTPRoute`、`TLS Secret` 已经串成完整入口链路
 - `MetalLB VIP` 已经真正落到业务入口上
