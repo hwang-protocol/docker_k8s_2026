@@ -119,6 +119,29 @@ flowchart LR
 
 因此，第二章安装 `Cilium` 的意义，不只是“多装一个组件”，而是把第一章尚未完成的 **Pod 网络接入能力** 正式补齐。
 
+### 常见 `CNI` 生态
+
+除了 `Cilium`，Kubernetes 里还常见下面这些 `CNI` 或 `CNI` 相关方案：
+
+- `Flannel`
+  - 结构简单，常用于入门或轻量场景
+- `Calico`
+  - 很常见，强调网络连通与网络策略
+- `Antrea`
+  - 基于 `Open vSwitch`，强调企业网络功能
+- `Kube-OVN`
+  - 基于 `OVN / OVS`，更偏虚拟网络模型
+- `Cisco ACI CNI`
+  - 更强调把 Kubernetes 网络接入到 `Cisco ACI` 物理网络体系
+- `NVIDIA Network Operator`
+  - 常与 `Multus`、`SR-IOV CNI` 等方案搭配，更偏 `GPU / DPU / 高性能网络` 场景
+- `Multus CNI`
+  - 不是单一主网络数据平面，更像“多网卡 / 多网络附加”的编排入口
+- `SR-IOV CNI`
+  - 更偏高性能网卡直通场景
+
+因此，`CNI` 世界并不只有 `Cilium`、`Calico` 两种选择；不同方案关注点并不相同，有的偏通用云原生网络，有的偏物理网络集成，有的偏高性能多网卡场景。
+
 ### 什么是 `Cilium`
 
 `Cilium` 是一个基于 `eBPF` 的云原生网络与安全平台。
@@ -188,7 +211,7 @@ flowchart LR
 
 这张并排图要强调的关键是：**Service 转发的承载方式变了**。
 
-- 传统方案：`kube-proxy` 持续把 `Service / Endpoint` 变化转换成 `iptables / IPVS` 规则
+- 传统方案：`kube-proxy` 按运行模式，持续把 `Service / Endpoint` 变化写成 `iptables` 规则或 `IPVS` 表项
 - `eBPF` 方案：由 `Cilium` 把转发逻辑挂到 `eBPF Data Plane`，在内核数据路径中执行
 
 > 说明：这张图只画 `Service VIP` 路径；`NodePort` 可以按同样思路理解。
