@@ -2,9 +2,9 @@
 
 ## 本步目标
 
-在 `Cilium` 已经接管网络平面后，启用并接入 `Hubble` 观测入口，为后续观察流量做好准备。
+接通 `Hubble` CLI 观察入口，为后续东西向流量观测做好准备。
 
-本步先完成下面两件事：
+本步完成下面两件事：
 
 - `ops` 可以通过临时端口转发接入 `hubble-relay`
 - 为第二章后续的 `hubble` CLI 观察准备入口
@@ -14,92 +14,67 @@
 ## 执行标记
 
 - **执行标记：必须执行**
-
-说明：
-
-- 本步是第二章观测能力的准备步骤
-- 主线重点是把 `Hubble` 接入到可用状态，而不是在这里做完整观测演示
-- 这一页使用的 `port-forward` 只是临时观察手段
-
----
-
-## 问题背景
-
-前两步已经完成：
-
-- `Cilium` 安装
-- Service Discovery 演示
-
-这意味着业务流量已经存在，但在正式观察之前，还需要先把 `Hubble` 的访问入口接通。
-
-因此，本步先回答下面两个问题：
-
-- `hubble-relay` 是否已经就绪
-- `ops` 是否已经可以接入 `Hubble`
+- 第二章观测入口准备步骤
 
 ---
 
 ## 理论说明
 
-### `Hubble` 在第二章中的位置
+### 什么是 `Hubble`
 
-`Hubble` 是 `Cilium` 的观测窗口，不负责转发流量。
+`Hubble` 是 `Cilium` 的可观测层，不负责转发流量。
 
-它负责把 `Cilium` 已经在数据平面里看到的连接、方向、协议和 verdict 展示出来，因此这一步更接近“观察实验结果”，而不是再次部署网络组件。
+它负责把 `Cilium` 在数据平面里看到的连接、方向、协议和 `verdict` 展示出来。
+
+官方入口：
+
+- 官方文档：https://docs.cilium.io/en/stable/observability/hubble/index.html
+- 安装与 CLI 说明：https://docs.cilium.io/en/stable/observability/hubble/setup/
+- GitHub：https://github.com/cilium/hubble
 
 ### 观察链路关系图
 
 ```mermaid
 flowchart LR
-  client[client Pod]
-  whoami[whoami Pod]
-  cilium[Cilium eBPF 数据平面]
-  relay[Hubble Relay]
-  cli[hubble CLI]
+  client["1. client Pod<br/>发起请求"]
+  src["2. 源节点 Cilium eBPF 数据平面<br/>记录出口流量"]
+  dst["3. 目标节点 Cilium eBPF 数据平面<br/>记录入口流量"]
+  whoami["4. whoami Pod<br/>接收请求"]
+  relay["5. hubble-relay Pod<br/>汇聚节点观测结果"]
+  cli["6. hubble CLI<br/>读取并展示结果"]
 
-  client --> whoami
-  client --> cilium
-  whoami --> cilium
-  cilium --> relay
-  relay --> cli
+  client -->|真实请求| src
+  src -->|跨节点转发| dst
+  dst -->|交付目标 Pod| whoami
+
+  src -.上报流量事件.-> relay
+  dst -.上报流量事件.-> relay
+  relay -->|查询 Relay| cli
 ```
 
-这张图说明：
-
-- 真正承载业务请求的是 `client -> whoami`
-- `Cilium` 在数据平面记录这条连接
-- `Hubble Relay` 汇聚观测能力
-- `hubble` CLI 从 Relay 读取并展示结果
+图中要点是：业务流量经过源节点和目标节点的 `Cilium eBPF` 数据平面；`Hubble` 通过这些节点侧事件汇聚出观测结果。
 
 ### 为什么第二章主线优先使用 CLI 而不是 UI
 
-第二章要强调的是**东西向流量观测本身**。
-
-因此本章主线优先使用：
+第二章要强调的是东西向流量观测本身，因此主线优先使用：
 
 - `hubble status`
 - `hubble observe`
 
-原因是：
+原因：
 
 - CLI 更适合精确观察流量
-- CLI 更容易和 `client -> whoami` 这类实验步骤形成一一对应
+- CLI 更容易和 `client -> whoami` 这类实验步骤一一对应
 - 不依赖额外的北向发布动作
 
 ### 为什么这里仍然使用 `port-forward`
 
-第二章的重点是先证明：
+本章先证明两件事：
 
 - 流量已经能被 `Hubble` 观察到
 - `hubble` CLI 已经可以使用
 
-因此这里采用的是最直接的临时接入方式：
-
-- `kubectl port-forward`
-
-它的定位只是：
-
-- 第二章的临时观察入口
+因此这里使用最直接的临时接入方式：`kubectl port-forward`。
 
 ---
 
@@ -109,34 +84,14 @@ flowchart LR
 
 - `k8s/02-cloud-native-networking/scripts/04_enable_hubble.sh`
 
-如需通过脚本一次完成本步，可执行：
+如需一次完成本步，可执行：
 
 ```bash
 chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/04_enable_hubble.sh
 bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/04_enable_hubble.sh
 ```
 
-这份脚本会连续完成下面几件事：
-
-- 检查 `hubble-relay`
-- 在 `ops` 上建立临时端口转发
-- 生成一小段 `net-demo` 演示流量
-- 只输出最关键的 4 类观测记录
-
-本页执行过程按下面的手动步骤展开，以便分别观察各个动作。
-
----
-
-## 脚本内部在做什么
-
-### 脚本执行主线
-
-脚本整体分为 4 个阶段：
-
-1. 检查 `Hubble Relay`
-2. 建立本地端口转发
-3. 检查 `hubble` CLI 是否已经连通
-4. 输出关键 Hubble 观测记录
+脚本会检查 `hubble-relay`、建立临时端口转发、生成一小段 `net-demo` 流量，并输出关键观测记录。
 
 ---
 
@@ -152,7 +107,6 @@ kubectl get pods -n kube-system -l k8s-app=hubble-relay -o wide
 
 - 至少看到 1 个 `hubble-relay` Pod
 - `STATUS` 应为 `Running`
-- 这一步只是在确认观测后端已就绪，不是在重新安装 `Hubble`
 
 ### 2. 在 `ops` 本机建立临时端口转发
 
@@ -161,10 +115,41 @@ kubectl -n kube-system port-forward svc/hubble-relay 4245:80 >/tmp/hubble-port-f
 echo $! > /tmp/hubble-port-forward.pid
 ```
 
+临时端口转发关系图：
+
+```mermaid
+flowchart LR
+  subgraph ops["ops 本机"]
+    cli["1. hubble CLI<br/>--server localhost:4245"]
+    pf["2. kubectl port-forward 进程<br/>监听 127.0.0.1:4245"]
+    cli -->|连接本地 gRPC 入口| pf
+  end
+
+  subgraph control["控制面路径"]
+    svc["3. hubble-relay Service<br/>selector 选 Pod<br/>port: 80/TCP"]
+    apiserver["4. API Server<br/>/pods/pod-name/portforward"]
+    kubelet["5. 目标节点 kubelet<br/>接收 port-forward"]
+    pod["6. hubble-relay Pod<br/>name: grpc<br/>containerPort: 4245/TCP"]
+  end
+
+  pf -.先查询 Service 与 Pod.-> svc
+  pf -->|HTTPS + WebSocket Upgrade| apiserver
+  svc -.targetPort: grpc -> 4245.-> pod
+  apiserver -->|转给 Pod 所在节点| kubelet
+  kubelet -->|转入 Pod:4245| pod
+```
+
+含义：`Service` 只负责帮助 `kubectl` 选中后端 Pod 和解析 `targetPort`；真正的隧道是 `kubectl -> API Server -> kubelet -> hubble-relay Pod:4245`。
+
 关键看点：
 
-- 这一步只是把集群内的 `hubble-relay` 暂时映射到 `ops:4245`
-- 它属于临时观察入口，不会修改集群状态
+- `1 -> 2`：`hubble CLI` 访问 `localhost:4245`，由 `kubectl port-forward` 在 `ops` 本机监听
+- `2 -> 3`：`kubectl` 先查询 `service/hubble-relay`，用它来选 Pod 和解析 `targetPort`
+- `2 -> 4`：真正建立隧道时，`kubectl` 先连接 `API Server`
+- `4 -> 5`：`API Server` 再把 `port-forward` 转给目标节点上的 `kubelet`
+- `5 -> 6`：最终流量进入选中的 `hubble-relay Pod:4245`
+- 当前隧道建立过程是 `HTTPS` 连接升级为 `portforward.k8s.io` 会话
+- 这属于临时观察入口，不会修改集群状态
 - 使用后台方式启动更稳定，否则当前终端结束后，`4245` 监听也会一起消失
 
 ### 3. 在新的 shell 会话中确认 `hubble` CLI 已连通
@@ -211,56 +196,50 @@ Mar 13 12:40:59.830: net-demo/client-5d75665b4d-c8th2:41760 (ID:48824) -> kube-s
 Mar 13 12:40:59.832: net-demo/client-5d75665b4d-c8th2 (ID:48824) <> net-demo/whoami:80 (world) pre-xlate-fwd TRACED (TCP)
 ```
 
-说明：
-
-- 上面这组记录保留的是本轮真实观察结果
-- 这些记录可以帮助理解 `Hubble` 能看到哪些层次
-- 但它们不适合被理解成一条严格按教学顺序展开的时间线
-
-在教学上，更容易理解的完整请求过程通常是：
-
-1. 先做 DNS 解析
-2. 再命中 `whoami Service`
-3. 然后转发到具体 `whoami Pod`
-4. 最后建立 TCP 连接并返回响应
-
-而 `hubble observe` 展示的是最近一批关键流量切片，因此显示顺序不一定与理论讲解顺序完全一致。
+说明：`hubble observe` 展示的是最近一批关键流量切片，显示顺序不一定与教学顺序完全一致。
 
 关键看点：
-
-按正常请求路径来理解，这组记录分别说明：
 
 1. 先进行 DNS 解析
    - `client -> coredns:53`
    - `FORWARDED (UDP)`
-   - 说明 `client` 真实发起了对 `whoami` 的 DNS 查询
-
 2. 再命中 `whoami Service`
    - `client <> whoami:80 pre-xlate-fwd TRACED`
-   - 说明 Hubble 记录到了 `Service` 这一层
-   - 也就是请求先落到了 `whoami Service`
-
 3. 然后转发到具体后端 Pod
    - `client -> whoami-...:80`
    - `TCP Flags: SYN`
-   - 说明流量已经从 `Service` 落到了具体 `whoami Pod`，并开始建立 TCP 连接
-
 4. 最后由后端 Pod 返回连接确认
    - `client <- whoami-...:80`
    - `TCP Flags: SYN, ACK`
-   - 说明后端 Pod 已收到连接请求，并返回确认响应
+
+目的地址转换前：
+
+```mermaid
+flowchart LR
+  client_pre["1. client Pod<br/>src = client Pod IP"]
+  svc_pre["2. whoami Service VIP<br/>dst = Service ClusterIP:80"]
+
+  client_pre -->|原始请求| svc_pre
+```
+
+目的地址转换后：
+
+```mermaid
+flowchart LR
+  client_post["1. client Pod<br/>src = client Pod IP"]
+  xlate["2. Cilium Service 地址翻译<br/>只改目的地址"]
+  pod_post["3. whoami Pod<br/>dst = backend Pod IP:80"]
+
+  client_post -->|dst: Service VIP -> Pod IP| xlate
+  xlate -->|转发到真实后端| pod_post
+```
+
+这一步主线下没有插入额外代理地址，变化的主要是目的地址：`Service VIP -> 后端 Pod IP`；源地址通常仍然是 `client Pod IP`。
 
 - `FORWARDED`
   - 表示这条流量被放行并成功转发
 - `TRACED`
-  - 表示 Hubble 在这一层记录到了 Service 相关的转发过程
-
-这组输出最值得教学上强调的地方是：
-
-- 可以同时看到：
-  - DNS 请求
-  - `Service` 这一层的转发记录
-  - Pod 之间的建连过程
+  - 表示 Hubble 在某个 trace point 观察到了这条流量；如 `pre-xlate-fwd TRACED`，表示在 Service 地址翻译之前先记录到这条请求，并不表示它已经成为最终转发结论
 
 ### 6. 观察完成后关闭临时端口转发
 
@@ -273,8 +252,6 @@ rm -f /tmp/hubble-port-forward.pid
 
 - 这一步只是回收本机临时监听端口
 - 不会影响集群中的 `hubble-relay` Pod
-
-也就是说，`Hubble` 在这一页里不只是“看见有流量”，而是把 Pod、DNS 和 Service 几层动作都展示出来了。
 
 ---
 
