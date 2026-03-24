@@ -22,30 +22,7 @@
 
 - **执行标记：必须执行**
 
-说明：
-
-- 这是第二章最核心的一步
-- 本步完成后，第一章的“控制平面已建立、网络尚未完成”状态会正式切换为“网络平面可用”
-
----
-
-## 问题背景
-
-第一章结束时，集群已经具备：
-
-- 控制平面
-- Worker 节点
-- Harbor
-- API 高可用入口
-
-但还没有具备：
-
-- CNI
-- Pod 网络
-- Service 转发能力
-- CoreDNS 正常运行所需的网络基础
-
-第二章的第一性目标，就是让这一套集群真正拥有可用的网络平面。
+本步完成后，集群会从“网络未完成”切换为“网络平面可用”。
 
 ---
 
@@ -67,111 +44,262 @@ flowchart LR
   ebpf --> after
 ```
 
-这张图说明：
-
-- 安装 `Cilium` 不是“再加一个网络组件”
-- 而是把第一章未完成的网络平面正式补齐，并让 `eBPF` 接管关键数据路径
+这一步不是“再加一个网络组件”，而是补齐网络平面，并让 `eBPF` 接管 Service 转发。
 
 ### `Cilium` 与 `Hubble` 组件关系图
 
 ```mermaid
 flowchart LR
-  pods[业务 Pod]
-  ciliumds[cilium DaemonSet<br/>每个节点一份]
-  operator[cilium-operator<br/>控制面副本]
-  relay[hubble-relay<br/>统一汇聚入口]
-  ui[hubble-ui<br/>Web 可视化界面]
-  envoy[Embedded Envoy/L7 能力]
+  pod[业务 Pod]
 
-  pods --> ciliumds
-  ciliumds --> relay
+  subgraph node["节点侧：cilium DaemonSet Pod（每节点一份）"]
+    agent[cilium-agent<br/>Pod 内主容器 / 主进程]
+    bpf[eBPF Data Plane<br/>Service 转发 / 网络策略执行]
+    envoy[Embedded Envoy<br/>内嵌在 cilium 节点侧<br/>用于 L7 感知]
+
+    agent --> bpf
+    agent -. 启用 L7 时 .-> envoy
+  end
+
+  subgraph control["集群控制侧"]
+    operator[cilium-operator<br/>IPAM / 集群级资源协调]
+    api[Kubernetes API]
+  end
+
+  subgraph observe["观测侧"]
+    relay[hubble-relay Pod<br/>由 Deployment 管理<br/>汇聚各节点观测事件]
+    ui[hubble-ui Pod<br/>由 Deployment 管理<br/>Web 可视化界面]
+  end
+
+  pod --> bpf
+
+  api --> operator
+  api --> agent
+  operator --> agent
+  bpf -. 流量观测事件 .-> relay
   relay --> ui
-  operator --> ciliumds
-  ciliumds --> envoy
 ```
 
-这张图可以帮助理解 `cilium status --wait` 里几类组件的分工：
+这里需要区分“Pod 名称”和“内部角色”：
 
-- `cilium`：运行在每个节点上，负责网络接入、转发、策略与流量采集
-- `cilium-operator`：负责集群级控制逻辑，例如 IPAM 与资源协同
-- `hubble-relay`：把各节点上的观测数据汇聚起来
-- `hubble-ui`：把汇聚后的流量信息展示成 Web 界面
-- `Embedded Envoy`：当前课程使用内嵌模式，因此不会看到单独的 `Envoy DaemonSet`
+- `cilium` 是节点上的 `DaemonSet Pod`
+- `cilium-agent` 是这个 Pod 内的主容器 / 主进程，负责网络接入、策略管理、`eBPF` 程序挂载和事件上报
+- `Embedded Envoy` 不是独立 `DaemonSet`，也不是注入业务 Pod 的 sidecar；当前是内嵌在 `cilium` 节点侧能力中，只在启用 `L7` 时参与路径
+- `hubble-relay` 和 `hubble-ui` 在图中画成 Pod，是因为实际看到的运行对象就是它们各自的 Pod
+
+`cilium status --wait` 中几类组件的分工如下：
+
+- `cilium`：以 `DaemonSet` 方式运行在每个节点上，负责网络接入、`eBPF` 程序挂载、策略执行和事件上报
+- `cilium-operator`：负责 `IPAM` 和集群级资源协调
+- `hubble-relay`：以 `Deployment` 方式运行，当前通常看到 1 个 `hubble-relay` Pod，作为统一查询入口
+- `hubble-ui`：以 `Deployment` 方式运行，当前通常看到 1 个 `hubble-ui` Pod，通过 `relay` 展示 Web 可视化结果
+- `Embedded Envoy`：只在启用 `L7` 感知时参与路径；当前配置 `envoy.enabled: false`，因此不会看到单独的 `cilium-envoy` DaemonSet
 
 ### 为什么这一步必须先清理 `kube-proxy`
 
-第一章的集群是通过 `kubeadm` 初始化的，因此默认已经安装了 `kube-proxy`。
-
-而第二章的目标不是继续沿用传统 `iptables/ipvs` 风格的 Service 转发，而是让 `Cilium` 通过 `eBPF` 直接接管这部分能力。
-
-因此在安装 `Cilium` 之前，必须先完成下面两件事：
+集群默认已经安装 `kube-proxy`。本步要让 `Cilium` 通过 `eBPF` 接管 Service 转发，因此安装前必须先完成：
 
 1. 删除 `kube-proxy` DaemonSet 与 ConfigMap
 2. 清理各节点中遗留的 `KUBE-*` iptables 规则
 
-如果不先清理，容易导致：
-
-- 旧的 `kube-proxy` 规则继续影响转发路径
-- `Cilium` 与 `kube-proxy` 对 Service 转发产生角色重叠
+否则旧规则仍可能影响转发路径，并与 `Cilium` 产生角色重叠。
 
 ### 为什么这里使用 `native routing`
 
-第二章不仅要把 CNI 跑通，还要把下面这些内容讲清楚：
-
-- `Pod CIDR`
-- 东西向路由可达性
-
-因此本章不采用 tunnel 模式，而是采用：
+本章主线使用：
 
 ```text
 routingMode: native
 ```
 
-这样更适合把第二章的 Pod 网段、Service 转发与跨节点直连路径讲清楚。
+这样更适合直接观察 `Pod CIDR`、跨节点路由和 Service 转发路径。
 
-如果改成 `VXLAN`，最常见的写法是：
+#### `routingMode: native` 路径图
+
+```mermaid
+flowchart TB
+  subgraph ctrl["控制来源"]
+    direction LR
+    op["cilium-operator<br/>从 10.244.0.0/16 分配每节点 Pod CIDR"]
+    nativecidr["ipv4NativeRoutingCIDR<br/>10.244.0.0/16<br/>交给 Linux 原生路由栈"]
+  end
+
+  subgraph peers["节点结构"]
+    direction LR
+
+    subgraph n1["Node01"]
+      direction TB
+      a1["cilium-agent<br/>维护远端 Pod 路由"]
+      cidr1["Local Pod CIDR<br/>10.244.1.0/24"]
+      p1["Pod A<br/>10.244.1.10/32"]
+      r1["Linux 路由表<br/>10.244.2.0/24 via<br/>10.1.1.22"]
+      e1["eth0<br/>10.1.1.21"]
+      cidr1 -->|分配给本节点| p1
+      a1 -->|写入远端路由| r1
+      p1 -->|访问远端 Pod 时查表| r1 --> e1
+    end
+
+    subgraph n2["Node02"]
+      direction TB
+      a2["cilium-agent<br/>维护远端 Pod 路由"]
+      cidr2["Local Pod CIDR<br/>10.244.2.0/24"]
+      p2["Pod B<br/>10.244.2.20/32"]
+      r2["Linux 路由表<br/>10.244.1.0/24 via<br/>10.1.1.21"]
+      e2["eth0<br/>10.1.1.22"]
+      a2 -->|写入远端路由| r2
+      cidr2 -->|分配给本节点| p2
+      p2 -->|访问远端 Pod 时查表| r2 --> e2
+    end
+  end
+
+  fabric1["Underlay L3<br/>按 Pod CIDR 路由"]
+
+  op -->|分配 10.244.1.0/24| cidr1
+  op -->|分配 10.244.2.0/24| cidr2
+  nativecidr -->|10.244.0.0/16 交给 Linux 路由| r1
+  nativecidr -->|10.244.0.0/16 交给 Linux 路由| r2
+  e1 --> fabric1 --> e2
+
+  linkStyle default stroke:#d8d8d8,stroke-width:2px;
+```
+
+上图按对称结构展示两个节点；若以本节示例流量理解，就是 `Pod A (Node01) -> Pod B (Node02)`。
+
+#### `routingMode: native` 线上数据包层次
+
+```mermaid
+flowchart LR
+  eth1["Ether Header"]
+  ip1["IP Header"]
+  l41["TCP/UDP Header"]
+  app1["APP Data"]
+
+  eth1 --- ip1 --- l41 --- app1
+
+  ipinfo1["SRC: 10.244.1.10<br/>DST: 10.244.2.20"]
+  macinfo1["Dst MAC: 下一跳"]
+
+  eth1 --- macinfo1
+  ip1 --- ipinfo1
+
+  linkStyle default stroke:#d8d8d8,stroke-width:2px;
+
+  classDef l2 fill:#808080,color:#fff,stroke:#444;
+  classDef l3 fill:#2f93b3,color:#fff,stroke:#444;
+  classDef l4 fill:#4ca7c5,color:#fff,stroke:#444;
+  classDef app fill:#d8cfe6,color:#fff,stroke:#444;
+  classDef note fill:#f6f6f6,color:#333,stroke:#888;
+
+  class eth1 l2;
+  class ip1 l3;
+  class l41 l4;
+  class app1 app;
+  class ipinfo1,macinfo1 note;
+```
+
+图中已经把 `native routing` 的三个关键来源合在一起：
+
+- `cilium-operator` 负责给每个节点分配 `Pod CIDR`
+- 每个节点上的 `cilium-agent` 按 `autoDirectNodeRoutes: true` 写入远端 `Pod CIDR -> Node IP` 路由
+- `ipv4NativeRoutingCIDR: 10.244.0.0/16` 表示这段流量交给 Linux 原生路由栈处理
+
+前提条件是：底层网络必须能够到达对端 `Node IP`；如果底层本身不通，还需要静态路由、`BGP` 或其他 underlay 路由机制配合。
+
+如果要切到 `VXLAN`，常见写法是：
 
 ```text
 routingMode: tunnel
 tunnelProtocol: vxlan
 ```
 
-这表示跨节点 Pod 流量会先封装进 `VXLAN`。它更容易先把网络跑通，但会弱化第二章关于原生路由、`PodCIDR` 和直连路径的表达。
+这表示跨节点 Pod 流量会先封装进 `VXLAN`。如需切换，应在 `manifests/cilium-values.yaml` 中调整，而不是在脚本里临时改参数。
 
-因此本课程选择：
+#### `routingMode: tunnel` + `tunnelProtocol: vxlan` 路径图
 
-- `native routing`：更适合讲清楚 Pod 网段与跨节点路由
-- `VXLAN`：更适合快速建立封装网络
+```mermaid
+flowchart LR
+  subgraph n3["Node01"]
+    direction TB
+    p3["Pod A<br/>10.244.1.10/32"]
+    vtep1["cilium_vxlan / VTEP<br/>封装内层 Pod 报文"]
+    e3["eth0<br/>10.1.1.21"]
+    p3 --> vtep1 --> e3
+  end
 
-这一章采用哪种模式，由下面这个文件控制：
+  fabric2["Underlay L3<br/>只需可达 Node IP"]
 
-- `manifests/cilium-values.yaml`
+  subgraph n4["Node02"]
+    direction TB
+    e4["eth0<br/>10.1.1.22"]
+    vtep2["cilium_vxlan / VTEP<br/>解封装恢复内层报文"]
+    p4["Pod B<br/>10.244.2.20/32"]
+    e4 --> vtep2 --> p4
+  end
 
-如果后续确实要切到 `VXLAN`，也应在这份 values 文件中调整，而不是在脚本里临时改参数。
+  e3 --> fabric2 --> e4
+
+  linkStyle default stroke:#d8d8d8,stroke-width:2px;
+```
+
+#### `routingMode: tunnel` + `tunnelProtocol: vxlan` 线上数据包层次
+
+```mermaid
+flowchart LR
+  umac["Underlay MAC Header"]
+  uip["Underlay IP Header"]
+  udp["UDP Header<br/>Dst Port 4789"]
+  vx["VXLAN Header"]
+  subgraph inner["内层数据包"]
+    direction LR
+    omac["Overlay MAC Header"]
+    oip["Overlay IP Header"]
+    il4["TCP/UDP Header"]
+    app2["APP Data"]
+    omac --- oip --- il4 --- app2
+  end
+
+  umac --- uip --- udp --- vx --- omac
+
+  uinfo["SRC: 10.1.1.21<br/>DST: 10.1.1.22"]
+  oinfo["SRC: 10.244.1.10<br/>DST: 10.244.2.20"]
+
+  uip --- uinfo
+  oip --- oinfo
+
+  linkStyle default stroke:#d8d8d8,stroke-width:2px;
+
+  classDef underlay_mac fill:#808080,color:#fff,stroke:#444;
+  classDef underlay_ip fill:#2f93b3,color:#fff,stroke:#444;
+  classDef udp fill:#4ca7c5,color:#fff,stroke:#444;
+  classDef vxlan fill:#d99a96,color:#fff,stroke:#444;
+  classDef overlay_mac fill:#6d6d6d,color:#fff,stroke:#444;
+  classDef overlay_ip fill:#ef8b1a,color:#fff,stroke:#444;
+  classDef overlay_l4 fill:#4ca7c5,color:#fff,stroke:#444;
+  classDef app fill:#d8cfe6,color:#fff,stroke:#444;
+  classDef note fill:#f6f6f6,color:#333,stroke:#888;
+
+  class umac underlay_mac;
+  class uip underlay_ip;
+  class udp,il4 overlay_l4;
+  class vx vxlan;
+  class omac overlay_mac;
+  class oip overlay_ip;
+  class app2 app;
+  class uinfo,oinfo note;
+```
+
+上面两图只画跨节点 `Pod -> Pod` 流量；若访问公网，通常仍由宿主机出口执行 `SNAT`，这与是否使用 `native routing` 或 `VXLAN` 是两个不同维度的问题。
 
 ### 为什么这里要显式指定 `k8sServiceHost` 和 `k8sServicePort`
 
-这两个字段同样写在下面这份安装配置文件中：
+这两个字段写在 `manifests/cilium-values.yaml` 中，用来告诉 `Cilium` 安装和启动时应该连接哪个 Kubernetes API 地址。
 
-- `manifests/cilium-values.yaml`
-
-它们的作用不是给业务 Pod 用，而是告诉 `Cilium` 自己：
-
-- Kubernetes API Server 在哪里
-- 安装和启动时应该连到哪个地址
-
-当前课程里显式指定的是：
+当前固定为：
 
 - `k8sServiceHost: 10.1.1.10`
 - `k8sServicePort: 6443`
 
-也就是让 `Cilium` 直接通过第一章准备好的 API VIP：
-
-- `10.1.1.10:6443`
-
-去访问 Kubernetes API Server。
-
-这样做的好处是：
+也就是通过 API VIP `10.1.1.10:6443` 访问 Kubernetes API Server。这样可以：
 
 - 三台控制平面后面只暴露一个统一入口
 - `Cilium` 不需要绑定某一台单独控制平面节点
@@ -179,9 +307,7 @@ tunnelProtocol: vxlan
 
 ### 本步核心 values 关键字段示意
 
-第二章安装使用的核心配置位于：
-
-- `manifests/cilium-values.yaml`
+安装使用的核心配置位于 `manifests/cilium-values.yaml`。
 
 其中最关键的字段如下：
 
@@ -199,8 +325,6 @@ hubble:
   enabled: true
 ```
 
-关键字段说明：
-
 - `k8sServiceHost` / `k8sServicePort`
   - 让 `Cilium` 直接访问 API VIP
 - `routingMode: native`
@@ -212,12 +336,10 @@ hubble:
 - `hubble.enabled: true`
   - 同步启用第二章需要的可观测能力
 
-补充说明：
+`Hubble UI` 前后端镜像也已在这份 values 中固定到课程统一标签：
 
-- 这份 `manifests/cilium-values.yaml` 里，`Hubble UI` 前后端镜像已经固定到课程统一标签：
-  - `harbor.qytk8s.com/cilium/hubble-ui:v0.13.3-qyfix`
-  - `harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix`
-- 这样第二章安装完成后，后续无论 `port-forward` 还是第三章正式发布，都会统一使用同一套 `Hubble UI` 镜像
+- `harbor.qytk8s.com/cilium/hubble-ui:v0.13.3-qyfix`
+- `harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix`
 
 ---
 
@@ -238,8 +360,6 @@ hubble:
 
 ### 脚本执行主线
 
-脚本整体分为 5 个阶段：
-
 1. 删除 `kube-proxy`
 2. 清理所有节点上的 `KUBE-*` iptables 规则
 3. 通过 Helm 安装 `Cilium`
@@ -258,8 +378,6 @@ cleanup_kube_proxy() {
 }
 ```
 
-这一段的作用是：
-
 - 先把第一章遗留的 `kube-proxy` 组件移出集群
 
 ### 重要任务 2：清理各节点上的 `KUBE-*` iptables 规则
@@ -273,8 +391,6 @@ iptables-save | grep -v 'KUBE' | iptables-restore
 echo "[iptables 2/2] 清理 IPv6 中的 KUBE 规则"
 ip6tables-save | grep -v 'KUBE' | ip6tables-restore || true
 ```
-
-这一段的作用是：
 
 - 清除第一章 `kube-proxy` 留下的规则痕迹
 - 为 `Cilium` 接管 Service 转发清出干净环境
@@ -291,8 +407,6 @@ install_cilium() {
     --values "${VALUES_FILE}"
 }
 ```
-
-这一段的作用是：
 
 - 使用本地 chart 和本地 values 安装 `Cilium`
 - 不在安装时临时拉取远端 chart
@@ -312,8 +426,6 @@ wait_for_cilium() {
 }
 ```
 
-这一段的作用是：
-
 - 等待 `cilium`
 - 等待 `cilium-operator`
 - 等待 `hubble-relay`
@@ -331,8 +443,6 @@ verify_basic_state() {
   kubectl get pods -n kube-system -o wide
 }
 ```
-
-这一段的作用是：
 
 - 让安装完成后立即能看到节点状态变化
 - 让 `CoreDNS`、`Cilium`、`Hubble` 的基本状态直接可见
@@ -421,10 +531,6 @@ kubectl get nodes -o wide
 
 - `cp01`、`cp02`、`cp03` 为 `Ready`
 - `wk-app01`、`wk-app02`、`wk-edge01`、`wk-obs01` 为 `Ready`
-
-这一步的含义是：
-
-- 第一章遗留的 `NotReady` 状态已被网络平面修复
 
 ### 验证 3：查看 `kube-system` Pod
 
