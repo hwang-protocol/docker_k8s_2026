@@ -1,6 +1,6 @@
 # 第 3 步：演示 Pod、Service、DNS 与 Service Discovery
 
-## 测试目标
+## 本步目标
 
 在第二章前半段网络恢复之后，用一个最小化应用演示下面 4 件事情已经打通：
 
@@ -8,6 +8,8 @@
 - Service 已经可以正常分发
 - 集群内 DNS 已经可以解析 Service 名称
 - 业务 Pod 可以通过 Service 名称访问目标服务
+
+---
 
 ## 执行标记
 
@@ -17,6 +19,8 @@
 
 - 本步是第二章安装 Cilium 后的第一个业务层验证
 - 它不再验证“组件是否安装成功”，而是验证“网络能力是否真的能被业务访问使用”
+
+---
 
 ## 理论说明
 
@@ -249,6 +253,8 @@ spec:
 - 一个专门放在集群里的“测试终端”
 - 后面所有 Service Discovery 测试都从它里面发起
 
+---
+
 ## 对应脚本
 
 本步使用的原始清单文件仍然保存在项目目录中，而不是嵌入脚本：
@@ -259,11 +265,13 @@ spec:
 
 说明：
 
-- 本页主线按“手动逐条执行”展开
-- `k8s/02-cloud-native-networking/scripts/03_apply_service_discovery_demo.sh` 只是把下面这些命令串起来的一把梭脚本
-- 教材主线不依赖这个脚本
+- 本页执行过程按“手动逐条执行”展开
+- `k8s/02-cloud-native-networking/scripts/03_apply_service_discovery_demo.sh` 用于把下面这些命令串联成批量执行过程
+- 本页主线不依赖这个脚本
 
-## 测试过程与关键看点
+---
+
+## 执行过程与关键看点
 
 ### 步骤 1：创建演示命名空间与工作负载
 
@@ -382,6 +390,8 @@ kubectl exec -n net-demo deployment/client -- sh -c 'getent hosts whoami'
 - 输出中应出现一个 `ClusterIP`
 - 该地址应对应 `whoami Service`
 
+---
+
 ## 扩展实验：把 `whoami` 扩成 2 个副本并观察基础负载分发
 
 这一组扩展实验不改变本页主线通过标准，但它更有利于后面配合 `Hubble` 观察多条业务流量。
@@ -432,6 +442,8 @@ kubectl rollout status deployment/whoami -n net-demo --timeout=5m
 - `whoami` 恢复为 `1` 个副本
 - 环境重新回到主线状态
 
+---
+
 ## 通过标准
 
 满足下面条件后，可进入下一步：
@@ -440,6 +452,8 @@ kubectl rollout status deployment/whoami -n net-demo --timeout=5m
 - Service 创建正常
 - DNS 解析正常
 - 业务 Pod 可通过短名与 FQDN 正常访问目标服务
+
+---
 
 ## 下一步
 

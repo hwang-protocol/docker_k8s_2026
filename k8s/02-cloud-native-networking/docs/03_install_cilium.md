@@ -16,6 +16,8 @@
 - `CoreDNS` 已从 `Pending` 进入 `Running`
 - `Hubble Relay` 与 `Hubble UI` 已运行
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -24,6 +26,8 @@
 
 - 这是第二章最核心的一步
 - 本步完成后，第一章的“控制平面已建立、网络尚未完成”状态会正式切换为“网络平面可用”
+
+---
 
 ## 问题背景
 
@@ -42,6 +46,8 @@
 - CoreDNS 正常运行所需的网络基础
 
 第二章的第一性目标，就是让这一套集群真正拥有可用的网络平面。
+
+---
 
 ## 理论说明
 
@@ -213,6 +219,8 @@ hubble:
   - `harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix`
 - 这样第二章安装完成后，后续无论 `port-forward` 还是第三章正式发布，都会统一使用同一套 `Hubble UI` 镜像
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -223,6 +231,8 @@ hubble:
 
 - Helm chart：`artifacts/cilium-1.19.1.tgz`
 - values 文件：`manifests/cilium-values.yaml`
+
+---
 
 ## 脚本内部在做什么
 
@@ -327,6 +337,8 @@ verify_basic_state() {
 - 让安装完成后立即能看到节点状态变化
 - 让 `CoreDNS`、`Cilium`、`Hubble` 的基本状态直接可见
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -340,6 +352,8 @@ chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/02_install_cili
 ```bash
 bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/02_install_cilium.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -445,6 +459,8 @@ kubectl get svc -n kube-system hubble-relay hubble-ui
 - 可以看到 `hubble-relay`
 - 可以看到 `hubble-ui`
 
+---
+
 ## 通过标准
 
 满足下面条件即可进入下一步：
@@ -454,6 +470,8 @@ kubectl get svc -n kube-system hubble-relay hubble-ui
 - 全部节点已变为 `Ready`
 - `CoreDNS` 已恢复为 `Running`
 - `Cilium` 与 `Hubble` 关键组件正常
+
+---
 
 ## 下一步
 

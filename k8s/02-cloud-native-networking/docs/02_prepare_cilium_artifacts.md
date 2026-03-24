@@ -12,6 +12,8 @@
 - `Cilium`、`Hubble` 与第二章 demo 镜像已经推送到 `harbor.qytk8s.com/cilium`
 - 第二章所需文件已在 `ops` 本地准备好，后续安装尽量不依赖公网
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -21,9 +23,11 @@
 - 第二章后续安装依赖本步准备的 chart、CLI 和镜像
 - 本步的目标不是“安装 Cilium”，而是“把安装 Cilium 所需的制品准备完整”
 
+---
+
 ## 问题背景
 
-第二章的正式安装动作主要发生在下一步，但如果不先做制品预热，课堂或重刷过程中会遇到下面这些不确定性：
+第二章的正式安装动作主要发生在下一步，但如果不先做制品预热，执行过程中会遇到下面这些不确定性：
 
 - 运行到安装步骤时才临时下载 Helm chart
 - 运行到验证步骤时才发现 `cilium` CLI 不存在
@@ -37,6 +41,8 @@
 3. `hubble CLI`
 4. `Cilium` 主线镜像
 5. 第二章 demo 镜像
+
+---
 
 ## 理论说明
 
@@ -124,6 +130,8 @@ flowchart LR
 
 - 安装时是否能够优先走本地 Harbor，而不是临时依赖公网
 
+---
+
 ## 本步固定版本
 
 本课程第二章统一冻结：
@@ -141,6 +149,8 @@ flowchart LR
   - `harbor.qytk8s.com/cilium/hubble-ui:v0.13.3-qyfix`
   - `harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix`
 
+---
+
 ## Harbor 项目规划
 
 第二章统一使用 Harbor 公共项目：
@@ -153,6 +163,8 @@ flowchart LR
 ```text
 harbor.qytk8s.com/cilium
 ```
+
+---
 
 ## 对应脚本
 
@@ -172,6 +184,8 @@ harbor.qytk8s.com/cilium
 
 - 脚本负责下载、安装、下发、预热
 - 原始配置和 manifests 保留在项目目录中
+
+---
 
 ## 脚本内部在做什么
 
@@ -395,6 +409,8 @@ verify_local_artifacts() {
 - `cilium CLI` 已可用
 - `hubble CLI` 已可用
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -408,6 +424,8 @@ chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/01_prepare_cili
 ```bash
 bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/01_prepare_cilium_artifacts.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -499,6 +517,8 @@ harbor.qytk8s.com/cilium/cilium:v1.19.1
 - 这里只验证关键主镜像是否已缓存
 - 不要求把全部镜像逐个人工核对
 
+---
+
 ## 通过标准
 
 满足下面条件即可进入下一步：
@@ -508,6 +528,8 @@ harbor.qytk8s.com/cilium/cilium:v1.19.1
 - 各 Kubernetes 节点已预拉关键镜像
 - Helm chart 已在 `ops` 本地保存
 - `cilium CLI` 与 `hubble CLI` 已可直接使用
+
+---
 
 ## 下一步
 

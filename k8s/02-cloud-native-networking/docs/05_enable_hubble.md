@@ -9,6 +9,8 @@
 - `ops` 可以通过临时端口转发接入 `hubble-relay`
 - 为第二章后续的 `hubble` CLI 观察准备入口
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -18,6 +20,8 @@
 - 本步是第二章观测能力的准备步骤
 - 主线重点是把 `Hubble` 接入到可用状态，而不是在这里做完整观测演示
 - 这一页使用的 `port-forward` 只是临时观察手段
+
+---
 
 ## 问题背景
 
@@ -32,6 +36,8 @@
 
 - `hubble-relay` 是否已经就绪
 - `ops` 是否已经可以接入 `Hubble`
+
+---
 
 ## 理论说明
 
@@ -95,13 +101,15 @@ flowchart LR
 
 - 第二章的临时观察入口
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
 
 - `k8s/02-cloud-native-networking/scripts/04_enable_hubble.sh`
 
-如果课堂上希望直接一把完成这一步，可以执行：
+如需通过脚本一次完成本步，可执行：
 
 ```bash
 chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/04_enable_hubble.sh
@@ -115,7 +123,9 @@ bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/04_enable_hubble.sh
 - 生成一小段 `net-demo` 演示流量
 - 只输出最关键的 4 类观测记录
 
-但教材主线仍然建议按下面的手动步骤来理解每一个观察动作。
+本页执行过程按下面的手动步骤展开，以便分别观察各个动作。
+
+---
 
 ## 脚本内部在做什么
 
@@ -127,6 +137,8 @@ bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/04_enable_hubble.sh
 2. 建立本地端口转发
 3. 检查 `hubble` CLI 是否已经连通
 4. 输出关键 Hubble 观测记录
+
+---
 
 ## 执行命令
 
@@ -152,10 +164,10 @@ echo $! > /tmp/hubble-port-forward.pid
 关键看点：
 
 - 这一步只是把集群内的 `hubble-relay` 暂时映射到 `ops:4245`
-- 它是课堂观察动作，不会修改集群状态
-- 建议使用后台方式启动，否则当前终端结束后，`4245` 监听也会一起消失
+- 它属于临时观察入口，不会修改集群状态
+- 使用后台方式启动更稳定，否则当前终端结束后，`4245` 监听也会一起消失
 
-### 3. 在另一个终端确认 `hubble` CLI 已连通
+### 3. 在新的 shell 会话中确认 `hubble` CLI 已连通
 
 ```bash
 hubble status --server localhost:4245
@@ -212,7 +224,7 @@ Mar 13 12:40:59.832: net-demo/client-5d75665b4d-c8th2 (ID:48824) <> net-demo/who
 3. 然后转发到具体 `whoami Pod`
 4. 最后建立 TCP 连接并返回响应
 
-而 `hubble observe` 展示的是最近一批关键流量切片，因此显示顺序不一定和讲课时的理想顺序完全一致。
+而 `hubble observe` 展示的是最近一批关键流量切片，因此显示顺序不一定与理论讲解顺序完全一致。
 
 关键看点：
 
@@ -264,6 +276,8 @@ rm -f /tmp/hubble-port-forward.pid
 
 也就是说，`Hubble` 在这一页里不只是“看见有流量”，而是把 Pod、DNS 和 Service 几层动作都展示出来了。
 
+---
+
 ## 通过标准
 
 满足下面条件后，就可以进入下一步：
@@ -271,6 +285,8 @@ rm -f /tmp/hubble-port-forward.pid
 - `hubble status --server localhost:4245` 返回正常
 - `ops` 已能通过端口转发接入 `hubble-relay`
 - 第二章已经具备后续继续观察东西向流量的 CLI 入口
+
+---
 
 ## 下一步
 

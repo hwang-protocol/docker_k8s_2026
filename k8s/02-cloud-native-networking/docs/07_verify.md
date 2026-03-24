@@ -11,6 +11,8 @@
 
 本步不改配置，只做验收。
 
+---
+
 ## 执行标记
 
 - **执行标记：只读验证**
@@ -18,6 +20,8 @@
 说明：
 
 - 这一页的目标不是重新执行每一步，而是确认第二章是否已经达到标准结束状态
+
+---
 
 ## 问题背景
 
@@ -32,6 +36,8 @@
 
 - 集群网络现在是否已经稳定可用
 - 业务流量是否可解析、可访问、可观察、可控制
+
+---
 
 ## 理论说明
 
@@ -70,6 +76,8 @@ flowchart LR
 - 再确认业务访问是否成立
 - 再确认观测与策略是否成立
 
+---
+
 ## 验收顺序
 
 请按下面顺序检查：
@@ -78,6 +86,8 @@ flowchart LR
 2. `net-demo` 演示应用
 3. `Hubble`
 4. `CiliumNetworkPolicy`
+
+---
 
 ## 验证方法
 
@@ -164,6 +174,8 @@ kubectl exec -n net-demo deployment/client -- sh -c "curl -sS -o /dev/null -w '%
 - 同一个 `client` 对不同 HTTP 方法是否得到不同结果
 - 这说明当前策略已经进入协议感知层，而不只是简单的端口放行
 
+---
+
 ## 通过标准
 
 满足下面条件后，第二章即可视为完成：
@@ -171,6 +183,8 @@ kubectl exec -n net-demo deployment/client -- sh -c "curl -sS -o /dev/null -w '%
 - `Cilium` 与 `Hubble` 正常
 - `Service Discovery` 正常
 - `L3/L4` 与 `L7` 策略正常
+
+---
 
 ## 下一步
 

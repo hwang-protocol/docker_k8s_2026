@@ -1,6 +1,6 @@
 # 第 5 步：演示 L3/L4 与 L7 策略
 
-## 测试目标
+## 本步目标
 
 利用 `CiliumNetworkPolicy` 演示第二章最关键的东西向安全能力：
 
@@ -14,6 +14,8 @@
 3. 切换为 `L7` 策略后，只允许 `client` 发起 `GET /`
 4. 可以从 `CiliumNetworkPolicy` 与 `CiliumEndpoint` 侧看到策略对象已经生效
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -22,6 +24,8 @@
 
 - 这一页不是在补充安装动作，而是在验证 `Cilium` 已经具备协议感知的安全控制能力
 - 它是第二章从“网络已通”走向“网络可控”的关键一步
+
+---
 
 ## 理论说明
 
@@ -161,6 +165,8 @@ spec:
 - `path: "/"`
   - 只允许访问根路径
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -175,10 +181,12 @@ spec:
 
 说明：
 
-- `k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh` 只是把下面这些测试动作串起来的一把梭脚本
-- 教材主线按手动测试展开
+- `k8s/02-cloud-native-networking/scripts/05_apply_l7_policy_demo.sh` 用于把下面这些测试动作串联成批量执行过程
+- 本页执行过程按手动测试展开
 
-## 测试过程与关键看点
+---
+
+## 执行过程与关键看点
 
 ### 步骤 1：创建 `other` 并清理旧策略
 
@@ -300,7 +308,9 @@ kubectl get cep -n net-demo
 
 - 当前通常会看到 `whoami-l7-allow-get`
 - 能看到 `whoami`、`client`、`other` 对应的 `CiliumEndpoint`
-- 这一步的意义是把“策略对象”和“端点身份”也展示出来，方便上课解释
+- 这一步的意义是把“策略对象”和“端点身份”同时展示出来，便于对照观察
+
+---
 
 ## 关键看点
 
@@ -310,6 +320,8 @@ kubectl get cep -n net-demo
 - `L3/L4` 阶段，`client` 继续 `200`，`other` 不再 `200`
 - `L7` 阶段，同一个 `client` 对 `GET /` 与 `POST /` 会得到不同结果
 
+---
+
 ## 通过标准
 
 满足下面条件后，就可以进入下一步：
@@ -318,6 +330,8 @@ kubectl get cep -n net-demo
 - `L3/L4` 策略演示成功
 - `L7 GET-only` 策略演示成功
 - `CiliumNetworkPolicy` 与 `CiliumEndpoint` 可以被正确观察
+
+---
 
 ## 下一步
 

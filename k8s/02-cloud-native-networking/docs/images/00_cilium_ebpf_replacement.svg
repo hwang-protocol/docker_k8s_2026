@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="320" viewBox="0 0 760 320" role="img" aria-labelledby="title desc">
+  <title id="title">新方案：Cilium + eBPF</title>
+  <desc id="desc">展示 Pod A 通过 Service VIP，经 eBPF Data Plane 转发到 Pod B，同时 Cilium 下发程序与策略，Hubble 观察流量结果。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#166534"/>
+    </marker>
+    <style>
+      .bg { fill: #f0fdf4; }
+      .box { fill: #ffffff; stroke: #bbf7d0; stroke-width: 2; rx: 12; ry: 12; }
+      .box-main { fill: #ecfdf5; stroke: #22c55e; stroke-width: 2; rx: 12; ry: 12; }
+      .box-side { fill: #f0fdf4; stroke: #16a34a; stroke-width: 2; rx: 12; ry: 12; }
+      .title { font: 700 24px Arial, sans-serif; fill: #14532d; }
+      .label { font: 600 18px Arial, sans-serif; fill: #14532d; }
+      .body { font: 500 16px Arial, sans-serif; fill: #166534; }
+      .small { font: 500 14px Arial, sans-serif; fill: #15803d; }
+      .line { stroke: #166534; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .dash { stroke: #16a34a; stroke-width: 3; fill: none; stroke-dasharray: 7 6; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="760" height="320" rx="16" ry="16"/>
+  <text class="title" x="32" y="42">新方案：Cilium + eBPF</text>
+
+  <rect class="box" x="30" y="120" width="120" height="72"/>
+  <text class="label" x="72" y="150">Pod A</text>
+
+  <rect class="box" x="190" y="120" width="140" height="72"/>
+  <text class="label" x="212" y="150">Service VIP</text>
+  <text class="small" x="208" y="173">集群稳定入口</text>
+
+  <rect class="box-main" x="370" y="102" width="190" height="108"/>
+  <text class="label" x="400" y="138">eBPF Data Plane</text>
+  <text class="body" x="390" y="166">在内核中直接执行</text>
+  <text class="body" x="417" y="188">Service 转发</text>
+
+  <rect class="box" x="600" y="120" width="120" height="72"/>
+  <text class="label" x="642" y="150">Pod B</text>
+
+  <rect class="box-side" x="365" y="18" width="200" height="56"/>
+  <text class="label" x="428" y="50">Cilium</text>
+  <text class="small" x="392" y="66">下发 eBPF 程序与策略</text>
+
+  <rect class="box-side" x="365" y="238" width="200" height="56"/>
+  <text class="label" x="428" y="270">Hubble</text>
+  <text class="small" x="402" y="286">观察流量结果</text>
+
+  <path class="line" d="M 150 156 L 190 156"/>
+  <path class="line" d="M 330 156 L 370 156"/>
+  <path class="line" d="M 560 156 L 600 156"/>
+  <path class="dash" d="M 465 74 L 465 102"/>
+  <path class="dash" d="M 465 238 L 465 210"/>
+
+  <text class="small" x="486" y="92">管理并挂载 eBPF 程序</text>
+  <text class="small" x="486" y="228">读取流量观测事件</text>
+</svg>

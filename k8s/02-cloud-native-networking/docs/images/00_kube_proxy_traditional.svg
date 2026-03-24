@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="320" viewBox="0 0 760 320" role="img" aria-labelledby="title desc">
+  <title id="title">传统模式：kube-proxy</title>
+  <desc id="desc">展示 Pod A 通过 Service VIP，经 iptables 或 IPVS 转发到 Pod B，kube-proxy 负责同步 Service 和 Endpoint 变化到规则层。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .box { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; rx: 12; ry: 12; }
+      .box-strong { fill: #eff6ff; stroke: #60a5fa; stroke-width: 2; rx: 12; ry: 12; }
+      .box-side { fill: #fff7ed; stroke: #fb923c; stroke-width: 2; rx: 12; ry: 12; }
+      .title { font: 700 24px Arial, sans-serif; fill: #0f172a; }
+      .label { font: 600 18px Arial, sans-serif; fill: #0f172a; }
+      .body { font: 500 16px Arial, sans-serif; fill: #334155; }
+      .small { font: 500 14px Arial, sans-serif; fill: #475569; }
+      .line { stroke: #475569; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .dash { stroke: #f97316; stroke-width: 3; fill: none; stroke-dasharray: 7 6; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="760" height="320" rx="16" ry="16"/>
+  <text class="title" x="32" y="42">传统模式：kube-proxy</text>
+
+  <rect class="box" x="30" y="120" width="120" height="72"/>
+  <text class="label" x="72" y="150">Pod A</text>
+
+  <rect class="box" x="190" y="120" width="140" height="72"/>
+  <text class="label" x="212" y="150">Service VIP</text>
+  <text class="small" x="208" y="173">集群稳定入口</text>
+
+  <rect class="box-strong" x="370" y="102" width="180" height="108"/>
+  <text class="label" x="406" y="138">iptables / IPVS</text>
+  <text class="body" x="393" y="166">按传统规则执行转发</text>
+  <text class="small" x="428" y="190">内核规则路径</text>
+
+  <rect class="box" x="590" y="120" width="120" height="72"/>
+  <text class="label" x="632" y="150">Pod B</text>
+
+  <rect class="box-side" x="206" y="236" width="168" height="58"/>
+  <text class="label" x="247" y="271">kube-proxy</text>
+
+  <path class="line" d="M 150 156 L 190 156"/>
+  <path class="line" d="M 330 156 L 370 156"/>
+  <path class="line" d="M 550 156 L 590 156"/>
+  <path class="dash" d="M 374 236 C 412 220, 420 210, 444 210"/>
+
+  <text class="small" x="360" y="246">同步 Service / Endpoint 变化</text>
+</svg>
