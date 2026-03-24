@@ -288,7 +288,93 @@ flowchart LR
   class uinfo,oinfo note;
 ```
 
-上面两图只画跨节点 `Pod -> Pod` 流量；若访问公网，通常仍由宿主机出口执行 `SNAT`，这与是否使用 `native routing` 或 `VXLAN` 是两个不同维度的问题。
+### 节点出口 `NAT`
+
+跨节点 `Pod -> Pod` 解决的是“包怎么送到对端节点”；而 `Pod -> 集群外` 还要解决“公网如何回到这个节点”。
+
+这时通常会在节点出口做 `SNAT / Masquerade`：
+
+```mermaid
+flowchart TB
+  subgraph top["节点出口路径"]
+    direction LR
+    podn["Pod A<br/>10.244.1.10"] --> natn["节点出口 NAT / Masquerade"] --> ethn["eth0<br/>Node IP: 10.1.1.21"] --> gw["上游网关 / Internet"]
+  end
+
+  subgraph compare["地址变化对比"]
+    direction LR
+    pre["出节点前<br/>Src 10.244.1.10<br/>Dst 1.1.1.1"] --> post["出节点后<br/>Src 10.1.1.21<br/>Dst 1.1.1.1"]
+  end
+
+  podn -.-> pre
+  ethn -.-> post
+
+  linkStyle default stroke:#d8d8d8,stroke-width:2px;
+```
+
+#### 节点出口 `NAT` 后，线上包长什么样
+
+```mermaid
+flowchart LR
+  eth3["Ether Header"]
+  ip3["IP Header"]
+  l43["TCP/UDP Header"]
+  app3["APP Data"]
+
+  eth3 --- ip3 --- l43 --- app3
+
+  ipinfo3["SRC: 10.1.1.21<br/>DST: 1.1.1.1"]
+  natnote["节点出口已做 SNAT / Masquerade"]
+
+  ip3 --- ipinfo3
+  eth3 --- natnote
+
+  linkStyle default stroke:#d8d8d8,stroke-width:2px;
+
+  classDef l2 fill:#808080,color:#fff,stroke:#444;
+  classDef l3 fill:#2f93b3,color:#fff,stroke:#444;
+  classDef l4 fill:#4ca7c5,color:#fff,stroke:#444;
+  classDef app fill:#d8cfe6,color:#fff,stroke:#444;
+  classDef note fill:#f6f6f6,color:#333,stroke:#888;
+
+  class eth3 l2;
+  class ip3 l3;
+  class l43 l4;
+  class app3 app;
+  class ipinfo3,natnote note;
+```
+
+#### 当前这套课程配置如何理解
+
+当前课程的 [cilium-values.yaml](/docker_k8s_2026/k8s/02-cloud-native-networking/manifests/cilium-values.yaml) 没有显式写 `NAT` 相关字段，因此按 chart 默认行为处理；在本章里只需要记住一个现象：`Pod` 出公网后，线路上通常看到的是 `Node IP`。
+
+#### 如何显式开启节点出口 `NAT`
+
+下面这些字段都写在 `manifests/cilium-values.yaml` 中。
+
+开启 IPv4 出站 `masquerade`：
+
+```yaml
+enableIPv4Masquerade: true
+```
+
+如果要同时显式启用 `eBPF` 原生 `masquerade`：
+
+```yaml
+enableIPv4Masquerade: true
+bpf:
+  masquerade: true
+```
+
+#### 如何显式关闭节点出口 `NAT`
+
+关闭节点出口 `NAT`：
+
+```yaml
+enableIPv4Masquerade: false
+```
+
+关闭后，底层网络必须能够直接回到 `Pod CIDR`，否则返回流量回不到源 `Pod`。
 
 ### 为什么这里要显式指定 `k8sServiceHost` 和 `k8sServicePort`
 
