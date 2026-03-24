@@ -35,13 +35,13 @@
 
 ---
 
-## 课前理论导读
+## 理论导读
 
-正式操作前，建议先阅读：
+正式进入操作前，可先阅读：
 
 - `docs/00_north_south_theory.md`
 
-这页负责先讲清：
+这份文档主要回答：
 
 - `MetalLB` 做什么，不做什么
 - `Gateway API` 为什么是第三章主线
@@ -59,48 +59,34 @@
 - `Gateway API`
 - `域名 + HTTPS`
 
-暂不展开：
-
-- JWT
-- `mTLS`
-- `Istio Ambient`
-- 更细粒度服务授权
-
-这些内容放到后续安全章节。
-
 ---
 
 ## 本章总关系图
 
 ```mermaid
 flowchart LR
-  start[第二章结束状态]
-  prep[制品预热]
-  metallb[MetalLB]
-  gateway[Gateway API]
-  tls[TLS 证书]
-  publish[发布 app.qytk8s.com]
-  hubble[发布 Hubble UI]
-  verify[第三章验收]
+  start[1. 第二章结束状态]
+  prep[2. 制品预热<br/>MetalLB / Gateway API / 演示镜像]
+  metallb[3. MetalLB<br/>IPAddressPool / L2Advertisement / VIP]
+  gateway[4. Cilium Gateway API<br/>GatewayClass / Gateway / HTTPRoute]
+  tls[5. TLS 证书<br/>Harbor CA / Secret]
+  app[6. 发布 app.qytk8s.com<br/>VIP + 域名 + HTTPS]
+  hubble[7. 发布 hubble.qytk8s.com<br/>VIP + 域名 + HTTPS]
+  verify[8. 第三章验收<br/>域名 / HTTPS / 页面访问]
 
   start --> prep
   prep --> metallb
   metallb --> gateway
   gateway --> tls
-  tls --> publish
-  publish --> hubble
-  publish --> verify
+  tls --> app
+  tls --> hubble
+  app --> verify
   hubble --> verify
 ```
 
-这张图表达了第三章的完整主线：
+这张图对应第三章主线：先准备制品，再补齐 `VIP`、`Cilium Gateway API`、证书与正式发布链路，最后统一验收 `app` 和 `Hubble UI`。
 
-- 先准备第三章用到的 YAML、镜像和 CRD
-- 再补齐裸机 VIP 能力
-- 然后为现有 `Cilium` 打开 `Gateway API`
-- 再准备域名证书
-- 最后把演示服务正式发布出来
-- 再把 `Hubble UI` 作为正式 Web UI 发布并观察北向流量
+本章里提到的 `Gateway API`，具体实现就是 `Cilium Gateway API`。
 
 ---
 
@@ -117,24 +103,24 @@ flowchart LR
 
 ## 执行标记说明
 
-为了便于在 `ops` 上直接执行，本章对步骤继续采用统一执行标记：
+本章采用统一执行标记：
 
 - **必须执行**：从第三章标准起点开始时，默认需要实际执行
-- **只读验证**：这一项主要用于检查结果，不会改配置
+- **只读验证**：主要用于检查结果，不会改配置
 
 ---
 
-## 本章脚本执行矩阵
+## 本章小单元与对应脚本
 
-| 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
+| 步骤 | 文档 | 主要任务 | 对应脚本 | 执行标记 |
 | :--- | :--- | :--- | :--- | :--- |
-| 1 | `02_prepare_north_south_artifacts.md` | `scripts/01_prepare_north_south_artifacts.sh` | 必须执行 | 预热 `MetalLB` / `Gateway API` / 演示镜像 |
-| 2 | `03_install_metallb.md` | `scripts/02_install_metallb.sh` | 必须执行 | 安装 `MetalLB`，配置业务 VIP 地址池 |
-| 3 | `04_enable_gateway_api.md` | `scripts/03_enable_gateway_api.sh` | 必须执行 | 为现有 `Cilium` 开启 `Gateway API` |
-| 4 | `05_issue_tls_certs.md` | `scripts/04_issue_tls_certs.sh` | 必须执行 | 复用 `Harbor CA` 为 `app.qytk8s.com` 签证书 |
-| 5 | `06_publish_gateway_demo.md` | `scripts/05_publish_gateway_demo.sh` | 必须执行 | 发布通过 `HTTPS` 访问的演示应用 |
-| 6 | `07_publish_hubble_ui.md` | `scripts/06_publish_hubble_ui.sh` / `scripts/07_trigger_north_south_traffic.sh` | 必须执行 | 发布 Hubble UI，并触发第三章北向流量供 UI 观察 |
-| 7 | `08_verify.md` | 无 | 只读验证 | 第三章最终验收 |
+| 1 | `02_prepare_north_south_artifacts.md` | 预热 `MetalLB` / `Gateway API` / 演示镜像 | `scripts/01_prepare_north_south_artifacts.sh` | 必须执行 |
+| 2 | `03_install_metallb.md` | 安装 `MetalLB`，配置业务 VIP 地址池 | `scripts/02_install_metallb.sh` | 必须执行 |
+| 3 | `04_enable_gateway_api.md` | 为现有 `Cilium` 开启 `Gateway API` | `scripts/03_enable_gateway_api.sh` | 必须执行 |
+| 4 | `05_issue_tls_certs.md` | 复用 `Harbor CA` 为 `app.qytk8s.com` 签发证书 | `scripts/04_issue_tls_certs.sh` | 必须执行 |
+| 5 | `06_publish_gateway_demo.md` | 发布通过 `HTTPS` 访问的演示应用 | `scripts/05_publish_gateway_demo.sh` | 必须执行 |
+| 6 | `07_publish_hubble_ui.md` | 发布 `Hubble UI`，并触发第三章北向流量供 UI 观察 | `scripts/06_publish_hubble_ui.sh` / `scripts/07_trigger_north_south_traffic.sh` | 必须执行 |
+| 7 | `08_verify.md` | 执行第三章最终验收 | 无 | 只读验证 |
 
 ---
 
@@ -149,19 +135,6 @@ flowchart LR
 5. `06_publish_gateway_demo.md`
 6. `07_publish_hubble_ui.md`
 7. `08_verify.md`
-
----
-
-## 第三章起点状态
-
-第三章开始前，默认你已经完成第二章，并满足下面这些条件：
-
-- 所有节点均为 `Ready`
-- `Cilium`、`Hubble` 正常
-- 第二章最终验收已经通过
-- `ops` 已具备 `kubectl`、`helm`
-- `ops` 已提供 `http://ops:9000/`
-- `Harbor` 可用且镜像仓库保留
 
 ---
 
@@ -183,7 +156,7 @@ flowchart LR
 
 - API 平面继续走 `lb01/lb02 + 10.1.1.10`
 - 业务平面改走 `MetalLB VIP`
-- 第三章主线只讲 `Gateway API`
+- 北向入口统一走 `Cilium Gateway API`
 - HTTPS 统一由 `Harbor CA` 签发并校验
 
 ---
