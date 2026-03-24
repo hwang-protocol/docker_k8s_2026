@@ -86,39 +86,50 @@ flowchart LR
 
 这样后面的 `Gateway` 清单就可以直接引用这个 Secret。
 
-### 本步关键内容示意
+### 证书是怎么签出来的
 
-这一页虽然不是通过现成 YAML 清单安装组件，但最终会在集群里生成一个非常关键的对象：
+这一步不是先写 `Secret`，而是先用第一章的 `Harbor CA` 签出两份文件：
 
-- 来源方式：由 `scripts/04_issue_tls_certs.sh` 运行时动态生成
-- 对象类型：`Secret`
-- 说明：这里没有独立静态 YAML 文件，对象来自下面这段命令输出：
+- `app.qytk8s.com.crt`
+- `app.qytk8s.com.key`
+
+脚本运行时还会生成一个临时证书扩展文件，也就是 `SERVER_EXT`。在当前脚本里，它对应的实际路径是：
+
+```text
+/docker_k8s_2026/k8s/03-north-south-traffic/pki/app.qytk8s.com.ext
+```
+
+这个文件不是 Kubernetes YAML，而是给 `openssl` 签证书时使用的扩展配置文件。脚本生成它的原始内容如下：
 
 ```bash
-kubectl -n "${NAMESPACE}" create secret tls "${SECRET_NAME}" \
-  --cert "${SERVER_CERT}" \
-  --key "${SERVER_KEY}" \
-  --dry-run=client -o yaml | kubectl apply -f -
+cat >"${SERVER_EXT}" <<EOF
+authorityKeyIdentifier=keyid,issuer
+basicConstraints=CA:FALSE
+keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = ${DOMAIN}
+EOF
 ```
 
-```yaml
-kind: Secret
-type: kubernetes.io/tls
-metadata:
-  name: app-qytk8s-com-tls
-  namespace: gateway-demo
+然后在下面这条真实命令里通过 `-extfile "${SERVER_EXT}"` 被引用：
+
+```bash
+openssl x509 -req -sha256 \
+  -in "${SERVER_CSR}" \
+  -CA "${HARBOR_CA_CERT}" \
+  -CAkey "${HARBOR_CA_KEY}" \
+  -CAcreateserial \
+  -out "${SERVER_CERT}" \
+  -days 3650 \
+  -extfile "${SERVER_EXT}"
 ```
 
-关键字段说明：
+这里的 `-extfile "${SERVER_EXT}"`，就是把这个扩展文件里的 `subjectAltName`、`extendedKeyUsage` 等内容真正写进最终证书。
 
-- `type: kubernetes.io/tls`
-  - 明确这是标准 TLS Secret
-- `name: app-qytk8s-com-tls`
-  - 后续 `Gateway` 的 HTTPS listener 会直接引用这个名字
-- `namespace: gateway-demo`
-  - 要和后续 `Gateway` 所在命名空间一致
-
-另外，证书扩展文件里最关键的一段是：
+其中最关键的一段是：
 
 ```ini
 subjectAltName = @alt_names
@@ -131,6 +142,65 @@ DNS.1 = app.qytk8s.com
 
 - `DNS.1 = app.qytk8s.com`
   - 这决定了浏览器访问这个域名时，证书主机名校验是否能通过
+
+### 什么是 `Secret`
+
+`Secret` 是 Kubernetes 用来保存敏感数据的对象，例如：
+
+- 用户名和密码
+- Token
+- 证书和私钥
+
+这一页里创建的是标准 TLS Secret，后续 `Gateway` 的 `HTTPS listener` 会直接引用它。
+
+### 本步关键 `YAML` 一次看清
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 来源：</strong><code>kubectl create secret tls ... --dry-run=client -o yaml</code><br/>
+<strong>本页重点对象：</strong><code>Secret/app-qytk8s-com-tls</code><br/>
+<strong>作用：</strong>把 <code>app.qytk8s.com</code> 的证书和私钥导入 Kubernetes，供后续 <code>Gateway</code> 的 <code>HTTPS listener</code> 引用
+</div>
+
+这里没有独立静态 YAML 文件，而是先有：
+
+- `app.qytk8s.com.crt`
+- `app.qytk8s.com.key`
+
+再由下面这段命令把它们临时生成成 `Secret YAML`，并直接 `apply` 进集群：
+
+```bash
+kubectl -n "${NAMESPACE}" create secret tls "${SECRET_NAME}" \
+  --cert "${SERVER_CERT}" \
+  --key "${SERVER_KEY}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+原始 YAML 形态如下：
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-qytk8s-com-tls
+  namespace: gateway-demo
+type: kubernetes.io/tls
+data:
+  tls.crt: <base64-encoded certificate>
+  tls.key: <base64-encoded private key>
+```
+
+关键字段说明：
+
+- `kind: Secret`
+  - 表示这是 Kubernetes 的敏感数据对象
+- `type: kubernetes.io/tls`
+  - 明确这是标准 TLS Secret
+- `name: app-qytk8s-com-tls`
+  - 后续 `Gateway` 的 HTTPS listener 会直接引用这个名字
+- `namespace: gateway-demo`
+  - 要和后续 `Gateway` 所在命名空间一致
+- `data.tls.crt / data.tls.key`
+  - 分别保存证书和私钥内容，实际写入时会以 base64 形式出现在 YAML 中
 
 ---
 
@@ -151,25 +221,7 @@ DNS.1 = app.qytk8s.com
 
 ### 关键任务 1：生成证书扩展文件
 
-脚本原始代码：
-
-```bash
-cat >"${SERVER_EXT}" <<EOF
-authorityKeyIdentifier=keyid,issuer
-basicConstraints=CA:FALSE
-keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
-extendedKeyUsage = serverAuth
-subjectAltName = @alt_names
-
-[alt_names]
-DNS.1 = ${DOMAIN}
-EOF
-```
-
-关键介绍：
-
-- 明确证书用途是服务端证书
-- `subjectAltName` 中固定写入 `app.qytk8s.com`
+关键介绍：上文已经给出 `SERVER_EXT` 的原始内容；这一段只负责把证书扩展文件生成到本地。
 
 ### 关键任务 2：生成私钥、CSR 和证书
 
@@ -192,10 +244,7 @@ openssl x509 -req -sha256 \
   -extfile "${SERVER_EXT}"
 ```
 
-关键介绍：
-
-- 使用现有 Harbor CA 为 `app.qytk8s.com` 签发服务端证书
-- 有效期固定为长期，便于课程环境反复使用
+关键介绍：使用现有 `Harbor CA` 生成 `app.qytk8s.com` 的私钥、`CSR` 和服务端证书。
 
 ### 关键任务 3：创建 Kubernetes TLS Secret
 
@@ -209,10 +258,7 @@ kubectl -n "${NAMESPACE}" create secret tls "${SECRET_NAME}" \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-关键介绍：
-
-- 先确保 `gateway-demo` 命名空间存在
-- 再把证书导入成 `Gateway` 能直接引用的 TLS Secret
+关键介绍：先确保 `gateway-demo` 命名空间存在，再把证书导入成 `Gateway` 能直接引用的 TLS Secret。
 
 ---
 
