@@ -13,9 +13,13 @@
 
 本步不改配置，只做验收。
 
+---
+
 ## 执行标记
 
 - **执行标记：只读验证**
+
+---
 
 ## 理论说明
 
@@ -37,6 +41,8 @@ flowchart LR
   app --> observe
 ```
 
+---
+
 ## 验收顺序
 
 请按下面顺序检查：
@@ -48,6 +54,8 @@ flowchart LR
 5. `hubble.qytk8s.com`
 6. `Hubble UI` 中的北向流量
 
+---
+
 ## 对应脚本
 
 第三章当前没有单独的“最终验收脚本”。
@@ -57,6 +65,8 @@ flowchart LR
 - 这一页主要是只读检查
 - 其中还包含浏览器侧的 `Hubble UI` 观察
 - 因此更适合按文档逐项验收，而不是压成一条脚本
+
+---
 
 ## 验证方法
 
@@ -151,6 +161,8 @@ bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/07_trigger_north_south_
 - `Hubble UI` 命名空间视角应选择 `gateway-demo`
 - 顶部过滤框应清空
 - 再触发脚本后，`Hubble UI` 中能看到第三章北向访问链路产生的流量记录
+
+---
 
 ## 通过标准
 

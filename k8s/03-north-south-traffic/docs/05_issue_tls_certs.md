@@ -4,6 +4,8 @@
 
 使用第一章已经生成的 `Harbor CA`，为第三章业务域名 `app.qytk8s.com` 签发服务端证书，并导入 Kubernetes。
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -12,6 +14,8 @@
 
 - 第三章从这里开始把 `域名 + HTTPS` 固定为正式入口方式
 - 这一步不是临时补证书，而是把证书体系正式纳入课程主线
+
+---
 
 ## 问题背景
 
@@ -34,6 +38,8 @@ https://app.qytk8s.com
 - 用现有内部 CA 为业务域名签发证书
 - 把证书导入 Kubernetes
 - 为后续 `Gateway` 的 HTTPS listener 做准备
+
+---
 
 ## 理论说明
 
@@ -126,6 +132,8 @@ DNS.1 = app.qytk8s.com
 - `DNS.1 = app.qytk8s.com`
   - 这决定了浏览器访问这个域名时，证书主机名校验是否能通过
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -136,6 +144,8 @@ DNS.1 = app.qytk8s.com
 
 - `/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.key`
 - `/docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt`
+
+---
 
 ## 脚本关键任务
 
@@ -204,6 +214,8 @@ kubectl -n "${NAMESPACE}" create secret tls "${SECRET_NAME}" \
 - 先确保 `gateway-demo` 命名空间存在
 - 再把证书导入成 `Gateway` 能直接引用的 TLS Secret
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -217,6 +229,8 @@ chmod +x /docker_k8s_2026/k8s/03-north-south-traffic/scripts/04_issue_tls_certs.
 ```bash
 bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/04_issue_tls_certs.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -252,6 +266,8 @@ openssl x509 -in /docker_k8s_2026/k8s/03-north-south-traffic/pki/app.qytk8s.com.
 - `subject` 中包含 `CN = app.qytk8s.com`
 - `issuer` 指向 Harbor CA
 
+---
+
 ## win2019 额外动作
 
 为了让浏览器真正信任这个证书，需要把下面这个文件导入 `win2019` 的“受信任的根证书颁发机构”：
@@ -259,6 +275,8 @@ openssl x509 -in /docker_k8s_2026/k8s/03-north-south-traffic/pki/app.qytk8s.com.
 ```text
 /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt
 ```
+
+---
 
 ## 关键看点
 
@@ -268,6 +286,8 @@ openssl x509 -in /docker_k8s_2026/k8s/03-north-south-traffic/pki/app.qytk8s.com.
 - TLS Secret 已经进入 Kubernetes
 - 浏览器侧也具备建立信任链的前提
 
+---
+
 ## 通过标准
 
 满足下面条件后，就可以进入下一步：
@@ -275,6 +295,8 @@ openssl x509 -in /docker_k8s_2026/k8s/03-north-south-traffic/pki/app.qytk8s.com.
 - 域名证书已签发
 - Kubernetes TLS Secret 已准备好
 - `win2019` 已导入 Harbor CA 根证书
+
+---
 
 ## 下一步
 

@@ -10,9 +10,13 @@
 - 业务地址池 `10.1.1.50-10.1.1.79` 已创建
 - 该地址池只允许带有入口角色标签的节点对外通告
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
+
+---
 
 ## 问题背景
 
@@ -25,6 +29,8 @@ EXTERNAL-IP   <pending>
 ```
 
 也就是说，Kubernetes 知道你要对外暴露服务，但不会替你分配和通告 VIP。第三章在这里引入 `MetalLB`，就是为了补齐这层能力。
+
+---
 
 ## 理论说明
 
@@ -202,6 +208,8 @@ spec:
 
 如果不先装 `MetalLB`，后面的 `Gateway` 即使能生成 `LoadBalancer Service`，最终也很可能拿不到有效 `EXTERNAL-IP`。
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -224,6 +232,8 @@ ADV_URL="http://ops:9000/03-north-south-traffic/manifests/02_metallb_l2advertise
   - 指向业务 VIP 地址池清单
 - `ADV_URL`
   - 指向 `L2Advertisement` 清单
+
+---
 
 ## 脚本关键任务
 
@@ -393,6 +403,8 @@ kubectl -n metallb-system get ds speaker -o jsonpath='{.spec.template.spec.nodeS
 
 再次强调：哪些节点上“有 `speaker`”，和哪些节点“真的发布 `edge-pool` VIP”，不是同一个问题。
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -406,6 +418,8 @@ chmod +x /docker_k8s_2026/k8s/03-north-south-traffic/scripts/02_install_metallb.
 ```bash
 bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/02_install_metallb.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -464,6 +478,8 @@ kubectl -n metallb-system get ds speaker -o jsonpath='{.spec.template.spec.nodeS
   - `speaker` 的部署范围
   - `edge-pool` 的实际 VIP 发布节点
 
+---
+
 ## 关键看点
 
 这一页真正要确认的是：
@@ -473,6 +489,8 @@ kubectl -n metallb-system get ds speaker -o jsonpath='{.spec.template.spec.nodeS
 - `edge-pool` 与 `L2Advertisement` 已准备好
 - 当前只有带 `qytk8s.com/node-role=edge` 标签的节点具备对外通告这组 VIP 的资格
 
+---
+
 ## 通过标准
 
 满足下面条件后，就可以进入下一步：
@@ -480,6 +498,8 @@ kubectl -n metallb-system get ds speaker -o jsonpath='{.spec.template.spec.nodeS
 - `MetalLB` 正常运行
 - 集群已经具备对 `LoadBalancer Service` 分配 VIP 的能力
 - `edge-pool` 与 `edge-pool-on-edge-nodes` 已创建成功
+
+---
 
 ## 下一步
 

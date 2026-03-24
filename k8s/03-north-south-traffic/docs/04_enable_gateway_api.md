@@ -10,6 +10,8 @@
 - `Cilium` 已启用 `gatewayAPI.enabled`
 - 集群中能看到 `GatewayClass`
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -18,6 +20,8 @@
 
 - 本步的核心不是“再安装一套网关产品”
 - 而是在现有 `Cilium` 网络底座上，直接补齐北向入口模型
+
+---
 
 ## 问题背景
 
@@ -31,6 +35,8 @@
 - 一个现代、清晰的北向入口对象模型
 
 第三章没有单独引入另一套独立网关产品，而是继续复用第二章已经安装好的 `Cilium`。这样课程主线更连贯，也更容易过渡到后续安全与治理章节。
+
+---
 
 ## 理论说明
 
@@ -117,6 +123,8 @@ gatewayAPI:
 
 因此这一页不是“很多 YAML”，而是“少量但非常关键的开关型配置”。
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -148,6 +156,8 @@ CILIUM_GATEWAY_VALUES="/docker_k8s_2026/k8s/03-north-south-traffic/manifests/03_
   - 继续保留第二章网络平面的核心配置
 - `CILIUM_GATEWAY_VALUES`
   - 只补第三章北向入口所需的 gateway 开关
+
+---
 
 ## 脚本关键任务
 
@@ -266,6 +276,8 @@ kubectl -n kube-system rollout status deploy/cilium-operator --timeout=300s
 - 让新的 gateway 配置真正加载生效
 - 并在文档主线里明确等待滚动完成
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -279,6 +291,8 @@ chmod +x /docker_k8s_2026/k8s/03-north-south-traffic/scripts/03_enable_gateway_a
 ```bash
 bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/03_enable_gateway_api.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -315,6 +329,8 @@ cilium status --wait
 
 - `Cilium: OK`
 
+---
+
 ## 关键看点
 
 这一页真正要确认的是：
@@ -323,6 +339,8 @@ cilium status --wait
 - `Cilium` 已经成为这一套入口模型的实际实现者
 - 后面已经可以开始创建 `Gateway` 和 `HTTPRoute`
 
+---
+
 ## 通过标准
 
 满足下面条件后，就可以进入下一步：
@@ -330,6 +348,8 @@ cilium status --wait
 - `Gateway API` 已在当前集群中可用
 - `GatewayClass` 已出现
 - `Cilium` 滚动完成并恢复正常
+
+---
 
 ## 下一步
 

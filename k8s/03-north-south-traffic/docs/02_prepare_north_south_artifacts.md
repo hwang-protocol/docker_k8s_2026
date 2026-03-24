@@ -11,6 +11,8 @@
 
 > 说明：`CRD` 是 `CustomResourceDefinition` 的缩写，可以理解为“给 Kubernetes 扩展一种新的资源类型定义”。安装了 `Gateway API` 的 CRD 之后，集群才认识 `GatewayClass`、`Gateway`、`HTTPRoute` 这些对象；否则后续直接 `apply` 相关 YAML 时，Kubernetes 会因为“不认识这种资源”而报错。
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -19,6 +21,8 @@
 
 - 这是第三章的制品预热步骤
 - 本步完成后，后续安装过程尽量不再依赖公网临时下载
+
+---
 
 ## 问题背景
 
@@ -35,6 +39,8 @@
 
 - 先把第三章会用到的 YAML 和镜像预热到本地与 Harbor
 - 把后续部署步骤变成“拿本地制品安装”
+
+---
 
 ## 理论说明
 
@@ -144,6 +150,8 @@ referencegrants.gateway.networking.k8s.io
 - `ReferenceGrant`
   - 用于更复杂的跨命名空间引用授权
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -154,6 +162,8 @@ referencegrants.gateway.networking.k8s.io
 
 - `artifacts/metallb-native-v0.15.3.yaml`
 - `artifacts/gateway-api-standard-install-v1.4.1.yaml`
+
+---
 
 ## 脚本关键任务
 
@@ -255,6 +265,8 @@ done
 - 让后续安装和演示时尽量不再发生现场拉镜像
 - 降低课堂环境中的不确定性
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -268,6 +280,8 @@ chmod +x /docker_k8s_2026/k8s/03-north-south-traffic/scripts/01_prepare_north_so
 ```bash
 bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/01_prepare_north_south_artifacts.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -306,6 +320,8 @@ curl -k -s -u 'admin:Harbor12345' \
 - 能看到 `northsouth/metallb-speaker`
 - 能看到 `northsouth/whoami`
 
+---
+
 ## 关键看点
 
 这一页真正要确认的是下面 3 件事：
@@ -314,6 +330,8 @@ curl -k -s -u 'admin:Harbor12345' \
 - 第三章镜像已经进入 Harbor 的 `northsouth` 项目
 - 后续步骤不再依赖上游源现场下载
 
+---
+
 ## 通过标准
 
 满足下面条件后，就可以进入下一步：
@@ -321,6 +339,8 @@ curl -k -s -u 'admin:Harbor12345' \
 - Harbor 项目 `northsouth` 已就绪
 - 第三章 YAML 已落地到本地 `artifacts/`
 - 所有节点已预拉本章所需镜像
+
+---
 
 ## 下一步
 

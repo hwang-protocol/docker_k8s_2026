@@ -9,6 +9,8 @@
 - `app.qytk8s.com`
 - `HTTPS`
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -17,6 +19,8 @@
 
 - 这是第三章真正把内部服务发布为外部 HTTPS 服务的一步
 - 本步完成后，第三章主线会第一次形成完整闭环
+
+---
 
 ## 问题背景
 
@@ -35,6 +39,8 @@
 - 创建 `HTTPRoute`
 - 让 `Gateway` 获取固定 VIP
 - 从命令行和浏览器两侧确认 HTTPS 已经真正可用
+
+---
 
 ## 理论说明
 
@@ -246,6 +252,8 @@ spec:
 - `backendRefs`
   - 定义最终转发目标是 `whoami:80`
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -274,6 +282,8 @@ GATEWAY_URL="http://ops:9000/03-north-south-traffic/manifests/20_gateway_https_d
   - 指向后端演示应用清单
 - `GATEWAY_URL`
   - 指向 `Gateway + HTTPRoute` 聚合清单
+
+---
 
 ## 脚本关键任务
 
@@ -450,6 +460,8 @@ curl --resolve "${DOMAIN}:443:${VIP}" --cacert "${CA_CERT}" "https://${DOMAIN}/"
 - 第一条命令验证 `HTTP -> HTTPS` 是否成立
 - 第二条命令验证 HTTPS 证书和业务内容是否都成立
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -463,6 +475,8 @@ chmod +x /docker_k8s_2026/k8s/03-north-south-traffic/scripts/05_publish_gateway_
 ```bash
 bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/05_publish_gateway_demo.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -520,6 +534,8 @@ curl --resolve app.qytk8s.com:443:10.1.1.60 \
 
 - 返回 `whoami` 页面内容
 
+---
+
 ## DNS 配置
 
 在 `win2019 DNS` 中新增：
@@ -527,6 +543,8 @@ curl --resolve app.qytk8s.com:443:10.1.1.60 \
 ```text
 app.qytk8s.com  ->  10.1.1.60
 ```
+
+---
 
 ## 外部验证
 
@@ -541,6 +559,8 @@ https://app.qytk8s.com
 - 浏览器不再报根证书不受信任
 - 页面能看到 `whoami` 返回内容
 
+---
+
 ## 关键看点
 
 这一页真正要确认的是：
@@ -549,6 +569,8 @@ https://app.qytk8s.com
 - `MetalLB VIP` 已经真正落到业务入口上
 - `app.qytk8s.com` 已能通过 HTTPS 正式访问
 
+---
+
 ## 通过标准
 
 满足下面条件后，就可以进入最终验收：
@@ -556,6 +578,8 @@ https://app.qytk8s.com
 - `app.qytk8s.com` 已能从集群外通过 HTTPS 访问
 - HTTP 访问会自动跳转到 HTTPS
 - `Gateway` 对应 Service 已拿到固定 VIP `10.1.1.60`
+
+---
 
 ## 下一步
 

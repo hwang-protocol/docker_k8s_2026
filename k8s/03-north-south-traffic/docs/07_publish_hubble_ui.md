@@ -8,6 +8,8 @@
 - 再触发 `https://app.qytk8s.com` 的北向业务流量
 - 最终在 `Hubble UI` 中看到第三章这条“由外到内”的访问记录
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -16,6 +18,8 @@
 
 - 这一页不是重复第二章的 `hubble observe`
 - 它的意义是把第二章的网络观测能力，正式带入第三章的北向发布场景
+
+---
 
 ## 问题背景
 
@@ -34,6 +38,8 @@
 - 最后从图形界面中直接看到这条流量
 
 这会让第三章的展示效果比单纯的 CLI 更完整。
+
+---
 
 ## 理论说明
 
@@ -187,12 +193,16 @@ spec:
 - 最终后端目标直接是 `kube-system/hubble-ui`
 - 这说明平台组件本身也能通过同样的入口模型被发布
 
+---
+
 ## 对应脚本
 
 本步对应两个脚本：
 
 - 发布脚本：`k8s/03-north-south-traffic/scripts/06_publish_hubble_ui.sh`
 - 触发流量脚本：`k8s/03-north-south-traffic/scripts/07_trigger_north_south_traffic.sh`
+
+---
 
 ## 脚本关键任务
 
@@ -331,6 +341,8 @@ done
 - 再连续触发多次 `HTTPS` 业务访问
 - 这样在 `Hubble UI` 中更容易看到连续的北向流量记录
 
+---
+
 ## 执行命令
 
 先给脚本增加执行权限：
@@ -351,6 +363,8 @@ bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/06_publish_hubble_ui.sh
 ```bash
 bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/07_trigger_north_south_traffic.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -446,6 +460,8 @@ bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/07_trigger_north_south_
 - 重点是让学员直接看到第三章北向发布链路所在的命名空间界面长什么样
 - 后续触发 `app.qytk8s.com` 流量后，应优先在这个视角下观察最近产生的新流量
 
+---
+
 ## 关键看点
 
 这一页真正要确认的是：
@@ -454,12 +470,16 @@ bash /docker_k8s_2026/k8s/03-north-south-traffic/scripts/07_trigger_north_south_
 - 第三章“由外到内”的请求链路能被图形化观察
 - 网络观测不再只停留在第二章 CLI，而是变成第三章正式成果物的一部分
 
+---
+
 ## 通过标准
 
 满足下面条件后，就可以进入最终验收：
 
 - `hubble.qytk8s.com` 已能通过 HTTPS 正式访问
 - 执行流量脚本后，能在 `Hubble UI` 里看到北向访问记录
+
+---
 
 ## 下一步
 
