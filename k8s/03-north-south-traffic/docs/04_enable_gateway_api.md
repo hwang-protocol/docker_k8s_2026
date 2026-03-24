@@ -15,26 +15,13 @@
 ## 执行标记
 
 - **执行标记：必须执行**
-
-说明：
-
-- 本步的核心不是“再安装一套网关产品”
-- 而是在现有 `Cilium` 网络底座上，直接补齐北向入口模型
+- 在现有 `Cilium` 上补齐 `Gateway API` 能力，不额外引入另一套网关产品
 
 ---
 
 ## 问题背景
 
-到第三章第 2 步为止，集群已经具备：
-
-- 裸机 VIP 分配能力
-- `LoadBalancer Service` 可用的基础条件
-
-但还缺少：
-
-- 一个现代、清晰的北向入口对象模型
-
-第三章没有单独引入另一套独立网关产品，而是继续复用第二章已经安装好的 `Cilium`。这样课程主线更连贯，也更容易过渡到后续安全与治理章节。
+到第三章第 2 步为止，集群已经具备 `VIP` 分配能力，但还缺少真正可用的北向入口对象模型。本步继续复用第二章已经安装好的 `Cilium`，直接打开 `Gateway API` 能力。
 
 ---
 
@@ -44,27 +31,39 @@
 
 ```mermaid
 flowchart LR
-  cilium[Cilium]
-  crd[Gateway API CRD]
-  gc[GatewayClass]
-  gw[Gateway]
-  route[HTTPRoute]
-  svc[Service]
+  subgraph now["本步完成"]
+    crd["1. Gateway API CRD<br/>集群先认识新资源类型"]
+    cilium["2. 现有 Cilium<br/>继续作为实现底座"]
+    values["3. gatewayAPI.enabled=true<br/>Helm 升级打开能力"]
+    gc["4. GatewayClass<br/>本步完成后即可看到"]
+  end
 
-  cilium --> gc
-  crd --> gc
+  subgraph later["后续步骤才会创建"]
+    gw["5. Gateway"]
+    route["6. HTTPRoute"]
+    svc["7. Service"]
+  end
+
+  crd -->|注册 GatewayClass / Gateway / HTTPRoute| gc
+  cilium --> values
+  values -->|激活 Gateway API 实现| gc
   gc --> gw
   gw --> route
   route --> svc
 ```
 
-这张图说明：
+图中编号说明：
 
-- `Gateway API` 先通过 CRD 进入集群
-- `Cilium` 负责提供具体实现
-- `GatewayClass` 表示由谁来实现入口
-- `Gateway` 表示入口实例
-- `HTTPRoute` 表示路由规则
+1. 先安装 `Gateway API CRD`，把 `GatewayClass`、`Gateway`、`HTTPRoute` 这些资源类型注册到集群里。
+2. 本步不重装网络平面，继续复用第二章已经运行的 `Cilium`。
+3. 通过 `gatewayAPI.enabled=true` 打开 `Cilium` 的 `Gateway API` 实现能力。
+4. 本步完成后，集群里应能看到 `GatewayClass`，这也是本页最直接的验收点。
+5. `Gateway`
+6. `HTTPRoute`
+7. `Service`
+后面几步才会真正创建并使用这些对象。
+
+因此，这一页真正执行的核心动作只有两类：先安装 `Gateway API CRD`，再通过 `Helm` 升级打开 `Cilium` 的 `Gateway API` 能力。
 
 ### 为什么这里用 Helm 升级而不是重装 Cilium
 
@@ -78,20 +77,42 @@ flowchart LR
 
 - `gatewayAPI.enabled: true`
 
-因此更合理的方式是：
+因此这里的做法不是重装 `Cilium`，而是在第二章稳定配置基础上叠加第三章的 gateway values。
 
-- 保留第二章已经稳定运行的 `Cilium`
-- 基于原有 values 再叠加第三章的 gateway values
+### 本步关键 `YAML` 一次看清
 
-这比“重装一套网络平面”更符合实际工程。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>artifacts/gateway-api-standard-install-v1.4.1.yaml</code><br/>
+<strong>本页重点对象：</strong><code>CustomResourceDefinition</code><br/>
+<strong>作用：</strong>先把 <code>GatewayClass</code>、<code>Gateway</code>、<code>HTTPRoute</code>、<code>ReferenceGrant</code> 这些资源类型注册到集群里
+</div>
 
-### 本步关键配置
+这份文件包含多条 `CRD` 定义；下面摘出其中 3 个最关键的对象名：
 
-第三章追加的关键配置文件是：
+说明：这里只摘对象名，后面大量 `CRD` 结构定义在这里先不展开。
 
-- `manifests/03_cilium_gateway_values.yaml`
+```yaml
+kind: CustomResourceDefinition
+metadata:
+  name: gatewayclasses.gateway.networking.k8s.io
+---
+kind: CustomResourceDefinition
+metadata:
+  name: gateways.gateway.networking.k8s.io
+---
+kind: CustomResourceDefinition
+metadata:
+  name: httproutes.gateway.networking.k8s.io
+```
 
-关键字段如下：
+- 这些 `CRD` 不直接转发流量
+- 它们的作用是先让集群认识第三章后面会创建的入口对象模型
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #7fd1b9; border-radius: 6px; background: rgba(127,209,185,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/03_cilium_gateway_values.yaml</code><br/>
+<strong>本页重点对象：</strong><code>gatewayAPI</code> 配置块<br/>
+<strong>作用：</strong>在第二章已有的 <code>Cilium</code> 基础上，打开第三章所需的 <code>Gateway API</code> 能力
+</div>
 
 ```yaml
 gatewayAPI:
@@ -99,9 +120,11 @@ gatewayAPI:
   externalTrafficPolicy: Cluster
   gatewayClass:
     create: "auto"
+  secretsNamespace:
+    create: true
+    name: cilium-secrets
+    sync: true
 ```
-
-关键字段说明：
 
 - `enabled: true`
   - 为现有 `Cilium` 打开 `Gateway API`
@@ -109,19 +132,8 @@ gatewayAPI:
   - 让 `Cilium` 自动创建可用的 `GatewayClass`
 - `externalTrafficPolicy: Cluster`
   - 定义流量进入后的转发策略
-
-### 为什么这里的 YAML 很少，但很关键
-
-第三章这一页追加的 values 不多，但每个字段都直接影响后面 `Gateway` 是否能工作。
-
-可以把它们简单理解成：
-
-- 第二章 `cilium-values.yaml`
-  - 决定网络平面怎么跑
-- 第三章 `03_cilium_gateway_values.yaml`
-  - 决定北向入口能力是否打开
-
-因此这一页不是“很多 YAML”，而是“少量但非常关键的开关型配置”。
+- `secretsNamespace.sync: true`
+  - 让后续证书 `Secret` 能被 `Gateway` 正常使用
 
 ---
 
@@ -151,7 +163,7 @@ CILIUM_GATEWAY_VALUES="/docker_k8s_2026/k8s/03-north-south-traffic/manifests/03_
 - `GATEWAY_API_CRD_URL`
   - 指向第 1 步已经固化好的 `Gateway API` 标准 CRD 清单
 - `CILIUM_CHART`
-  - 继续复用第二章已缓存到本地的 Cilium chart
+  - 继续复用第二章已缓存到本地的 `Cilium chart`
 - `CILIUM_BASE_VALUES`
   - 继续保留第二章网络平面的核心配置
 - `CILIUM_GATEWAY_VALUES`
@@ -169,40 +181,7 @@ CILIUM_GATEWAY_VALUES="/docker_k8s_2026/k8s/03-north-south-traffic/manifests/03_
 kubectl apply -f "${GATEWAY_API_CRD_URL}"
 ```
 
-关键介绍：
-
-- 先让集群认识 `GatewayClass`、`Gateway`、`HTTPRoute` 等对象
-- `GATEWAY_API_CRD_URL` 实际对应的是：
-  - `artifacts/gateway-api-standard-install-v1.4.1.yaml`
-
-对应 YAML 关键内容：
-
-```yaml
-kind: CustomResourceDefinition
-metadata:
-  name: gatewayclasses.gateway.networking.k8s.io
-```
-
-以及：
-
-```yaml
-kind: CustomResourceDefinition
-metadata:
-  name: gateways.gateway.networking.k8s.io
-```
-
-以及：
-
-```yaml
-kind: CustomResourceDefinition
-metadata:
-  name: httproutes.gateway.networking.k8s.io
-```
-
-关键字段说明：
-
-- 这些 CRD 的作用不是“直接发布流量”
-- 而是让集群先认识第三章真正要使用的入口对象模型
+关键介绍：先让集群认识 `GatewayClass`、`Gateway`、`HTTPRoute` 等对象；`GATEWAY_API_CRD_URL` 对应第 1 步已经固化好的 `artifacts/gateway-api-standard-install-v1.4.1.yaml`。这里不再重复展开完整 `CRD YAML`，直接对应上文卡片。
 
 ### 关键任务 2：等待核心 CRD 建立完成
 
@@ -215,9 +194,7 @@ kubectl wait --for=condition=Established crd/httproutes.gateway.networking.k8s.i
 kubectl wait --for=condition=Established crd/referencegrants.gateway.networking.k8s.io --timeout=120s
 ```
 
-关键介绍：
-
-- 只有 CRD 真正建立完成后，后续 `Gateway`、`HTTPRoute` 清单才有意义
+关键介绍：只有 `CRD` 真正建立完成后，后续 `Gateway`、`HTTPRoute` 清单才有意义。
 
 ### 关键任务 3：基于第二章 values 做 Helm 升级
 
@@ -230,35 +207,7 @@ helm upgrade cilium "${CILIUM_CHART}" \
   -f "${CILIUM_GATEWAY_VALUES}"
 ```
 
-关键介绍：
-
-- 这一段体现第三章不是重装 `Cilium`
-- 而是在第二章稳定配置基础上叠加 `Gateway API` 能力
-- 这里真正被叠加进去的核心配置来自：
-  - `manifests/03_cilium_gateway_values.yaml`
-
-对应 YAML 关键内容：
-
-```yaml
-gatewayAPI:
-  enabled: true
-  externalTrafficPolicy: Cluster
-  gatewayClass:
-    create: "auto"
-  secretsNamespace:
-    create: true
-    name: cilium-secrets
-    sync: true
-```
-
-关键字段说明：
-
-- `enabled: true`
-  - 打开 `Gateway API`
-- `gatewayClass.create: "auto"`
-  - 自动创建 `cilium` GatewayClass
-- `secretsNamespace.sync: true`
-  - 让证书 Secret 能被 Gateway 侧正确使用
+关键介绍：这一段体现第三章不是重装 `Cilium`，而是在第二章稳定配置基础上叠加 `Gateway API` 能力。真正被叠加进去的核心配置来自 `manifests/03_cilium_gateway_values.yaml`，详细字段已在上文卡片里统一说明。
 
 ### 关键任务 4：主动重启 Cilium 组件
 
@@ -271,10 +220,7 @@ kubectl -n kube-system rollout status ds/cilium --timeout=300s
 kubectl -n kube-system rollout status deploy/cilium-operator --timeout=300s
 ```
 
-关键介绍：
-
-- 让新的 gateway 配置真正加载生效
-- 并在文档主线里明确等待滚动完成
+关键介绍：让新的 gateway 配置真正加载生效，并明确等待滚动完成。
 
 ---
 
