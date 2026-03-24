@@ -2,7 +2,7 @@
 
 ## 本步目标
 
-在第二章前半段网络恢复之后，用一个最小化应用演示下面 4 件事情已经打通：
+用一个最小化应用验证下面 4 件事情已经打通：
 
 - Pod 已经可以正常创建
 - Service 已经可以正常分发
@@ -14,11 +14,7 @@
 ## 执行标记
 
 - **执行标记：必须执行**
-
-说明：
-
-- 本步是第二章安装 Cilium 后的第一个业务层验证
-- 它不再验证“组件是否安装成功”，而是验证“网络能力是否真的能被业务访问使用”
+- 安装 Cilium 后的第一组业务验证
 
 ---
 
@@ -28,40 +24,31 @@
 
 本步使用两个工作负载：
 
-- `whoami`
-  - 提供 HTTP 响应
-- `client`
-  - 在 Pod 内发起访问请求
+- `whoami`：提供 HTTP 响应
+- `client`：在 Pod 内发起访问请求
 
-命名空间统一使用：
-
-- `net-demo`
+命名空间统一使用 `net-demo`。
 
 ### Service Discovery 关系图
 
 ```mermaid
 flowchart LR
-  client[client Pod]
-  dns[CoreDNS]
-  svc[whoami Service]
-  pod[whoami Pod]
+  client["1. client Pod<br/>发起 http://whoami"]
+  dns["2. CoreDNS<br/>解析 whoami"]
+  svc["3. whoami Service<br/>提供稳定入口"]
+  pod["4. whoami Pod<br/>接收真实请求"]
 
-  client --> dns
-  dns --> svc
-  client --> svc
-  svc --> pod
+  client -->|先查 whoami| dns
+  dns -->|返回 Service VIP| client
+  client -->|再访问 whoami Service| svc
+  svc -->|转发到后端 Pod| pod
 ```
 
-这张图表达了本步要验证的完整链路：
-
-1. `client` 发起请求
-2. 通过 `CoreDNS` 解析 `whoami`
-3. 解析结果落到 `whoami Service`
-4. `Service` 再把流量转发到后端 `whoami Pod`
+完整链路是：`client` 先经 `CoreDNS` 解析 `whoami`，再访问 `whoami Service`，最后由 `Service` 转发到后端 `Pod`。
 
 ### 先理解 3 个基础对象
 
-这是第二章第一次正式接触 Kubernetes 业务对象，因此这里先把最基础的 3 个概念讲清楚：
+本节先用 3 个基础对象串起最小业务链路：
 
 - `Namespace`
   - 用来做资源隔离
@@ -70,7 +57,7 @@ flowchart LR
 - `Service`
   - 用来给一组 Pod 提供稳定入口
 
-这一页中：
+本步中：
 
 - `net-demo` 是演示专用命名空间
 - `whoami Deployment` 负责创建服务端 Pod
@@ -81,25 +68,26 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  deploy1[whoami Deployment]
-  pod1[whoami Pod]
-  svc[whoami Service]
-  deploy2[client Deployment]
-  pod2[client Pod]
+  subgraph client_side["客户端对象"]
+    deploy2["1. client Deployment<br/>声明测试工作负载"]
+    pod2["2. client Pod<br/>在 Pod 内执行 curl"]
+    deploy2 -->|创建 Pod| pod2
+  end
 
-  deploy1 --> pod1
-  svc --> pod1
-  deploy2 --> pod2
-  pod2 --> svc
+  subgraph server_side["服务端对象"]
+    deploy1["3. whoami Deployment<br/>声明服务端副本模板"]
+    pod1["4. whoami Pod<br/>labels: app=whoami"]
+    svc["5. whoami Service<br/>selector: app=whoami"]
+    deploy1 -->|创建 Pod| pod1
+    svc -->|按标签选中后端| pod1
+  end
+
+  pod2 -->|访问稳定入口| svc
 ```
 
-这张图强调的是：
+图中强调三层关系：`Deployment` 创建 Pod，`Service` 通过 `selector` 选中后端 Pod，`client Pod` 通过 `Service` 访问服务端。
 
-- `Deployment` 负责创建 Pod
-- `Service` 不创建 Pod
-- `Service` 只是根据标签选中后端 Pod，并提供稳定访问入口
-
-### 为什么这一页必须同时讲短名和 FQDN
+### 为什么同时验证短名和 FQDN
 
 在 Kubernetes 集群内，Service 通常既可以通过短名访问：
 
@@ -113,18 +101,11 @@ whoami
 whoami.net-demo.svc.cluster.local
 ```
 
-这两种访问方式分别对应：
-
-- 短名访问
-  - 便于日常业务调用
-- FQDN 访问
-  - 更适合解释完整 DNS 解析链路
-
-因此本步必须同时验证二者。
+短名适合日常调用，FQDN 更便于理解完整 DNS 链路，因此本步同时验证二者。
 
 ### 本步清单原文与关键内容
 
-本步会使用下面 3 份清单：
+本步使用下面 3 份清单：
 
 - `manifests/00_net-demo_namespace.yaml`
 - `manifests/10_whoami.yaml`
@@ -188,9 +169,9 @@ spec:
 关键看点：
 
 - `kind: Deployment`
-  - 表示这里先创建的是工作负载控制器，不是单独手搓一个 Pod
+  - 创建的是工作负载控制器
 - `replicas: 1`
-  - 主线先保留 1 个服务端 Pod，先把 `Deployment`、`Service`、DNS 三件事讲清楚
+  - 主线先保留 `1` 个服务端 Pod
 - `template.metadata.labels.app: whoami`
   - 这是 Pod 身上的标签
 - `Service.spec.selector.app: whoami`
@@ -200,16 +181,9 @@ spec:
 - `targetPort: 80`
   - 这是 Service 转发到容器里的端口
 
-这里最关键的一层关系是：
+最关键的关系是：Pod 带有 `app: whoami` 标签，`whoami Service` 用 `selector: app: whoami` 选中它。
 
-- Pod 身上打了 `app: whoami`
-- Service 用 `selector: app: whoami` 去选中它
-
-因此 `whoami Service` 才知道应该把流量转发给哪个 Pod。
-
-另外，`whoami` 镜像返回的页面中会带出当前处理请求的主机名。
-
-在 Kubernetes 里，这个主机名通常就是 Pod 名称。因此后面如果把 `whoami` 临时扩成多个副本，就可以通过返回内容直接观察请求是否被分发到了不同 Pod。
+`whoami` 页面还会返回当前 Pod 主机名，后面扩容到多个副本时可以直接观察流量分发结果。
 
 #### 清单 3：`client` Deployment
 
@@ -242,32 +216,23 @@ spec:
 关键看点：
 
 - `kind: Deployment`
-  - `client` 也是通过 Deployment 创建出来的 Pod
+  - `client` 也通过 Deployment 创建
 - `image: harbor.qytk8s.com/cilium/curl:8.12.1`
-  - 这里使用的是一个带 `curl` 的轻量客户端镜像
+  - 使用带 `curl` 的轻量客户端镜像
 - `sleep infinity`
   - 让 Pod 保持常驻，便于后续反复进入容器执行 `curl`
-
-可以把 `client` 理解成：
-
-- 一个专门放在集群里的“测试终端”
-- 后面所有 Service Discovery 测试都从它里面发起
 
 ---
 
 ## 对应脚本
 
-本步使用的原始清单文件仍然保存在项目目录中，而不是嵌入脚本：
+原始清单文件保存在项目目录中：
 
 - `manifests/00_net-demo_namespace.yaml`
 - `manifests/10_whoami.yaml`
 - `manifests/20_client.yaml`
 
-说明：
-
-- 本页执行过程按“手动逐条执行”展开
-- `k8s/02-cloud-native-networking/scripts/03_apply_service_discovery_demo.sh` 用于把下面这些命令串联成批量执行过程
-- 本页主线不依赖这个脚本
+文档按手工命令展开；`k8s/02-cloud-native-networking/scripts/03_apply_service_discovery_demo.sh` 只是把这些命令串联起来。
 
 ---
 
@@ -283,17 +248,10 @@ kubectl apply -f http://ops:9000/02-cloud-native-networking/manifests/10_whoami.
 kubectl apply -f http://ops:9000/02-cloud-native-networking/manifests/20_client.yaml
 ```
 
-本步在做什么：
-
-- 创建 `net-demo` 命名空间
-- 创建 `whoami Deployment`
-- 创建 `whoami Service`
-- 创建 `client Deployment`
-
-结果看点：
+关键看点：
 
 - 输出应为 `created` 或 `configured`
-- 这一步只是把对象提交进集群，还不能说明 `Service Discovery` 已经成功
+- 这一步只表示对象已提交到集群
 
 ### 步骤 2：等待工作负载进入可用状态
 
@@ -304,11 +262,7 @@ kubectl rollout status deployment/whoami -n net-demo --timeout=5m
 kubectl rollout status deployment/client -n net-demo --timeout=5m
 ```
 
-本步在做什么：
-
-- 等待 `whoami` 与 `client` 都进入 `Available`
-
-结果看点：
+关键看点：
 
 - 应出现 `deployment "whoami" successfully rolled out`
 - 应出现 `deployment "client" successfully rolled out`
@@ -322,22 +276,11 @@ kubectl get pods -n net-demo -o wide
 kubectl get svc -n net-demo
 ```
 
-本步在做什么：
-
-- 观察 `whoami` 与 `client` Pod 是否已经 `Running`
-- 观察 `whoami Service` 是否已经创建完成
-
-结果看点：
+关键看点：
 
 - `whoami` 与 `client` 应为 `Running`
 - `whoami` Service 应存在
 - `CLUSTER-IP` 应已经分配
-
-这里可以这样理解：
-
-- Pod 是真正运行容器的地方
-- `CLUSTER-IP` 是 Service 在集群内部拿到的稳定访问地址
-- 后面 `client` 访问 `whoami` 时，先访问的是 Service，而不是直接访问 Pod IP
 
 ### 步骤 4：从 `client` 测试短名访问
 
@@ -347,11 +290,7 @@ kubectl get svc -n net-demo
 kubectl exec -n net-demo deployment/client -- curl -sS http://whoami
 ```
 
-本步在做什么：
-
-- 从业务 Pod 内通过短名访问 `whoami Service`
-
-结果看点：
+关键看点：
 
 - 应返回 `whoami` 页面内容
 - 这说明 `client Pod -> whoami Service -> whoami Pod` 的调用链已经打通
@@ -364,11 +303,7 @@ kubectl exec -n net-demo deployment/client -- curl -sS http://whoami
 kubectl exec -n net-demo deployment/client -- curl -sS http://whoami.net-demo.svc.cluster.local
 ```
 
-本步在做什么：
-
-- 用完整域名验证 Kubernetes 集群内 DNS 解析链路
-
-结果看点：
+关键看点：
 
 - 返回结果应与短名访问一致
 - 这说明完整 FQDN 也能正确落到 `whoami Service`
@@ -381,11 +316,7 @@ kubectl exec -n net-demo deployment/client -- curl -sS http://whoami.net-demo.sv
 kubectl exec -n net-demo deployment/client -- sh -c 'getent hosts whoami'
 ```
 
-本步在做什么：
-
-- 直接在 `client` Pod 内查看 `whoami` 的解析结果
-
-结果看点：
+关键看点：
 
 - 输出中应出现一个 `ClusterIP`
 - 该地址应对应 `whoami Service`
@@ -394,7 +325,7 @@ kubectl exec -n net-demo deployment/client -- sh -c 'getent hosts whoami'
 
 ## 扩展实验：把 `whoami` 扩成 2 个副本并观察基础负载分发
 
-这一组扩展实验不改变本页主线通过标准，但它更有利于后面配合 `Hubble` 观察多条业务流量。
+本组扩展实验用于观察 `Service` 对多个后端 Pod 的基础分发，不影响本页通过标准。
 
 ### 扩展步骤 1：把 `whoami` 扩容到 2 个副本
 
@@ -423,10 +354,7 @@ kubectl exec -n net-demo deployment/client -- sh -c 'for i in 1 2 3 4 5 6 7 8; d
 
 - 输出中应出现 `Hostname`
 - 如果 Service 已经在多个后端之间分发流量，`Hostname` 会在两个不同的 Pod 名之间切换
-
-本步的判断标准不是“严格轮询”，而是：
-
-- 是否出现了不止一个后端 Pod 名
+- 判断标准不是严格轮询，而是是否出现了不止一个后端 Pod 名
 
 ### 扩展步骤 3：恢复主线环境
 
