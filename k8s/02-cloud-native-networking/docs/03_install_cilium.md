@@ -22,7 +22,7 @@
 
 - **执行标记：必须执行**
 
-本步完成后，集群会从“网络未完成”切换为“网络平面可用”。
+本步完成后，集群网络平面进入可用状态。
 
 ---
 
@@ -44,7 +44,7 @@ flowchart LR
   ebpf --> after
 ```
 
-这一步不是“再加一个网络组件”，而是补齐网络平面，并让 `eBPF` 接管 Service 转发。
+安装 `Cilium` 的实质是补齐网络平面，并让 `eBPF` 接管 Service 转发。
 
 ### `Cilium` 与 `Hubble` 组件关系图
 
@@ -55,7 +55,7 @@ flowchart LR
   subgraph node["节点侧：cilium DaemonSet Pod（每节点一份）"]
     agent[cilium-agent<br/>Pod 内主容器 / 主进程]
     bpf[eBPF Data Plane<br/>Service 转发 / 网络策略执行]
-    envoy[Embedded Envoy<br/>内嵌在 cilium 节点侧<br/>用于 L7 感知]
+    envoy[Embedded Envoy<br/>Cilium 节点侧 L7 代理能力]
 
     agent --> bpf
     agent -. 启用 L7 时 .-> envoy
@@ -80,22 +80,22 @@ flowchart LR
   relay --> ui
 ```
 
-这里需要区分“Pod 名称”和“内部角色”：
+图中几个名称需要区分：
 
 - `cilium` 是节点上的 `DaemonSet Pod`
-- `cilium-agent` 是这个 Pod 内的主容器 / 主进程，负责网络接入、策略管理、`eBPF` 程序挂载和事件上报
-- `Embedded Envoy` 不是独立 `DaemonSet`，也不是注入业务 Pod 的 sidecar；当前是内嵌在 `cilium` 节点侧能力中，只在启用 `L7` 时参与路径
-- `hubble-relay` 和 `hubble-ui` 在图中画成 Pod，是因为实际看到的运行对象就是它们各自的 Pod
+- `cilium-agent` 是该 Pod 内的主容器 / 主进程
+- `Embedded Envoy` 是 `Cilium` 节点侧使用的 `L7` 代理能力
+- `hubble-relay`、`hubble-ui` 实际看到的是各自 `Deployment` 创建的 Pod
 
 `cilium status --wait` 中几类组件的分工如下：
 
-- `cilium`：以 `DaemonSet` 方式运行在每个节点上，负责网络接入、`eBPF` 程序挂载、策略执行和事件上报
+- `cilium`：负责网络接入、`eBPF` 程序挂载、策略执行和事件上报
 - `cilium-operator`：负责 `IPAM` 和集群级资源协调
-- `hubble-relay`：以 `Deployment` 方式运行，当前通常看到 1 个 `hubble-relay` Pod，作为统一查询入口
-- `hubble-ui`：以 `Deployment` 方式运行，当前通常看到 1 个 `hubble-ui` Pod，通过 `relay` 展示 Web 可视化结果
-- `Embedded Envoy`：只在启用 `L7` 感知时参与路径；当前配置 `envoy.enabled: false`，因此不会看到单独的 `cilium-envoy` DaemonSet
+- `hubble-relay`：统一查询入口
+- `hubble-ui`：通过 `relay` 展示 Web 可视化结果
+- `Embedded Envoy`：`Cilium` 节点侧的 `L7 proxy` 机制；只在启用 `L7` 感知时参与路径，当前不会看到单独的 `cilium-envoy` DaemonSet
 
-### 为什么这一步必须先清理 `kube-proxy`
+### 为什么先清理 `kube-proxy`
 
 集群默认已经安装 `kube-proxy`。本步要让 `Cilium` 通过 `eBPF` 接管 Service 转发，因此安装前必须先完成：
 
@@ -104,15 +104,9 @@ flowchart LR
 
 否则旧规则仍可能影响转发路径，并与 `Cilium` 产生角色重叠。
 
-### 为什么这里使用 `native routing`
+### 为什么使用 `native routing`
 
-本章主线使用：
-
-```text
-routingMode: native
-```
-
-这样更适合直接观察 `Pod CIDR`、跨节点路由和 Service 转发路径。
+主线配置为 `routingMode: native`。它更适合观察 `Pod CIDR`、跨节点路由和 Service 转发路径。
 
 #### `routingMode: native` 路径图
 
@@ -163,7 +157,7 @@ flowchart TB
   linkStyle default stroke:#d8d8d8,stroke-width:2px;
 ```
 
-上图按对称结构展示两个节点；若以本节示例流量理解，就是 `Pod A (Node01) -> Pod B (Node02)`。
+示例流量方向可理解为 `Pod A (Node01) -> Pod B (Node02)`。
 
 #### `routingMode: native` 线上数据包层次
 
@@ -197,22 +191,22 @@ flowchart LR
   class ipinfo1,macinfo1 note;
 ```
 
-图中已经把 `native routing` 的三个关键来源合在一起：
+图中已经合并了 `native routing` 的三个关键来源：
 
 - `cilium-operator` 负责给每个节点分配 `Pod CIDR`
 - 每个节点上的 `cilium-agent` 按 `autoDirectNodeRoutes: true` 写入远端 `Pod CIDR -> Node IP` 路由
 - `ipv4NativeRoutingCIDR: 10.244.0.0/16` 表示这段流量交给 Linux 原生路由栈处理
 
-前提条件是：底层网络必须能够到达对端 `Node IP`；如果底层本身不通，还需要静态路由、`BGP` 或其他 underlay 路由机制配合。
+前提条件是底层网络能够到达对端 `Node IP`；如果底层本身不通，还需要静态路由、`BGP` 或其他 underlay 路由机制配合。
 
-如果要切到 `VXLAN`，常见写法是：
+切到 `VXLAN` 的常见写法：
 
 ```text
 routingMode: tunnel
 tunnelProtocol: vxlan
 ```
 
-这表示跨节点 Pod 流量会先封装进 `VXLAN`。如需切换，应在 `manifests/cilium-values.yaml` 中调整，而不是在脚本里临时改参数。
+这表示跨节点 Pod 流量会先封装进 `VXLAN`。切换时在 `manifests/cilium-values.yaml` 中调整。
 
 #### `routingMode: tunnel` + `tunnelProtocol: vxlan` 路径图
 
@@ -290,9 +284,7 @@ flowchart LR
 
 ### 节点出口 `NAT`
 
-跨节点 `Pod -> Pod` 解决的是“包怎么送到对端节点”；而 `Pod -> 集群外` 还要解决“公网如何回到这个节点”。
-
-这时通常会在节点出口做 `SNAT / Masquerade`：
+跨节点 `Pod -> Pod` 解决的是“包如何到达对端节点”；`Pod -> 集群外` 还要解决“返回流量如何回到这个节点”。这时通常会在节点出口做 `SNAT / Masquerade`：
 
 ```mermaid
 flowchart TB
@@ -344,9 +336,9 @@ flowchart LR
   class ipinfo3,natnote note;
 ```
 
-#### 当前这套课程配置如何理解
+#### 默认行为
 
-当前课程的 [cilium-values.yaml](/docker_k8s_2026/k8s/02-cloud-native-networking/manifests/cilium-values.yaml) 没有显式写 `NAT` 相关字段，因此按 chart 默认行为处理；在本章里只需要记住一个现象：`Pod` 出公网后，线路上通常看到的是 `Node IP`。
+当前 [cilium-values.yaml](/docker_k8s_2026/k8s/02-cloud-native-networking/manifests/cilium-values.yaml) 没有显式写 `NAT` 相关字段，因此按 chart 默认行为处理；本章只需把握一个现象：`Pod` 出公网后，线路上通常看到的是 `Node IP`。
 
 #### 如何显式开启节点出口 `NAT`
 
@@ -378,9 +370,7 @@ enableIPv4Masquerade: false
 
 ### 为什么这里要显式指定 `k8sServiceHost` 和 `k8sServicePort`
 
-这两个字段写在 `manifests/cilium-values.yaml` 中，用来告诉 `Cilium` 安装和启动时应该连接哪个 Kubernetes API 地址。
-
-当前固定为：
+这两个字段写在 `manifests/cilium-values.yaml` 中，用来指定 `Cilium` 安装和启动时连接的 Kubernetes API 地址。当前固定为：
 
 - `k8sServiceHost: 10.1.1.10`
 - `k8sServicePort: 6443`
@@ -388,14 +378,12 @@ enableIPv4Masquerade: false
 也就是通过 API VIP `10.1.1.10:6443` 访问 Kubernetes API Server。这样可以：
 
 - 三台控制平面后面只暴露一个统一入口
-- `Cilium` 不需要绑定某一台单独控制平面节点
-- 后续即使控制平面发生切换，`Cilium` 访问 API 的目标也不需要改
+- `Cilium` 不绑定某一台控制平面节点
+- 控制平面切换时不需要改 `Cilium` 的访问目标
 
 ### 本步核心 values 关键字段示意
 
-安装使用的核心配置位于 `manifests/cilium-values.yaml`。
-
-其中最关键的字段如下：
+安装使用的核心配置位于 `manifests/cilium-values.yaml`，关键字段如下：
 
 ```yaml
 k8sServiceHost: "10.1.1.10"
@@ -422,11 +410,6 @@ hubble:
 - `hubble.enabled: true`
   - 同步启用第二章需要的可观测能力
 
-`Hubble UI` 前后端镜像也已在这份 values 中固定到课程统一标签：
-
-- `harbor.qytk8s.com/cilium/hubble-ui:v0.13.3-qyfix`
-- `harbor.qytk8s.com/cilium/hubble-ui-backend:v0.13.3-qyfix`
-
 ---
 
 ## 对应脚本
@@ -435,7 +418,7 @@ hubble:
 
 - `k8s/02-cloud-native-networking/scripts/02_install_cilium.sh`
 
-本步直接依赖下面两个本地文件：
+本步直接依赖两个本地文件：
 
 - Helm chart：`artifacts/cilium-1.19.1.tgz`
 - values 文件：`manifests/cilium-values.yaml`
@@ -464,7 +447,7 @@ cleanup_kube_proxy() {
 }
 ```
 
-- 先把第一章遗留的 `kube-proxy` 组件移出集群
+- 删除已有 `kube-proxy` 组件
 
 ### 重要任务 2：清理各节点上的 `KUBE-*` iptables 规则
 
@@ -478,7 +461,7 @@ echo "[iptables 2/2] 清理 IPv6 中的 KUBE 规则"
 ip6tables-save | grep -v 'KUBE' | ip6tables-restore || true
 ```
 
-- 清除第一章 `kube-proxy` 留下的规则痕迹
+- 清除 `kube-proxy` 留下的规则痕迹
 - 为 `Cilium` 接管 Service 转发清出干净环境
 
 ### 重要任务 3：通过 Helm 安装 `Cilium`
@@ -495,7 +478,6 @@ install_cilium() {
 ```
 
 - 使用本地 chart 和本地 values 安装 `Cilium`
-- 不在安装时临时拉取远端 chart
 
 ### 重要任务 4：等待关键组件就绪
 
@@ -530,8 +512,7 @@ verify_basic_state() {
 }
 ```
 
-- 让安装完成后立即能看到节点状态变化
-- 让 `CoreDNS`、`Cilium`、`Hubble` 的基本状态直接可见
+- 输出节点和 `kube-system` 首轮状态
 
 ---
 
@@ -543,7 +524,7 @@ verify_basic_state() {
 chmod +x /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/02_install_cilium.sh
 ```
 
-然后执行：
+再执行：
 
 ```bash
 bash /docker_k8s_2026/k8s/02-cloud-native-networking/scripts/02_install_cilium.sh
@@ -593,19 +574,15 @@ Image versions         cilium             harbor.qytk8s.com/cilium/cilium:v1.19.
 - `Operator` 为 `OK`
 - `Hubble Relay` 为 `OK`
 - `DaemonSet cilium` 为 `7/7`
-- `hubble-ui` 与 `hubble-relay` 均已启动
+- `hubble-ui` 与 `hubble-relay` 已启动
 
 关键看点：
 
-- 先看最上面 3 行：
-  - `Cilium: OK`
-  - `Operator: OK`
-  - `Hubble Relay: OK`
-- 再看 `DaemonSet cilium` 是否为 `7/7`
-- 再看 `Image versions` 是否已经统一来自：
-  - `harbor.qytk8s.com/cilium/...`
+- `Cilium: OK`、`Operator: OK`、`Hubble Relay: OK`
+- `DaemonSet cilium` 为 `7/7`
+- `Image versions` 统一来自 `harbor.qytk8s.com/cilium/...`
 - `Envoy DaemonSet: disabled (using embedded mode)` 在当前课程配置里是正常现象
-- `ClusterMesh: disabled` 也是正常现象，因为第二章并未启用多集群互联
+- `ClusterMesh: disabled` 是正常现象
 
 ### 验证 2：查看节点状态
 
@@ -615,8 +592,7 @@ kubectl get nodes -o wide
 
 预期结果：
 
-- `cp01`、`cp02`、`cp03` 为 `Ready`
-- `wk-app01`、`wk-app02`、`wk-edge01`、`wk-obs01` 为 `Ready`
+- 所有节点为 `Ready`
 
 ### 验证 3：查看 `kube-system` Pod
 
@@ -626,12 +602,9 @@ kubectl get pods -n kube-system -o wide
 
 预期结果：
 
-- `cilium` DaemonSet 已运行
-- `cilium-operator` 已运行
-- `hubble-relay` 已运行
-- `hubble-ui` 已运行
-- `coredns` 已从 `Pending` 进入 `Running`
-- `kube-proxy` 已不再存在
+- `cilium-*`、`hubble-*` 正常运行
+- `coredns` 已进入 `Running`
+- `kube-proxy` 已不存在
 
 关键看点：
 
@@ -648,14 +621,14 @@ kubectl get svc -n kube-system hubble-relay hubble-ui
 
 预期结果：
 
-- 可以看到 `hubble-relay`
-- 可以看到 `hubble-ui`
+- 能看到 `hubble-relay`
+- 能看到 `hubble-ui`
 
 ---
 
 ## 通过标准
 
-满足下面条件即可进入下一步：
+满足下列条件即可进入下一步：
 
 - `Cilium` 已在所有节点成功运行
 - `kube-proxy` 已从集群移除
@@ -666,7 +639,5 @@ kubectl get svc -n kube-system hubble-relay hubble-ui
 ---
 
 ## 下一步
-
-下一步进入第一个应用层演示：
 
 - `docs/04_service_discovery.md`
