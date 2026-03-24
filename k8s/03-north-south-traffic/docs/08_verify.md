@@ -27,12 +27,12 @@
 
 ```mermaid
 flowchart LR
-  metallb[MetalLB VIP]
-  gateway[Gateway API]
-  tls[TLS Secret]
-  app[app.qytk8s.com]
-  hubble[hubble.qytk8s.com]
-  observe[Hubble UI 流量观察]
+  metallb[1. MetalLB VIP]
+  gateway[2. Cilium Gateway API]
+  tls[3. TLS Secret]
+  app[4. app.qytk8s.com]
+  hubble[5. hubble.qytk8s.com]
+  observe[6. Hubble UI 流量观察]
 
   metallb --> gateway
   tls --> gateway
@@ -40,6 +40,8 @@ flowchart LR
   gateway --> hubble
   app --> observe
 ```
+
+这张图只用于收口第三章主线：先确认 `VIP`、入口对象和证书都正常，再确认两个域名都能通过 `HTTPS` 访问，最后回到 `Hubble UI` 观察北向流量。
 
 ---
 
@@ -80,6 +82,11 @@ kubectl -n gateway-demo get endpointslice -l io.cilium.gateway/owning-gateway=ap
 kubectl -n kube-system get endpointslice -l io.cilium.gateway/owning-gateway=hubble-ui-gateway -o yaml
 ```
 
+说明：
+
+- `ServiceL2Status` 用来确认哪组 `LoadBalancer Service` 的 `VIP` 已进入 `MetalLB` 的二层发布状态
+- 这里同时检查 `app` 和 `Hubble UI` 两组北向入口
+
 预期结果：
 
 - `controller` 正常
@@ -94,6 +101,8 @@ kubectl -n kube-system get endpointslice -l io.cilium.gateway/owning-gateway=hub
 kubectl get gatewayclass
 kubectl get gateway -n gateway-demo
 kubectl get gateway -n kube-system | grep hubble-ui
+kubectl get httproute -n gateway-demo
+kubectl get httproute -n kube-system | grep hubble-ui
 kubectl get gatewayclass cilium -o yaml
 kubectl get gateway -n gateway-demo app-gateway -o yaml
 kubectl get gateway -n kube-system hubble-ui-gateway -o yaml
@@ -104,10 +113,11 @@ kubectl get gateway -n kube-system hubble-ui-gateway -o yaml
 - 存在 `cilium` GatewayClass
 - `app-gateway` 正常
 - `hubble-ui-gateway` 正常
+- `app-http-redirect`、`app-https-backend`、`hubble-ui-http-redirect`、`hubble-ui-https-backend` 都存在
 - `GatewayClass cilium` 应为 `Accepted=True`
 - 两个 `Gateway` 都应为 `Accepted=True` 且 `Programmed=True`
 
-### 验证 3：HTTPS 证书
+### 验证 3：TLS Secret
 
 ```bash
 kubectl get secret -n gateway-demo app-qytk8s-com-tls
