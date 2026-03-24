@@ -57,7 +57,7 @@
 
 - `Cilium`
 - `eBPF kube-proxy replacement`
-- `native routing`
+- `native routing`（并补充说明如何切换到 `VXLAN`）
 - `Hubble`
 - `L3/L4` 与 `L7` 策略
 
@@ -126,16 +126,16 @@ flowchart LR
 
 ---
 
-## 本章脚本执行矩阵
+## 本章小单元与对应脚本
 
-| 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
+| 步骤 | 文档 | 主要任务 | 对应脚本 | 执行标记 |
 | :--- | :--- | :--- | :--- | :--- |
-| 1 | `02_prepare_cilium_artifacts.md` | `scripts/01_prepare_cilium_artifacts.sh` | 必须执行 | 预热 Cilium / Hubble / Helm chart / CLI / 镜像到 Harbor 与 `ops HTTP` |
-| 2 | `03_install_cilium.md` | `scripts/02_install_cilium.sh` | 必须执行 | 清理 kube-proxy，安装并验收启用 `native routing` 与 `kube-proxy replacement` 的 Cilium |
-| 3 | `04_service_discovery.md` | `scripts/03_apply_service_discovery_demo.sh` | 必须执行 | 演示 Pod、Service、DNS 与 Service Discovery |
-| 4 | `05_enable_hubble.md` | `scripts/04_enable_hubble.sh` | 必须执行 | 启用 Hubble 并观测东西向流量 |
-| 5 | `06_l7_policy.md` | `scripts/05_apply_l7_policy_demo.sh` | 必须执行 | 演示 `L3/L4` 与 `L7` 策略 |
-| 6 | `07_verify.md` | 无 | 只读验证 | 本章最终验收，不改配置 |
+| 1 | `02_prepare_cilium_artifacts.md` | 预热 Cilium / Hubble / Helm chart / CLI / 镜像到 Harbor 与 `ops HTTP` | `scripts/01_prepare_cilium_artifacts.sh` | 必须执行 |
+| 2 | `03_install_cilium.md` | 清理 `kube-proxy`，安装并验收启用 `native routing` 与 `kube-proxy replacement` 的 Cilium | `scripts/02_install_cilium.sh` | 必须执行 |
+| 3 | `04_service_discovery.md` | 演示 Pod、Service、DNS 与 Service Discovery | `scripts/03_apply_service_discovery_demo.sh` | 必须执行 |
+| 4 | `05_enable_hubble.md` | 启用 Hubble 并观测东西向流量 | `scripts/04_enable_hubble.sh` | 必须执行 |
+| 5 | `06_l7_policy.md` | 演示 `L3/L4` 与 `L7` 策略 | `scripts/05_apply_l7_policy_demo.sh` | 必须执行 |
+| 6 | `07_verify.md` | 执行第二章最终验收 | 无 | 只读验证 |
 
 ---
 
@@ -149,20 +149,6 @@ flowchart LR
 4. `05_enable_hubble.md`
 5. `06_l7_policy.md`
 6. `07_verify.md`
-
----
-
-## 第二章起点状态
-
-第二章开始前，集群应满足下面这些前提：
-
-- 第一章已经完成
-- Kubernetes 版本固定为 `v1.33.9`
-- 当前节点整体为 `NotReady`
-- `CoreDNS` 当前为 `Pending`
-- `ops` 已具备 `kubectl`
-- `ops` 已具备 nginx 文件发布服务：`http://ops:9000/`
-- `Harbor` 已可用，且第一章核心镜像已经在 `harbor.qytk8s.com`
 
 ---
 
@@ -184,45 +170,11 @@ flowchart LR
 
 ---
 
-## 第二章网络设计要点
+## 第二章补充说明
 
-本章继续沿用第一章已经冻结的地址设计：
-
-- 宿主机网络：`10.1.1.0/24`
-- API VIP：`10.1.1.10`
-- Service CIDR：`10.96.0.0/12`
-- Pod CIDR：`10.244.0.0/16`
-
-本章中 Cilium 采用：
-
-- `native routing`
-- `eBPF kube-proxy replacement`
-- 与第一章一致的 `Pod CIDR`
-
----
-
-## 第二章网络设计要点补充
-
-本章重点讲：
+第二章相对第一章新增的重点包括：
 
 - 为什么 `Cilium` 不只是 CNI
 - 为什么 `eBPF` 不只是“转发更快”
+- 为什么主线选择 `native routing`，以及如何切换到 `VXLAN`
 - 为什么 `native routing + kube-proxy replacement + Hubble + L7 policy` 能组成完整的东西向网络主线
-
----
-
-## 课程文件 HTTP 服务
-
-第二章继续沿用 `ops` 节点上的 nginx 文件服务：
-
-- 服务地址：`http://ops:9000/`
-- 根目录：`/docker_k8s_2026/k8s/`
-- 本章所有 YAML 文件统一放在 `manifests/`
-
-后续章节中凡是涉及：
-
-- Helm values
-- Kubernetes YAML
-- 演示工作负载清单
-
-都通过 `http://ops:9000/02-cloud-native-networking/...` 发布和引用。
