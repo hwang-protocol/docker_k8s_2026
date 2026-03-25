@@ -15,50 +15,16 @@
 
 - **执行标记：必须执行**
 
-说明：
+这一页的执行方式很简单：
 
-- 本步先用主脚本把安全对象一次性铺好
-- 课堂上再按下面 6 个功能单元逐个讲现象
-
-也就是说，这一页的正确执行方式是：
-
-1. 先执行主脚本  
-2. 再按下面 4.1 到 4.6 的顺序，一个一个验证现象
-
-不是“脚本可刷可不刷”，而是：
-
-- 主脚本负责把这一页需要的安全对象统一准备好
-- 后面的 4.1 到 4.6 负责把每个知识点拆开讲清楚
+1. 先执行主脚本
+2. 再按下面 4.1 到 4.6 的顺序逐项观察现象
 
 ---
 
 ## 先把 JWT 讲清楚
 
-很多学员第一次接触 `JWT` 时，最容易混淆三件事：
-
-- `JWT` 是什么
-- `JWT` 和 `TLS`、`mTLS` 有什么区别
-- `RequestAuthentication` 和 `AuthorizationPolicy` 谁负责什么
-
-### JWT 最短理解
-
-`JWT` 可以先理解成：
-
-- 调用者随请求一起带来的一张“身份说明书”
-
-但这张“身份说明书”不是随便写一段 JSON 就行，而是要满足两点：
-
-- 里面写了“我是谁、我属于什么角色、谁签发了我”
-- 还要带签名，服务端才能验证它有没有被伪造
-
-所以它不是：
-
-- 传输加密协议
-- 服务间双向认证协议
-
-它解决的问题是：
-
-- “发请求的人是谁”
+`JWT` 是 `JSON Web Token` 的缩写。
 
 ### JWT、TLS、mTLS 各管什么
 
@@ -68,51 +34,119 @@
 | `JWT` | 发请求的人是谁 | 北向入口认证 |
 | `mTLS` | 服务和服务之间是否相互可信 | 网格内部 `ztunnel` |
 
-所以第五章这里要把三者分开：
-
-- `TLS`
-  - 保护客户端到入口
-- `JWT`
-  - 表示客户端身份
-- `mTLS`
-  - 保护服务到服务
-
 这里还要特别提醒：
 
-- 本页不再重新建立 `TLS` 入口
-- 上一页 `04_publish_istio_ingress.md` 已经完成了：
-  - `secure-app.qytk8s.com`
-  - `HTTPS`
-  - 证书
-- 本页是在这个已经建立好的 `HTTPS` 入口之上，再继续叠加 `JWT` 和授权控制
+- 上一页已经完成 `secure-app.qytk8s.com` 的 `HTTPS` 入口和证书
+- 本页只在这个既有入口之上继续叠加 `JWT` 与授权控制
 
-### JWT 里最值得先记住的 4 个词
+### JWT 里最值得先记住的 3 个词
 
 | 术语 | 可以先粗略理解成 |
 | :--- | :--- |
-| `issuer` | 谁签发这个 token |
-| `claim` | token 里携带的身份字段 |
-| `JWKS` | 服务端用来验签的一组公钥信息 |
-| `Authorization: Bearer ...` | 客户端把 token 放进 HTTP 请求头的常见方式 |
+| `issuer` | token 里 `iss` 这个字段，表示谁签发了它 |
+| `claim` | token 里真正携带身份信息的字段，例如 `sub`、`role` |
+| `JWKS` | 服务端验签时要用到的公钥集合，对应后面的验签阶段 |
+
+### JWT 是怎么拼出来的
+
+先看两段最小 JSON。
+
+`Header` 示例：
+
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "demo-key"
+}
+```
+
+`Payload` 示例：
+
+```json
+{
+  "iss": "https://secure-app.qytk8s.com/auth",
+  "sub": "user1",
+  "role": "user"
+}
+```
+
+这两段 JSON 不会原样发送，而是由签发方用私钥按下面顺序处理：
+
+```mermaid
+flowchart LR
+    header[1. Header JSON<br/>alg=RS256<br/>typ=JWT<br/>kid=demo-key]
+    payload[2. Payload JSON<br/>iss=.../auth<br/>sub=user1<br/>role=user]
+    h64[3. base64url Header]
+    p64[4. base64url Payload]
+    hp[5. 先拼成<br/>header.payload]
+    sign[6. 用签发方私钥签名<br/>得到 signature]
+    token[7. 最终 JWT token<br/>header.payload.signature]
+    auth[8. 放进 HTTP 请求头<br/>Authorization: Bearer <token>]
+
+    header --> h64
+    payload --> p64
+    h64 --> hp
+    p64 --> hp
+    hp --> sign
+    hp --> token
+    sign --> token
+    token --> auth
+```
+
+可以按下面顺序理解：
+
+1. 先准备 `Header JSON`
+2. 再准备 `Payload JSON`
+3. 两段内容分别做 `base64url` 编码
+4. 先拼成前两段：
+   - `header.payload`
+5. 再由签发方用私钥对这两段内容签名，得到第三段：
+   - `signature`
+6. 最终三段拼起来，形成：
+   - `header.payload.signature`
+7. 客户端发请求时，把这一整串 token 放进：
+   - `Authorization: Bearer <token>`
+
+这里先只抓住 `JWT` 的结构本身：
+
+- 第一段来自 `Header`
+- 第二段来自 `Payload`
+- 第三段是签名结果
+- 发送时放进 `Authorization` 请求头
+
+最小请求示意：
+
+```http
+GET /hello HTTP/1.1
+Host: secure-app.qytk8s.com
+Authorization: Bearer <token>
+```
+
+也就是说：
+
+- 客户端发出的仍然是普通 HTTP 请求
+- 只是额外多了一个 `Authorization` 请求头
+- 这个请求头里放的是整串 `JWT token`
 
 ### JWT 在入口上是怎么工作的
 
 ```mermaid
 flowchart LR
-    client[客户端] --> header[Authorization: Bearer token]
+    client[客户端] --> header[Authorization 请求头<br/>Bearer <token>]
     header --> ingress[Istio Ingress Gateway]
-    ingress --> reqAuth[RequestAuthentication]
-    reqAuth --> jwks[JWKS / 公钥]
-    reqAuth --> claims[解析出 issuer / claim]
-    claims --> authz[AuthorizationPolicy]
+    ingress --> reqAuth[RequestAuthentication<br/>识别并校验 token]
+    jwks[JWKS / 公钥集合] -. 提供验签依据 .-> reqAuth
+    reqAuth --> authz[AuthorizationPolicy<br/>根据身份字段决定是否放行]
     authz --> backend[后端服务]
 ```
 
 这张图要表达的核心是：
 
-- 客户端把 token 放进请求头
-- `RequestAuthentication` 负责验签、解析 token
-- `AuthorizationPolicy` 再根据解析出来的身份字段决定放不放行
+- 客户端把整段 `JWT token` 放进 `Authorization` 请求头
+- `RequestAuthentication` 先识别并校验这张 token
+- `JWKS` 为验签提供公钥依据
+- `AuthorizationPolicy` 再根据 token 里的身份字段决定是否放行
 
 一句最短总结：
 
@@ -135,28 +169,50 @@ flowchart LR
     ingressAuthz --> helloSvc[helloworld]
 ```
 
-这张图适合先讲北向入口这条链：
-
-- 客户端先访问 `Istio Ingress Gateway`
-- `RequestAuthentication` 负责识别和校验 token
-- `AuthorizationPolicy` 再决定是否放行到后端
+这张图表达的是北向入口上的认证与授权链。
 
 ### 东西向服务间安全
 
 ```mermaid
 flowchart LR
-    trusted[trusted-client] --> ztunnelA[源节点 ztunnel]
-    untrusted[untrusted-client] --> ztunnelA
-    ztunnelA --> ztunnelB[目标节点 ztunnel]
-    ztunnelB --> httpbinSvc[httpbin]
-    httpbinSvc --> meshAuthz[AuthorizationPolicy]
+    subgraph nodeA[源节点]
+        trusted[trusted-client]
+        untrusted[untrusted-client]
+        ztunnelA[ztunnel Pod]
+    end
+
+    subgraph nodeW[waypoint 所在节点]
+        waypoint[waypoint Pod<br/>L7 授权处理]
+    end
+
+    subgraph nodeB[目标节点]
+        ztunnelB[ztunnel Pod]
+        httpbinSvc[httpbin]
+    end
+
+    meshMtls[PeerAuthentication STRICT<br/>基础 L4 / mTLS]
+    meshAuthz[L7 AuthorizationPolicy<br/>只允许 trusted-client]
+
+    trusted --> ztunnelA
+    untrusted --> ztunnelA
+
+    ztunnelA -->|基础 L4 / mTLS 通道| ztunnelB
+    ztunnelB --> httpbinSvc
+
+    ztunnelA -. 启用 L7 时额外进入 .-> waypoint
+    waypoint -. 回到安全通道 .-> ztunnelB
+    meshMtls -. 作用于 .-> ztunnelA
+    meshMtls -. 作用于 .-> ztunnelB
+    meshAuthz -. 作用于 .-> waypoint
 ```
 
-这张图适合再讲网格内部这条链：
+这张图表达的是网格内部的 `mTLS + AuthorizationPolicy` 链：
 
-- 服务间通信先经过 `ztunnel`
-- `mTLS` 负责建立可信链路
-- `AuthorizationPolicy` 再限制“谁可以访问 `httpbin`”
+- `trusted-client` 和 `untrusted-client` 都会先进入 `ztunnel`
+- `PeerAuthentication STRICT` 作用在 `ztunnel` 侧，建立基础 `L4 / mTLS` 可信通道
+- `waypoint` 是额外插入的 `L7` 处理点，不是所有流量默认必经节点
+- 需要 `L7` 授权时，流量才会额外经过 `waypoint`
+- `L7 AuthorizationPolicy` 作用在 `waypoint` 路径上，不是流量终点
 
 ---
 
