@@ -234,22 +234,17 @@ flowchart LR
   rs["ReplicaSet"]
   pod1["旧 Pod"]
   pod2["新 Pod"]
-  vol["volumes[].name<br/>qytang-volumes-demo"]
-  mount["volumeMounts[].name<br/>qytang-volumes-demo"]
-  path["容器内挂载路径<br/>/data"]
-  pvc["PVC<br/>qytang-pvc-demo"]
-  pv["自动生成的 PV"]
-  lhv["Longhorn Volume"]
+  template["同一份 Pod 模板<br/>claimName = qytang-pvc-demo<br/>mountPath = /data"]
+  pvc["同一个 PVC<br/>qytang-pvc-demo"]
+  pv["同一个自动生成的 PV"]
+  lhv["同一个 Longhorn Volume"]
 
   deploy --> rs
   rs --> pod1
   rs --> pod2
-  pod1 --> vol
-  pod2 --> vol
-  pod1 --> mount
-  pod2 --> mount
-  vol --> pvc
-  mount --> path
+  pod1 -->|按同一模板挂载| template
+  pod2 -->|按同一模板挂载| template
+  template --> pvc
   pvc --> pv
   pv --> lhv
 ```
@@ -260,13 +255,16 @@ flowchart LR
   - 负责保持“始终有 1 个 Pod 在运行”
 - 旧 Pod 被删除后
   - `Deployment/ReplicaSet` 会自动创建一个新 Pod
-- `persistentVolumeClaim.claimName: qytang-pvc-demo`
-  - 决定旧 Pod 和新 Pod 挂载的其实是同一个 `PVC`
+- 同一份 Pod 模板里的 `persistentVolumeClaim.claimName: qytang-pvc-demo`
+  - 决定旧 Pod 和新 Pod 挂载的是同一个 `PVC`
+- 这个 `PVC` 背后对应的仍然是同一个自动生成 `PV`
+  - 不是旧 Pod 一个 `PV`、新 Pod 再来一个 `PV`
 
 因此，这一页最重要的不是“起一个 BusyBox”，而是：
 
 - 用一个固定的控制器管理工作负载
 - 让它始终挂载同一个 `PVC`
+- 让这个 `PVC` 始终对应同一个 `PV` 和同一个 `Longhorn Volume`
 - 删除当前 Pod 后，让系统自动拉起新 Pod
 - 再证明新 Pod 读到的还是原来的卷数据
 
