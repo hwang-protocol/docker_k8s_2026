@@ -12,9 +12,13 @@
 
 这样后续安装与课堂演示都会更稳定，不依赖临时公网状态。
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
+
+---
 
 ## 问题背景
 
@@ -32,6 +36,8 @@
 - 前后两次刷课结果可能不一致
 
 因此本步的意义不是“先做点准备工作”，而是把第五章的安装与演示基础固定下来。
+
+---
 
 ## 理论说明
 
@@ -80,15 +86,24 @@ flowchart TD
 - `Harbor` 负责统一承载第五章镜像
 - 节点预拉镜像后，后面安装与演示都会更顺
 
+---
+
 ## 对应脚本
 
 - `k8s/05-security-and-zero-trust/scripts/01_prepare_istio_artifacts.sh`
+
+---
 
 ## 脚本关键任务
 
 ### 关键任务 1：下载并安装 `istioctl`
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 ISTIO_VERSION="1.29.0"
@@ -105,6 +120,11 @@ ISTIO_URL="https://github.com/istio/istio/releases/download/${ISTIO_VERSION}/${I
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 HARBOR_PROJECT="istio"
 ```
@@ -117,6 +137,11 @@ HARBOR_PROJECT="istio"
 ### 关键任务 3：整理源镜像与目标镜像映射
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 cat >"${SOURCE_IMAGE_LIST}" <<'EOF'
@@ -140,11 +165,21 @@ EOF
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 docker pull "\${src}"
 docker tag "\${src}" "\${dst}"
 docker push "\${dst}"
 ```
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 crictl --runtime-endpoint unix:///run/containerd/containerd.sock pull "\${image}"
@@ -155,17 +190,36 @@ crictl --runtime-endpoint unix:///run/containerd/containerd.sock pull "\${image}
 - 先推入 Harbor，再在所有节点预拉
 - 这样后续步骤拉取镜像时会直接走内网仓库
 
+---
+
 ## 执行命令
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选预处理命令</strong><br/>
+如果脚本已具备执行权限，这一步可以跳过。
+</div>
 
 ```bash
 chmod +x /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/01_prepare_istio_artifacts.sh
 ```
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令。
+</div>
+
 ```bash
 bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/01_prepare_istio_artifacts.sh
 ```
 
+---
+
 ## 验证方法
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 istioctl version --remote=false
@@ -179,6 +233,11 @@ istioctl version --remote=false
 预期结果：
 
 - 能正常输出 `1.29.0`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 ls -lh /docker_k8s_2026/k8s/05-security-and-zero-trust/artifacts
@@ -194,6 +253,11 @@ ls -lh /docker_k8s_2026/k8s/05-security-and-zero-trust/artifacts
 预期结果：
 
 - 本地 `artifacts/` 目录中出现第五章所需离线包与镜像清单
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 curl -k -s -u 'admin:Harbor12345' \
@@ -217,6 +281,8 @@ curl -k -s -u 'admin:Harbor12345' \
 
 - Harbor 项目 `istio` 中能看到第五章所需关键仓库
 
+---
+
 ## 通过标准
 
 满足下面条件后，本步即可视为完成：
@@ -224,6 +290,8 @@ curl -k -s -u 'admin:Harbor12345' \
 - `istioctl` 已可在 `ops` 上直接使用
 - 本地 `artifacts/` 已具备离线包和镜像清单
 - Harbor 中已具备第五章所需镜像
+
+---
 
 ## 下一步
 

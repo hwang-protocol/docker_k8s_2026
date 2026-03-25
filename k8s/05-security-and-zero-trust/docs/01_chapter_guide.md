@@ -13,6 +13,8 @@
 - `waypoint` 已部署完成
 - 已完成第五章主线安全验证
 
+---
+
 ## 课前理论导读
 
 正式操作前，建议先阅读：
@@ -28,6 +30,8 @@
 - `Ambient`、`ztunnel`、`waypoint` 各自做什么
 - `Sidecar` 与 `Ambient` 的差别，以及为什么本章选择 `Ambient`
 - 为什么第五章要新增 `Istio Ingress Gateway`
+
+---
 
 ## 本章重点边界
 
@@ -52,11 +56,15 @@
 
 这些内容放到后续增强实验。
 
+---
+
 ## 本章与前章的关系
 
 - **第二章**：`Cilium` 继续负责底层网络和数据平面，不被替换
 - **第三章**：`app.qytk8s.com` 和 `longhorn.qytk8s.com` 保持原状，继续作为上一章成果保留
 - **第五章**：新增 `secure-app.qytk8s.com` 和 `Istio Ingress Gateway`，专门承载安全与零信任
+
+---
 
 ## 第五章总关系图
 
@@ -127,6 +135,8 @@ flowchart TD
 - `httpbin`
   - 服务间访问控制演示用
 
+---
+
 ## 本章脚本执行矩阵
 
 | 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
@@ -137,6 +147,8 @@ flowchart TD
 | 3 | `04_publish_istio_ingress.md` | `scripts/03_publish_istio_ingress_demo.sh` | 必须执行 | 部署新入口、TLS、演示应用与基础路由 |
 | 4 | `05_enable_jwt_and_mesh_security.md` | `scripts/04_enable_jwt_and_mesh_security.sh` | 必须执行 | 开启 `JWT`、`mTLS`、`AuthorizationPolicy` |
 | 5 | `06_verify.md` | `scripts/07_verify_istio_security.sh` | 只读验收 | 第五章主线最终验收 |
+
+---
 
 ## 本章执行顺序
 
@@ -149,6 +161,8 @@ flowchart TD
 4. `05_enable_jwt_and_mesh_security.md`
 5. `06_verify.md`
 
+---
+
 ## 扩展内容
 
 如果想继续深入学习第五章的扩展内容，可以再阅读下面这些备份页面：
@@ -158,6 +172,8 @@ flowchart TD
 - `docs/advanced/08_manual_tests.md`
 
 这些内容不再放入当前主线任务，主线到 `06_verify.md` 为止；主线里只做安全与零信任闭环。
+
+---
 
 ## 第五章起点状态
 
@@ -172,6 +188,8 @@ flowchart TD
 - `ops` 已提供 `http://ops:9000/`
 - Harbor 仍然保留
 
+---
+
 ## 版本冻结
 
 - Kubernetes：`v1.33.9`
@@ -181,12 +199,16 @@ flowchart TD
 - 新入口 VIP：`10.1.1.62`
 - 演示命名空间：`mesh-demo`
 
+---
+
 ## 关键设计冻结
 
 - 第三章的 `Cilium Gateway API` 不迁移、不替换，只保留
 - 第五章新增 `Istio Ingress Gateway` 作为增强入口
 - `JWT`、入口授权与服务间零信任都统一放在 `Istio` 体系内演示
 - 服务间 `mTLS` 与服务身份授权都在 `mesh-demo` 命名空间中完成
+
+---
 
 ## 下一步
 

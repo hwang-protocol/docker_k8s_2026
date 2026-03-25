@@ -10,9 +10,13 @@
 
 本步完成后，集群才真正具备第五章后续 `mTLS`、服务身份与 L4 零信任能力的运行基础。
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
+
+---
 
 ## 问题背景
 
@@ -27,6 +31,8 @@
 这些能力都不是凭空出现的，必须先有一套能够承载服务身份和安全通信的基础面。
 
 因此本步不是“先把 Istio 装上”，而是要先把 Ambient 的底座铺好。
+
+---
 
 ## 理论说明
 
@@ -87,6 +93,11 @@ flowchart TD
 - 命名空间：`kube-system`
 
 对应脚本原文如下：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 current="$(kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.cni-exclusive}')"
@@ -150,6 +161,11 @@ flowchart LR
 
 例如给目标命名空间打上 Ambient 标签后，该命名空间里的工作负载就会进入 Ambient 网格：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
+
 ```bash
 kubectl label namespace mesh-demo istio.io/dataplane-mode=ambient --overwrite
 ```
@@ -171,6 +187,12 @@ kubectl label namespace mesh-demo istio.io/dataplane-mode=ambient --overwrite
 
 - `manifests/90_ambient_profile.yaml`
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/90_ambient_profile.yaml</code><br/>
+<strong>本页重点对象：</strong><code>IstioOperator</code><br/>
+<strong>作用：</strong>定义第五章安装的 <code>Ambient profile</code>，并把镜像来源固定到课程 Harbor
+</div>
+
 关键内容示意：
 
 ```yaml
@@ -191,6 +213,8 @@ spec:
 - `tag: 1.29.0`
   - 和第 1 步冻结的版本保持一致
 
+---
+
 ## 对应脚本
 
 - `k8s/05-security-and-zero-trust/scripts/02_install_istio_ambient.sh`
@@ -201,11 +225,18 @@ spec:
 - `istioctl` 已可在 `ops` 上直接使用
 - 当前集群状态正常
 
+---
+
 ## 脚本关键任务
 
 ### 关键任务 1：检查 `istioctl`
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 if ! command -v istioctl &>/dev/null; then
@@ -223,6 +254,11 @@ fi
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 kubectl -n kube-system patch configmap cilium-config --type merge -p '{"data":{"cni-exclusive":"false"}}'
 kubectl -n kube-system rollout restart daemonset/cilium
@@ -237,6 +273,11 @@ kubectl -n kube-system rollout restart daemonset/cilium
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 istioctl install -f "${PROFILE_FILE}" -y
 ```
@@ -250,6 +291,11 @@ istioctl install -f "${PROFILE_FILE}" -y
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 kubectl -n istio-system rollout status deploy/istiod --timeout=300s
 kubectl -n istio-system rollout status daemonset/ztunnel --timeout=300s
@@ -260,17 +306,36 @@ kubectl -n istio-system rollout status daemonset/istio-cni-node --timeout=300s
 
 - 第五章后续所有现象，都建立在这 3 组组件已经正常运行的前提上
 
+---
+
 ## 执行命令
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选预处理命令</strong><br/>
+如果脚本已具备执行权限，这一步可以跳过。
+</div>
 
 ```bash
 chmod +x /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/02_install_istio_ambient.sh
 ```
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令。
+</div>
+
 ```bash
 bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/02_install_istio_ambient.sh
 ```
 
+---
+
 ## 验证方法
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 kubectl -n istio-system get pods -o wide
@@ -294,6 +359,11 @@ kubectl -n istio-system get pods -o wide
 > `ztunnel` 在 Kubernetes 里本质上也是 `Pod`，只是它不是业务 Pod，而是由 `DaemonSet` 铺在各节点上的节点级系统代理。  
 > 所以这里看到“每个节点都有一个 `ztunnel-*`”，正是 Ambient 模式 `1 Node 1 proxy` 的体现。
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
+
 ```bash
 kubectl get crd | grep istio.io
 ```
@@ -306,6 +376,11 @@ kubectl get crd | grep istio.io
 预期结果：
 
 - 输出中能看到多个 `*.istio.io` CRD
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 istioctl version
@@ -320,6 +395,8 @@ istioctl version
 - 能正常输出本地 `istioctl` 版本
 - 已能读取集群中的控制面版本信息
 
+---
+
 ## 通过标准
 
 满足下面条件后，本步即可视为完成：
@@ -327,6 +404,8 @@ istioctl version
 - `cni-exclusive` 已调整为可共享模式
 - `istiod`、`ztunnel`、`istio-cni-node` 已正常运行
 - `Istio` 相关 CRD 已就绪
+
+---
 
 ## 下一步
 

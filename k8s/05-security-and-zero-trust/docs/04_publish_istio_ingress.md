@@ -12,9 +12,13 @@
 - 演示命名空间：`mesh-demo`
 - 演示应用：`helloworld`、`httpbin`、`curl-trusted`、`curl-untrusted`、`public-whoami`
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
+
+---
 
 ## 问题背景
 
@@ -29,6 +33,8 @@
 
 - `Cilium Gateway API`：基础发布
 - `Istio Ingress Gateway`：安全与治理增强
+
+---
 
 ## 理论说明
 
@@ -154,13 +160,11 @@ flowchart TD
 
 #### Ingress Gateway 的 Helm values
 
-来源文件：
-
-- `k8s/05-security-and-zero-trust/manifests/91_ingress_gateway_values.yaml`
-
-文件类型：
-
-- Helm values 文件
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/91_ingress_gateway_values.yaml</code><br/>
+<strong>本页重点对象：</strong><code>Ingress Gateway Helm values</code><br/>
+<strong>作用：</strong>安装第五章专用的 <code>Istio Ingress Gateway</code>，并让它以 <code>LoadBalancer</code> 方式固定获得 <code>10.1.1.62</code>
+</div>
 
 ```yaml
 global:
@@ -185,13 +189,11 @@ service:
 
 #### Istio Gateway
 
-来源文件：
-
-- `k8s/05-security-and-zero-trust/manifests/20_secure_app_gateway.yaml`
-
-对象类型：
-
-- `Gateway`
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/20_secure_app_gateway.yaml</code><br/>
+<strong>本页重点对象：</strong><code>Gateway</code><br/>
+<strong>作用：</strong>定义 <code>secure-app.qytk8s.com</code> 的入口监听规则，包括 <code>80 -> 443</code> 跳转与 <code>TLS Secret</code> 引用
+</div>
 
 ```yaml
 kind: Gateway
@@ -221,13 +223,11 @@ spec:
 
 #### 基线路由 `VirtualService`
 
-来源文件：
-
-- `k8s/05-security-and-zero-trust/manifests/21_virtualservice_baseline.yaml`
-
-对象类型：
-
-- `VirtualService`
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/21_virtualservice_baseline.yaml</code><br/>
+<strong>本页重点对象：</strong><code>VirtualService</code><br/>
+<strong>作用：</strong>定义第五章入口后的七层路径分流，把 <code>/public</code>、<code>/hello</code>、<code>/get</code> 等路径分别转发到不同后端
+</div>
 
 ```yaml
 kind: VirtualService
@@ -251,15 +251,24 @@ spec:
 - `httpbin-get`
   - 为后续服务间访问控制相关验证准备入口
 
+---
+
 ## 对应脚本
 
 - `k8s/05-security-and-zero-trust/scripts/03_publish_istio_ingress_demo.sh`
+
+---
 
 ## 脚本关键任务
 
 ### 关键任务 1：为 `secure-app.qytk8s.com` 签发证书
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 DOMAIN="secure-app.qytk8s.com"
@@ -276,6 +285,11 @@ VIP="10.1.1.62"
 ### 关键任务 2：安装 `Istio Ingress Gateway`
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 helm upgrade --install istio-ingressgateway "${chart_dir}" \
@@ -294,6 +308,11 @@ helm upgrade --install istio-ingressgateway "${chart_dir}" \
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 kubectl apply -f "${NAMESPACE_URL}"
 kubectl apply -f "${CLIENTS_URL}"
@@ -310,6 +329,11 @@ kubectl apply -f "${PUBLIC_WHOAMI_URL}"
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 kubectl apply -f "${GATEWAY_URL}"
 kubectl apply -f "${VIRTUALSERVICE_URL}"
@@ -319,17 +343,36 @@ kubectl apply -f "${VIRTUALSERVICE_URL}"
 
 - 这里把第五章自己的域名监听和路径转发规则落到集群里
 
+---
+
 ## 执行命令
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选预处理命令</strong><br/>
+如果脚本已具备执行权限，这一步可以跳过。
+</div>
 
 ```bash
 chmod +x /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/03_publish_istio_ingress_demo.sh
 ```
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令。
+</div>
+
 ```bash
 bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/03_publish_istio_ingress_demo.sh
 ```
 
+---
+
 ## 验证方法
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 kubectl -n istio-ingress get pods,svc -o wide
@@ -345,6 +388,11 @@ kubectl -n istio-ingress get pods,svc -o wide
 
 - `istio-ingressgateway` Pod 正常
 - `istio-ingressgateway` Service 获得 `10.1.1.62`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 kubectl -n mesh-demo get pods,svc
@@ -364,6 +412,11 @@ kubectl -n mesh-demo get pods,svc
 
 - `mesh-demo` 中相关 Pod 与 Service 都已出现
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
+
 ```bash
 curl -I --resolve secure-app.qytk8s.com:80:10.1.1.62 http://secure-app.qytk8s.com/public
 ```
@@ -376,6 +429,11 @@ curl -I --resolve secure-app.qytk8s.com:80:10.1.1.62 http://secure-app.qytk8s.co
 预期结果：
 
 - 返回 `301` 或 `302`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 curl --resolve secure-app.qytk8s.com:443:10.1.1.62 \
@@ -392,6 +450,8 @@ curl --resolve secure-app.qytk8s.com:443:10.1.1.62 \
 
 - `HTTPS` 返回 `200`
 - `/public` 路径能正常访问
+
+---
 
 ## win2019 侧要求
 
@@ -433,6 +493,8 @@ secure-app.qytk8s.com  ->  10.1.1.62
 - `https://secure-app.qytk8s.com/httpbin`
 - `https://secure-app.qytk8s.com/post`
 
+---
+
 ## 通过标准
 
 满足下面条件后，本步即可视为完成：
@@ -441,6 +503,8 @@ secure-app.qytk8s.com  ->  10.1.1.62
 - `mesh-demo` 演示环境已就绪
 - `HTTP -> HTTPS` 跳转正常
 - `HTTPS /public` 已能正常访问
+
+---
 
 ## 下一步
 

@@ -9,6 +9,8 @@
 - `waypoint`
 - 服务间 `AuthorizationPolicy`
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -27,6 +29,8 @@
 
 - 主脚本负责把这一页需要的安全对象统一准备好
 - 后面的 4.1 到 4.6 负责把每个知识点拆开讲清楚
+
+---
 
 ## 先把 JWT 讲清楚
 
@@ -117,6 +121,8 @@ flowchart LR
 - `AuthorizationPolicy`
   - 负责“就算 token 可信，你是否有权限访问”
 
+---
+
 ## 安全链路关系图
 
 ### 北向入口安全
@@ -152,6 +158,8 @@ flowchart LR
 - `mTLS` 负责建立可信链路
 - `AuthorizationPolicy` 再限制“谁可以访问 `httpbin`”
 
+---
+
 ## 本步脚本
 
 - `k8s/05-security-and-zero-trust/scripts/04_enable_jwt_and_mesh_security.sh`
@@ -162,21 +170,40 @@ flowchart LR
 - `secure-app.qytk8s.com` 已能通过 `HTTPS /public` 访问
 - `istioctl` 已可在 `ops` 上直接使用
 
+---
+
 ## 执行命令
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选预处理命令</strong><br/>
+如果脚本已具备执行权限，这一步可以跳过。
+</div>
 
 ```bash
 chmod +x /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/04_enable_jwt_and_mesh_security.sh
 ```
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令。
+</div>
+
 ```bash
 bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/04_enable_jwt_and_mesh_security.sh
 ```
+
+---
 
 ## 这个脚本具体做了什么
 
 ### 动作 1：生成 JWT 演示材料
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 python3 "${JWT_GENERATOR}"
@@ -214,6 +241,11 @@ python3 "${JWT_GENERATOR}"
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 istioctl waypoint apply --namespace mesh-demo --enroll-namespace --wait
 ```
@@ -228,6 +260,11 @@ istioctl waypoint apply --namespace mesh-demo --enroll-namespace --wait
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 kubectl apply -f "${REQUEST_AUTH_URL}"
 kubectl apply -f "${INGRESS_AUTHZ_URL}"
@@ -240,6 +277,12 @@ kubectl apply -f "${HTTPBIN_AUTHZ_URL}"
 这一步会把下面 4 份安全清单一次性创建好：
 
 #### 30_requestauthentication_ingress.yaml
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/30_requestauthentication_ingress.yaml</code><br/>
+<strong>本页重点对象：</strong><code>RequestAuthentication</code><br/>
+<strong>作用：</strong>让第五章入口网关具备 JWT 验签与身份解析能力
+</div>
 
 对应变量：
 
@@ -287,6 +330,12 @@ spec:
   - 表示验证通过后，原始 token 还能继续向后传递
 
 #### 31_authorizationpolicy_ingress_jwt.yaml
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/31_authorizationpolicy_ingress_jwt.yaml</code><br/>
+<strong>本页重点对象：</strong><code>AuthorizationPolicy</code><br/>
+<strong>作用：</strong>在入口层按 JWT 身份控制访问，保留 <code>/public</code> 作为匿名对照路径
+</div>
 
 对应变量：
 
@@ -345,6 +394,12 @@ spec:
 
 #### 32_peerauthentication_mesh_demo.yaml
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/32_peerauthentication_mesh_demo.yaml</code><br/>
+<strong>本页重点对象：</strong><code>PeerAuthentication</code><br/>
+<strong>作用：</strong>把 <code>mesh-demo</code> 命名空间切到 <code>STRICT mTLS</code>，为服务间零信任打底
+</div>
+
 对应变量：
 
 - `PEER_AUTH_URL`
@@ -382,6 +437,12 @@ spec:
   - 不再接受普通明文方式的网格内访问
 
 #### 33_authorizationpolicy_httpbin_waypoint.yaml
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/33_authorizationpolicy_httpbin_waypoint.yaml</code><br/>
+<strong>本页重点对象：</strong><code>AuthorizationPolicy</code><br/>
+<strong>作用：</strong>在 <code>waypoint</code> 路径上限制只有指定服务身份可以访问 <code>httpbin</code>
+</div>
 
 对应变量：
 
@@ -437,6 +498,11 @@ spec:
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 kubectl get requestauthentication,authorizationpolicy,peerauthentication -A
 ```
@@ -490,6 +556,8 @@ mesh-demo   peerauthentication.security.istio.io/mesh-demo-strict   STRICT   18s
 - 服务间授权对象已经存在
 - 命名空间级 `mTLS` 对象已经存在
 
+---
+
 ## 后续讲解与验证方式
 
 主脚本执行完成后，本节内容再拆成 6 个功能单元依次讲解。每个单元均采用统一结构：
@@ -503,6 +571,8 @@ mesh-demo   peerauthentication.security.istio.io/mesh-demo-strict   STRICT   18s
 
 - 主脚本负责把安全对象铺到位
 - 下面的小节负责解释每个对象到底解决什么问题
+
+---
 
 ## 讲解顺序
 
@@ -521,6 +591,8 @@ mesh-demo   peerauthentication.security.istio.io/mesh-demo-strict   STRICT   18s
 - 再讲“入口如何拒绝未授权请求”
 - 再讲“网格内部如何建立零信任”
 
+---
+
 ## 4.1 生成 JWT 演示材料
 
 ### 问题背景
@@ -536,6 +608,11 @@ mesh-demo   peerauthentication.security.istio.io/mesh-demo-strict   STRICT   18s
 - 必须先有一套“谁签发、用什么公钥校验”的材料
 
 ### 验证方法
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 ls -lh /docker_k8s_2026/k8s/05-security-and-zero-trust/pki
@@ -576,6 +653,8 @@ ls -lh /docker_k8s_2026/k8s/05-security-and-zero-trust/pki
   - 管理员身份的演示 token
   - 后面用它来验证“不同身份的 claim，是否会触发不同访问结果”
 
+---
+
 ## 4.2 应用 RequestAuthentication
 
 ### 问题背景
@@ -592,6 +671,11 @@ ls -lh /docker_k8s_2026/k8s/05-security-and-zero-trust/pki
 
 ### 验证方法
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
+
 ```bash
 kubectl -n istio-ingress get requestauthentication
 ```
@@ -606,6 +690,8 @@ kubectl -n istio-ingress get requestauthentication
   - 验签
   - 解析身份信息
 - 但这些能力是否已经按预期真正生效，仍要结合后面的实际访问测试再确认
+
+---
 
 ## 4.3 应用入口 AuthorizationPolicy
 
@@ -626,11 +712,21 @@ kubectl -n istio-ingress get requestauthentication
 
 ### 验证方法
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
+
 ```bash
 kubectl -n istio-ingress get authorizationpolicy
 ```
 
 再把后面要用到的正确 token 先读出来：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 cat /docker_k8s_2026/k8s/05-security-and-zero-trust/pki/user.jwt
@@ -648,6 +744,11 @@ cat /docker_k8s_2026/k8s/05-security-and-zero-trust/pki/user.jwt
 
 #### 测试 1：不带 token 访问 `/hello`
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
+
 ```bash
 curl -s -o /tmp/ch5_jwt_no_token.txt -w '%{http_code}\n' \
   --resolve secure-app.qytk8s.com:443:10.1.1.62 \
@@ -660,6 +761,11 @@ curl -s -o /tmp/ch5_jwt_no_token.txt -w '%{http_code}\n' \
 - 返回 `403`
 
 #### 测试 2：带错误 token 访问 `/hello`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 curl -s -o /tmp/ch5_jwt_bad_token.txt -w '%{http_code}\n' \
@@ -675,6 +781,11 @@ curl -s -o /tmp/ch5_jwt_bad_token.txt -w '%{http_code}\n' \
 
 #### 测试 3：带正确 token 访问 `/hello`
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
+
 ```bash
 USER_TOKEN="$(tr -d '\n' < /docker_k8s_2026/k8s/05-security-and-zero-trust/pki/user.jwt)"
 curl -s -o /tmp/ch5_jwt_good_token.txt -w '%{http_code}\n' \
@@ -684,6 +795,11 @@ curl -s -o /tmp/ch5_jwt_good_token.txt -w '%{http_code}\n' \
   https://secure-app.qytk8s.com/hello
 ```
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
+
 ```bash
 sed -n '1,20p' /tmp/ch5_jwt_good_token.txt
 ```
@@ -692,6 +808,8 @@ sed -n '1,20p' /tmp/ch5_jwt_good_token.txt
 
 - 返回 `200`
 - 正文里能看到 `helloworld` 返回内容
+
+---
 
 ## 4.4 将 mesh-demo 纳入 waypoint
 
@@ -710,11 +828,21 @@ sed -n '1,20p' /tmp/ch5_jwt_good_token.txt
 
 先执行第一条命令：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
+
 ```bash
 kubectl -n mesh-demo get gateway
 ```
 
 再执行第二条命令：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 kubectl -n mesh-demo get pods,svc | grep waypoint
@@ -769,6 +897,8 @@ service/waypoint        ClusterIP   10.97.132.53     <none>        15021/TCP,150
 - 后续 L7 授权已经有了承载点
 - 本小节的重点不是立即观察拦截现象，而是先确认 `waypoint` 运行基础已经就绪
 
+---
+
 ## 4.5 应用 PeerAuthentication STRICT
 
 ### 问题背景
@@ -786,11 +916,21 @@ service/waypoint        ClusterIP   10.97.132.53     <none>        15021/TCP,150
 
 先确认策略对象已经存在：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
+
 ```bash
 kubectl -n mesh-demo get peerauthentication
 ```
 
 再做一个更接近“是否真的走了加密链路”的简单验证：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 istioctl ztunnel-config workloads | grep mesh-demo
@@ -829,6 +969,11 @@ mesh-demo-strict   STRICT   16m
 但只看对象存在还不够，最好再补一个更接近“链路是否真的进入加密通道”的验证。
 
 参考官方在 Ambient 场景里的做法，可以用：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 istioctl ztunnel-config workloads | grep mesh-demo
@@ -888,6 +1033,8 @@ mesh-demo            waypoint-6848584f99-86bjd                         10.244.6.
 - `istioctl ztunnel-config workloads`
   - 更进一步证明相关工作负载已经进入 Ambient 的加密传输通道
 
+---
+
 ## 4.6 应用 httpbin 服务身份授权
 
 ### 问题背景
@@ -904,6 +1051,11 @@ mesh-demo            waypoint-6848584f99-86bjd                         10.244.6.
 ### 验证方法
 
 先确认服务间授权对象已经存在：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 kubectl -n mesh-demo get authorizationpolicy
@@ -941,6 +1093,11 @@ httpbin-waypoint-l7   ALLOW    25m
 
 #### 测试 1：trusted-client 访问 `httpbin`
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
+
 ```bash
 kubectl -n mesh-demo exec deploy/curl-trusted -- \
   curl -s -o /dev/null -w '%{http_code}\n' \
@@ -952,6 +1109,11 @@ kubectl -n mesh-demo exec deploy/curl-trusted -- \
 - 应返回 `200`
 
 #### 测试 2：untrusted-client 访问 `httpbin`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于查看当前状态。
+</div>
 
 ```bash
 kubectl -n mesh-demo exec deploy/curl-untrusted -- \
@@ -970,6 +1132,8 @@ kubectl -n mesh-demo exec deploy/curl-untrusted -- \
 - 第五章的安全模型不仅作用于入口，也作用于服务间访问
 - 网格内部访问同样遵循按身份最小授权的原则
 
+---
+
 ## 本节通过标准
 
 - `JWT` 材料已经生成
@@ -978,6 +1142,8 @@ kubectl -n mesh-demo exec deploy/curl-untrusted -- \
 - `mesh-demo` 已纳入 `waypoint`
 - `PeerAuthentication STRICT` 已生效
 - `httpbin` 服务身份授权已生效
+
+---
 
 ## 下一步
 
