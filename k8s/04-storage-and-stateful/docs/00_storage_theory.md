@@ -22,11 +22,11 @@
 
 但前面大多数工作负载，本质上还是**无状态**。
 
-第四章要补上的问题是：
+第四章要补齐的能力包括：
 
-- 当前 Pod 被删除后，自动重建的新 Pod 继续挂同一 PVC 时，数据放哪
-- 应用需要持久化卷时，Kubernetes 怎么分配存储
-- 为什么 Kubernetes 不能只会跑无状态业务
+- `Pod` 可以被删除和重建，但业务数据不能跟着一起丢失
+- 应用需要持久卷时，集群必须能够动态提供存储
+- Kubernetes 不只承载无状态工作负载，也要承载数据库、消息队列这类有状态服务
 
 这一章结束后，要能把下面这句话讲清楚：
 
@@ -44,24 +44,67 @@ flowchart LR
   pvc[PersistentVolumeClaim]
   sc[StorageClass]
   pv[PersistentVolume]
-  backend[Longhorn 卷]
+  subgraph backend["Longhorn 存储后端"]
+    direction TB
+    volume[Longhorn Volume]
+  end
 
   app --> pvc
   pvc --> sc
   sc --> pv
-  pv --> backend
+  pv --> volume
 ```
 
 这张图要先记住：
 
+- `Pod` 是真正使用存储的应用
 - `PVC` 是应用发起的卷申请
-- `StorageClass` 是“怎么分卷”的模板
-- `PV` 是最终交付出来的卷对象
-- 真正的数据后端在第四章里就是 `Longhorn`
+- `StorageClass` 是这次申请应使用哪种存储档位
+- `PV` 是 Kubernetes 最终交付出来的卷对象
+- `Longhorn` 存储后端里真正落地的是 `Longhorn Volume`
+
+先单独理解 `StorageClass`：
+
+- 它可以把不同类型、不同性能、不同成本的存储，封装成不同档位
+- `PVC` 再按需要申请某一种档位
+
+例如可以抽象成：
+
+- `gold`
+  - 高性能，本地 `NVMe / SSD`
+- `silver`
+  - 通用型，本地机械盘或 `RAID`
+- `bronze`
+  - 低成本，远端共享存储或低性能块存储
+
+也可以先用一个更直观的比喻把整条链路串起来：
+
+- `Pod`
+  - 相当于真正要吃面包的小孩
+- `PVC`
+  - 相当于“小孩提出我要某一种面包”的申请
+- `StorageClass`
+  - 相当于面包的类型或档位，例如全麦、高筋、普通白面包
+- `PV`
+  - 相当于最后真正端到手上的那一份面包
+
+对应到比喻图，可以先这样理解：
+
+```mermaid
+flowchart LR
+  child["要吃面包的小孩"]
+  request["我要某一种面包"]
+  breadclass["面包类型 / 档位<br/>全麦 / 高筋 / 普通"]
+  bread["最终端到手上的特定类型面包"]
+
+  child --> request
+  request --> breadclass
+  breadclass --> bread
+```
 
 一句话收束：
 
-> `PVC` 提需求，`StorageClass` 定规则，`PV` 是最终交付出来的卷。
+> `PVC` 提需求，`StorageClass` 选档位，`PV` 是最终交付出来的卷。
 
 ### 为什么存储比网络更容易让人紧张
 
@@ -83,14 +126,18 @@ flowchart LR
 
 > 业务 Pod 没了可以重建，但数据不能跟着一起没。
 
-### 为什么本章主线选 `Longhorn`
+### 本章当前实践选择 `Longhorn`
 
-第四章主线先选 `Longhorn`，而不先展开 `Ceph` 或传统集中式 `iSCSI`，是因为它与本章的教学目标更匹配：
+第四章当前实践以 `Longhorn` 为例。
 
-- 与 `StorageClass`、`PVC`、`Pod` 的使用链路衔接更直接
-- 更便于讲清卷、副本、节点与调度之间的关系
-- 组件层次相对集中，更适合作为云原生持久化存储的入门模型
-- 在不引入过多额外复杂度的前提下，仍然能够覆盖动态供给、故障切换与副本重建这些核心主题
+这一章先用一套具体实现，把下面这条主线讲清楚：
+
+- `StorageClass`
+- `PVC`
+- 卷
+- 副本
+- 节点
+- 数据保留
 
 ### `Longhorn` 的核心思路
 
@@ -101,7 +148,7 @@ flowchart LR
 1. 它给 Kubernetes 提供动态卷能力。
 2. 它可以为卷创建多个副本。
 3. 某个节点坏了，卷不一定就没了。
-4. 它和 `PVC / StorageClass` 结合得很自然。
+4. 它可以通过 `StorageClass` 为 `PVC` 动态创建卷。
 
 ### `Longhorn` 在这一章里的关系图
 
@@ -123,11 +170,15 @@ flowchart LR
   volume --> replica3
 ```
 
+> 说明：
+>
+> 本章不是“默认碰巧有 3 副本”，而是在 `manifests/01_longhorn_values.yaml` 中明确写了 `defaultReplicaCount: 3` 和 `defaultClassReplicaCount: 3`。也就是说，第四章主线里的卷默认按 `3` 副本创建。`Longhorn` 会尽量把这些副本分散到不同节点；某个节点故障后，只要仍有可用副本，卷就还有恢复与重建的基础。
+
 这张图表达的是：
 
-- 应用看到的是 PVC
-- Kubernetes 看到的是 `StorageClass`
-- Longhorn 真正做的是卷创建和副本分布
+- 应用侧主要通过 `PVC` 使用存储
+- Kubernetes 按 `StorageClass` 的规则完成卷对象的动态供给
+- `Longhorn` 后端真正承载的是卷创建与副本分布
 
 这里要特别建立一个关键认识：
 
@@ -135,7 +186,9 @@ flowchart LR
 - `Pod` 可以被删除、重建、漂移到其他节点
 - 但只要业务重新挂载的还是同一个 `PVC`，就仍然是在访问原来的那一块卷
 
-因此，在持久化存储模型下，只要工作负载由 `Deployment` 或 `StatefulSet` 这类控制器管理，即使当前 `Pod` 挂掉并被系统自动重建到另一个节点，只要卷能够重新附加并挂载成功，它仍然可以继续读取之前已经写入的数据。
+> 说明：
+>
+> 在持久化存储模型下，`Pod` 即使被重建到另一个节点，只要同一个 `PVC` 对应的卷能重新附加并挂载成功，就仍然可以继续读取之前已经写入的数据。
 
 ### `Longhorn vs Ceph`
 
@@ -151,7 +204,7 @@ flowchart LR
 
 - 架构更重
 - 运维复杂度更高
-- 课堂初学者更容易被组件细节淹没
+- 组件层次更多
 
 而 `Longhorn` 更像专门面向 Kubernetes 场景的分布式块存储，重点放在：
 
@@ -171,14 +224,9 @@ flowchart LR
 - 但它的设计和使用方式更贴近 Kubernetes 场景
 - `Ceph` 也可以很好地服务 Kubernetes，只是它本身的目标范围更大，不只面向 Kubernetes
 
-因此，如果以课堂入门和第四章主线为目标，`Longhorn` 更适合作为第一套实践模型；而 `Ceph` 往往更适合在学员已经建立起卷、副本、故障恢复这些基础概念之后，再去展开更完整的分布式存储体系。
+因此，就第四章当前范围而言，`Longhorn` 更适合作为本章实践模型；`Ceph` 更适合在后续单独展开更完整的分布式存储体系。
 
-从运维角度看，`Ceph` 通常也会比 `Longhorn` 更重一些，因为它的组件层次、功能覆盖面和故障处理面都更大。
-
-也就是说：
-
-- `Ceph` 更适合讲“完整的大型分布式存储平台”
-- `Longhorn` 更适合先把 Kubernetes 的有状态主线讲清楚
+从实施与运维范围看，`Ceph` 通常也会比 `Longhorn` 更重一些，因为它的组件层次、功能覆盖面和故障处理面都更大。
 
 ### `Longhorn vs 传统 iSCSI`
 
@@ -242,30 +290,53 @@ flowchart LR
 
 ### 本章最终要让学员看到什么
 
-这一章结束后，学员应该能看到下面这条完整链路：
+这一章结束后，学员首先应能看清下面这条主线：删除的是 `Pod`，不是数据。
 
 ```mermaid
-flowchart LR
-  ctrl[Deployment 1 副本]
-  pvc[PVC]
-  sc[StorageClass longhorn]
-  volume[Longhorn 动态创建卷]
-  pod1[当前 Pod 挂载卷]
-  write[写入数据]
-  delete[删除当前 Pod]
-  pod2[控制器自动拉起新 Pod]
-  data[数据仍然存在]
+flowchart TB
+  ctrl["1. Deployment 控制器<br/>保持 1 副本"]
+  pvc["同一个 PVC"]
+  sc["StorageClass longhorn"]
+  volume["同一个 Longhorn Volume"]
 
-  ctrl --> pod1
-  ctrl --> pod2
+  subgraph old["节点 A"]
+    direction TB
+    pod1["2. 当前 Pod"]
+    write["3. 写入数据"]
+    delete["4. 删除当前 Pod"]
+    pod1 --> write
+    write --> delete
+  end
+
+  subgraph new["节点 B"]
+    direction TB
+    pod2["5. Deployment 自动拉起新 Pod"]
+    read["6. 继续读取原有数据"]
+    pod2 --> read
+  end
+
+  ctrl -->|先创建| pod1
+  delete -->|副本缺失| ctrl
+  ctrl -->|自动补齐| pod2
+
+  pod1 -->|挂载| pvc
+  pod2 -->|重新挂载| pvc
   pvc --> sc
   sc --> volume
-  volume --> pod1
-  pod1 --> write
-  write --> delete
-  delete --> pod2
-  pod2 --> data
 ```
+
+这张图强调的是：
+
+- `1`
+  - `Deployment` 控制器保证业务始终维持 `1` 个副本
+- `2 ~ 4`
+  - 当前 `Pod` 在节点 A 运行、写入数据，然后被删除
+- `5`
+  - `Deployment` 发现副本缺失后，会自动补齐一个新 `Pod`，这个新 `Pod` 可以被调度到另一个节点
+- `2` 和 `5`
+  - 前后两个 `Pod` 挂载的都是同一个 `PVC`
+- `同一个 PVC -> StorageClass -> 同一个 Longhorn Volume`
+  - 这条存储链路没有改变，因此删除当前 `Pod` 不等于删除数据
 
 然后还能继续看到这一章的扩容演进路径：
 
