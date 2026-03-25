@@ -798,11 +798,23 @@ cat /docker_k8s_2026/k8s/05-security-and-zero-trust/pki/user.jwt
   - 不能单独证明访问结果已经完全符合预期
 - 真实访问效果，还要用下面 3 组请求逐个验证
 
+### 必做访问测试
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
+<strong>❗ 以下 3 组测试必须执行</strong><br/>
+重点只看 3 个结果：无 token 返回 `403`，错误 token 返回 `401`，正确 token 返回 `200` 且正文出现 `helloworld`。
+</div>
+
+<div style="padding: 12px 16px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 14px 0;">
+<strong>测试大类：入口 JWT 访问控制测试</strong><br/>
+即将开始验证入口对 3 类请求的处理结果：无 token、错误 token、正确 token。
+</div>
+
 #### 测试 1：不带 token 访问 `/hello`
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：验证未携带 JWT 时，入口是否直接拒绝访问。
 </div>
 
 ```bash
@@ -816,11 +828,13 @@ curl -s -o /tmp/ch5_jwt_no_token.txt -w '%{http_code}\n' \
 
 - 返回 `403`
 
+---
+
 #### 测试 2：带错误 token 访问 `/hello`
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：验证携带非法 JWT 时，入口是否在验签阶段直接拒绝。
 </div>
 
 ```bash
@@ -835,11 +849,13 @@ curl -s -o /tmp/ch5_jwt_bad_token.txt -w '%{http_code}\n' \
 
 - 返回 `401`
 
+---
+
 #### 测试 3：带正确 token 访问 `/hello`
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：读取合法 JWT 并发起请求，验证入口是否允许通过。
 </div>
 
 ```bash
@@ -851,9 +867,9 @@ curl -s -o /tmp/ch5_jwt_good_token.txt -w '%{http_code}\n' \
   https://secure-app.qytk8s.com/hello
 ```
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：读取成功响应正文，确认返回的确实是后端业务内容。
 </div>
 
 ```bash
@@ -965,129 +981,161 @@ service/waypoint        ClusterIP   10.97.132.53     <none>        15021/TCP,150
 
 本小节需要明确：
 
-- `PeerAuthentication STRICT` 的目标不是控制业务路径
-- 而是强制服务间通信走可信的 `mTLS` 链路
+- `PeerAuthentication` 的重点不是控制业务路径
+- 而是定义服务间通信是否必须使用 `mTLS`
+- `PERMISSIVE` 表示同时允许明文和 `mTLS`
+- `STRICT` 表示只允许 `mTLS`
+
+参考 Istio 官方在 Ambient 场景中的说明：
+
+- 未纳入 mesh 的 Pod 会直接访问目标服务
+- 如果目标命名空间启用了 `STRICT`
+  - 这类来自 mesh 外的明文访问应被拒绝
+
+```mermaid
+flowchart LR
+    subgraph permissive[PERMISSIVE 阶段]
+        ext1[default 命名空间临时 Pod<br/>未纳入 mesh]
+        svc1[public-whoami<br/>mesh-demo]
+        mode1[PeerAuthentication<br/>PERMISSIVE]
+        ext1 -->|明文访问可通过| svc1
+        mode1 -. 同时允许明文和 mTLS .-> svc1
+    end
+
+    subgraph strict[STRICT 阶段]
+        ext2[default 命名空间临时 Pod<br/>未纳入 mesh]
+        svc2[public-whoami<br/>mesh-demo]
+        mode2[PeerAuthentication<br/>STRICT]
+        ext2 -. 明文访问被拒绝 .-> svc2
+        mode2 -. 只允许 mTLS .-> svc2
+    end
+```
+
+这张图只表达一个课堂重点：
+
+- 当 `mesh-demo` 处于 `PERMISSIVE` 时，来自 `default` 命名空间的明文访问可以成功
+- 当 `mesh-demo` 切到 `STRICT` 后，同一条访问路径会被拒绝
+- 所以后面的 6 步测试，本质上就是把这张图里的左右两种状态分别演示一遍
 
 ### 验证方法
 
-先确认策略对象已经存在：
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
+<strong>❗ 本段必须执行完整对比测试</strong><br/>
+按照官方思路，先验证 `PERMISSIVE` 时网格外访问可以成功，再验证切回 `STRICT` 后同样访问被拒绝。
+</div>
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
+<div style="padding: 12px 16px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 14px 0;">
+<strong>测试大类：PeerAuthentication 官方案例式对比测试</strong><br/>
+即将开始验证 `mesh-demo` 是否从“允许明文访问”切换为“拒绝 mesh 外明文访问”。
+</div>
+
+#### 测试 1：先切换到 `PERMISSIVE`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：先把 `mesh-demo` 从“只允许 mTLS”切到“允许明文和 mTLS 都通过”。
+</div>
+
+```bash
+kubectl -n mesh-demo patch peerauthentication mesh-demo-strict \
+  --type merge \
+  -p '{"spec":{"mtls":{"mode":"PERMISSIVE"}}}'
+```
+
+#### 测试 2：确认当前模式已经是 `PERMISSIVE`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：确认刚才的切换已经生效，避免后面测试时讲不清当前到底处于什么模式。
 </div>
 
 ```bash
 kubectl -n mesh-demo get peerauthentication
 ```
 
-再做一个更接近“是否真的走了加密链路”的简单验证：
+#### 测试 3：在 `PERMISSIVE` 模式下，从 mesh 外发起访问
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：从未纳入 Ambient 的 `default` 命名空间访问 `public-whoami`，观察明文访问是否可以成功。
 </div>
 
 ```bash
-istioctl ztunnel-config workloads | grep mesh-demo
+kubectl delete pod mtls-check-permissive -n default --ignore-not-found
+kubectl run mtls-check-permissive -n default \
+  --image=harbor.qytk8s.com/istio/curl:8.12.1 \
+  --restart=Never --rm -i \
+  --command -- sh -c "curl -sS --max-time 5 http://public-whoami.mesh-demo"
+```
+
+---
+
+#### 测试 4：再切换回 `STRICT`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：把 `mesh-demo` 切回严格 `mTLS`，准备验证同一条 mesh 外访问是否会被拒绝。
+</div>
+
+```bash
+kubectl -n mesh-demo patch peerauthentication mesh-demo-strict \
+  --type merge \
+  -p '{"spec":{"mtls":{"mode":"STRICT"}}}'
+```
+
+#### 测试 5：确认当前模式已经是 `STRICT`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：确认当前已经回到严格模式。
+</div>
+
+```bash
+kubectl -n mesh-demo get peerauthentication
+```
+
+#### 测试 6：在 `STRICT` 模式下，从 mesh 外再次发起访问
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：继续从 `default` 命名空间访问同一个服务，观察严格 `mTLS` 是否会拒绝 mesh 外明文流量。
+</div>
+
+```bash
+kubectl delete pod mtls-check-strict -n default --ignore-not-found
+kubectl run mtls-check-strict -n default \
+  --image=harbor.qytk8s.com/istio/curl:8.12.1 \
+  --restart=Never --rm -i \
+  --command -- sh -c "curl -sS --max-time 5 -o /dev/null -w '%{http_code}\n' http://public-whoami.mesh-demo || true"
 ```
 
 ### 预期结果
 
-原始输出示例：
+重点只看下面 2 组结果：
 
-```text
-root@ops:/docker_k8s_2026# kubectl -n mesh-demo get peerauthentication
-NAME               MODE     AGE
-mesh-demo-strict   STRICT   16m
-```
+1. `PERMISSIVE` 阶段
+- `kubectl -n mesh-demo get peerauthentication` 中应看到 `MODE=PERMISSIVE`
+- 访问 `public-whoami.mesh-demo` 时，应能看到正常返回内容
 
-这条输出可以直接说明：
+2. `STRICT` 阶段
+- `kubectl -n mesh-demo get peerauthentication` 中应看到 `MODE=STRICT`
+- 再次访问 `public-whoami.mesh-demo` 时，不应成功
+- 常见表现是：
+  - 返回 `000`
+  - `Recv failure: Connection reset by peer`
+  - 或其他非成功现象
 
-- `mesh-demo-strict`
-  - 这份 `PeerAuthentication` 对象已经创建成功
-- `MODE=STRICT`
-  - 表示 `mesh-demo` 命名空间已经进入严格 `mTLS` 模式
+通过标准：
 
-这份对象是什么时候配置进去的，也要说清楚：
+- `PERMISSIVE` 时，mesh 外访问可以成功
+- `STRICT` 时，同一条 mesh 外访问失败
+- 这就说明 `mesh-demo` 已经从“允许明文”切换为“只允许 `mTLS`”
 
-- 它不是在这一小节单独创建的
+补充说明：
+
+- 这份对象不是在本小节单独创建的
 - 而是在本页主脚本 `04_enable_jwt_and_mesh_security.sh` 的“动作 3：统一应用安全对象”里一起 apply 进去的
-- 对应清单文件是：
-  - `32_peerauthentication_mesh_demo.yaml`
-
-所以这一小节的重点是：
-
-- 通过 `get peerauthentication` 确认这份对象已经存在
-- 再理解它代表 `mesh-demo` 已经具备严格 `mTLS` 基础
-- 后续服务身份授权，都是建立在这个可信通信前提之上
-
-但只看对象存在还不够，最好再补一个更接近“链路是否真的进入加密通道”的验证。
-
-参考官方在 Ambient 场景里的做法，可以用：
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
-</div>
-
-```bash
-istioctl ztunnel-config workloads | grep mesh-demo
-```
-
-原始输出示例：
-
-```text
-root@ops:/docker_k8s_2026# istioctl ztunnel-config workloads | grep mesh-demo
-mesh-demo            curl-trusted-57f8485cbd-l5wvx                     10.244.6.58     wk-app01  None     HBONE
-mesh-demo            curl-untrusted-b57ffdb67-8htj8                    10.244.1.62     wk-edge01 None     HBONE
-mesh-demo            helloworld-v1-5fd96c594-72bkz                     10.244.0.55     wk-app02  None     HBONE
-mesh-demo            helloworld-v2-7ccd5697d8-nc6lq                    10.244.6.209    wk-app01  None     HBONE
-mesh-demo            httpbin-855b99578f-p7w2j                          10.244.1.184    wk-edge01 None     HBONE
-mesh-demo            public-whoami-d4747f567-cm972                     10.244.0.56     wk-app02  None     HBONE
-mesh-demo            waypoint-6848584f99-86bjd                         10.244.6.175    wk-app01  None     TCP
-```
-
-这里重点看输出里的 `PROTOCOL` 列：
-
-- `PROTOCOL=HBONE`
-  - 说明该工作负载的服务间通信已经进入 Ambient 的 `HBONE` 通道
-  - 而 `HBONE` 正是 Ambient 模式下承载 `mTLS` 加密通信的协议
-
-所以对课堂来说，可以直接把它理解成：
-
-- 看到 `PROTOCOL=HBONE`
-  - 就可以说明这类流量已经不是普通明文直连
-  - 而是已经进入 Ambient 的加密通信路径
-
-对这份输出可以这样读：
-
-- `curl-trusted`
-- `curl-untrusted`
-- `helloworld-v1`
-- `helloworld-v2`
-- `httpbin`
-- `public-whoami`
-  - 它们的 `PROTOCOL` 都是 `HBONE`
-  - 这说明这些业务工作负载已经进入 Ambient 的加密通信通道
-
-- `waypoint`
-  - 显示为 `TCP`
-  - 这并不表示 Ambient 失效
-  - 因为 `waypoint` 本身就是承担七层代理逻辑的特殊工作负载，不按普通业务 Pod 的 `HBONE` 视角展示
-
-所以课堂上真正要抓住的是：
-
-- 业务工作负载看到 `HBONE`
-  - 就足以说明 `mesh-demo` 里相关服务流量已经进入加密链路
-- 不要因为 `waypoint` 这一行显示 `TCP`，就误以为 `mTLS` 没有生效
-
-也就是说，这一小节更完整的理解应该是：
-
-- `kubectl get peerauthentication`
-  - 证明严格 `mTLS` 策略对象已经存在
-- `istioctl ztunnel-config workloads`
-  - 更进一步证明相关工作负载已经进入 Ambient 的加密传输通道
+- 对应清单文件是 `32_peerauthentication_mesh_demo.yaml`
 
 ---
 
@@ -1147,11 +1195,23 @@ httpbin-waypoint-l7   ALLOW    25m
 
 确认对象存在之后，再分别做 `trusted-client` 和 `untrusted-client` 的访问测试。
 
+### 必做访问测试
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
+<strong>❗ 以下 2 组测试必须执行</strong><br/>
+重点只看 2 个结果：`trusted-client` 返回 `200`，`untrusted-client` 出现拒绝结果。
+</div>
+
+<div style="padding: 12px 16px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 14px 0;">
+<strong>测试大类：Waypoint 来源身份授权测试</strong><br/>
+即将开始验证 `waypoint` 是否会根据不同服务身份给出放行或拒绝结果。
+</div>
+
 #### 测试 1：trusted-client 访问 `httpbin`
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：验证被允许的 `trusted-client` 是否可以正常访问 `httpbin`。
 </div>
 
 ```bash
@@ -1164,11 +1224,13 @@ kubectl -n mesh-demo exec deploy/curl-trusted -- \
 
 - 应返回 `200`
 
+---
+
 #### 测试 2：untrusted-client 访问 `httpbin`
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+用途：验证未被授权的 `untrusted-client` 是否会被策略拒绝。
 </div>
 
 ```bash
