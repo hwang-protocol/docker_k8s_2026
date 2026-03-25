@@ -48,22 +48,41 @@
 flowchart LR
   values[longhorn values]
   helm[Helm 安装]
-  manager[longhorn-manager]
-  ui[longhorn-ui]
-  sc[StorageClass longhorn]
-  nodes[首批 3 个存储节点]
+  manager[1. longhorn-manager]
+  driver[2. longhorn-driver-deployer]
+  ui[3. longhorn-ui]
+  sc[4. StorageClass longhorn]
+  nodes[5. 首批 3 个存储节点<br/>进入默认数据盘初始化范围]
+  csi[6. CSI 相关组件]
 
   values --> helm
   helm --> manager
+  helm --> driver
   helm --> ui
   helm --> sc
   manager --> nodes
+  driver --> csi
 ```
 
 这张图说明：
 
-- 第四章安装并不是只“起几个 Pod”
-- 它真正建立的是一套可被 Kubernetes 消费的存储后端
+- `Helm` 实际安装的不止这几个对象
+- 这张图先抓安装后最关键的几个角色
+
+按图里的编号，可以先这样理解：
+
+- `1. longhorn-manager`
+  - Longhorn 的核心管理组件，负责节点、磁盘、卷、副本和调度等核心逻辑
+- `2. longhorn-driver-deployer`
+  - 负责把 Longhorn 对接到 Kubernetes `CSI` 体系
+- `3. longhorn-ui`
+  - Longhorn 的 `Web UI`，用于后续观察节点、卷和副本状态
+- `4. StorageClass longhorn`
+  - Kubernetes 动态供给卷的入口；后续 `PVC` 通过它申请 Longhorn 卷
+- `5. 首批 3 个存储节点`
+  - 不是 Helm 安装出来的组件，而是本步通过节点标签和注解纳入默认数据盘初始化范围
+- `6. CSI 相关组件`
+  - 负责让 Kubernetes 真正完成卷创建、挂载、扩容等动作
 
 ### 为什么安装阶段先只初始化 3 个节点的数据盘
 
@@ -79,36 +98,54 @@ flowchart LR
 
 ### 本步关键配置
 
-本步真正消费的关键配置文件是：
+本步实际消费的是：
 
+- `artifacts/longhorn-1.11.0.tgz`
 - `manifests/01_longhorn_values.yaml`
 
-- 来源文件：`manifests/01_longhorn_values.yaml`
-- 文件类型：`Helm values`
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/01_longhorn_values.yaml</code><br/>
+<strong>本页重点对象：</strong><code>Longhorn Helm values</code><br/>
+<strong>作用：</strong>定义第四章 Longhorn 安装参数，包括默认数据路径、默认副本数、默认 <code>StorageClass</code> 行为与 UI 服务暴露方式
+</div>
 
-其中最重要的字段是：
+关键字段摘录：
 
 ```yaml
+global:
+  imageRegistry: harbor.qytk8s.com
+  cattle:
+    systemDefaultRegistry: harbor.qytk8s.com
+
+privateRegistry:
+  registryUrl: harbor.qytk8s.com
+
 defaultSettings:
   createDefaultDiskLabeledNodes: true
   defaultDataPath: /var/lib/longhorn
   defaultReplicaCount: 3
-```
+  replicaAutoBalance: least-effort
+  storageMinimalAvailablePercentage: 10
+  upgradeChecker: false
 
-以及：
-
-- 来源文件：`manifests/01_longhorn_values.yaml`
-- 文件类型：`Helm values`
-
-```yaml
 persistence:
   defaultClass: true
   defaultClassReplicaCount: 3
+  defaultDataLocality: disabled
   reclaimPolicy: Delete
+
+service:
+  ui:
+    type: ClusterIP
+
+preUpgradeChecker:
+  upgradeVersionCheck: false
 ```
 
 关键字段说明：
 
+- `global.imageRegistry`、`global.cattle.systemDefaultRegistry` 与 `privateRegistry.registryUrl`
+  - 统一把 Longhorn chart 涉及的镜像 registry 收敛到 `harbor.qytk8s.com`
 - `createDefaultDiskLabeledNodes: true`
   - Longhorn 只在被标记的节点上自动创建默认数据盘
   - 这个字段限制的是“默认数据盘自动创建”
@@ -117,61 +154,91 @@ persistence:
   - 必须和第 2 步准备好的宿主机挂载点一致
 - `defaultReplicaCount: 3`
   - 对应第四章首批 3 节点副本设计
+- `replicaAutoBalance: least-effort`
+  - Longhorn 会尽量做副本均衡，但不会把副本迁移与重平衡当成本章主线展开
+- `storageMinimalAvailablePercentage: 10`
+  - 当磁盘可用空间低于这个阈值时，Longhorn 会停止继续向该磁盘调度新副本
+- `upgradeChecker: false`
+  - 关闭课堂环境中不需要的版本检查
 - `defaultClass: true`
   - 让后续 `PVC` 可以直接走 `longhorn`
+- `defaultClassReplicaCount: 3`
+  - 通过 `StorageClass` 动态创建出来的卷默认按 `3` 副本执行
+- `defaultDataLocality: disabled`
+  - 本章先不展开数据本地性优化
 - `reclaimPolicy: Delete`
   - 当后续显式删除 `PVC` 时，底层卷会跟着回收
   - 这不会影响第四章主线里的“删除 Pod 后数据仍保留”，因为那一步并没有删除 `PVC`
+- `service.ui.type: ClusterIP`
+  - Longhorn UI 先保留集群内访问，后续再通过 `Gateway API + HTTPS` 正式发布
+- `preUpgradeChecker.upgradeVersionCheck: false`
+  - 关闭课堂环境中不需要的升级检查
 
 ### 为什么这里的 `reclaimPolicy` 用 `Delete`
 
-这里的 `Delete` 是一个需要明确解释的术语。
+这里的 `Delete` 只表示一件事：
 
-它的准确含义是：
+- 后续如果显式删除 `PVC`
+- 对应 `PV` 与底层 Longhorn 卷会一起被回收删除
 
-- 当用户后续显式删除 `PVC`
-- Kubernetes 开始回收与之绑定的 `PV`
-- 底层 Longhorn 卷也会一起被删除
-
-它**不是**下面这个意思：
-
-- 删除 Pod 就删除卷
-- 删除 Pod 就删除数据
-
-也就是说，`Delete` 描述的是**卷对象在 PVC 被删除后的回收行为**，不是 Pod 生命周期。
-
-第四章要讲清楚的主线是：
-
-- 删除 Pod
-- 工作负载重建
-- 同一个卷再次挂载
-- 数据仍然存在
-
-这里并没有删除 `PVC`，所以不会触发卷回收。
-
-本章把默认回收策略设置为 `Delete`，更适合课堂与实验环境：
-
-- 演示完成后，如果明确删除 `PVC`，底层卷也会自动清理
-- 环境不会留下越来越多的历史测试卷
-- 更符合动态供给卷在教学环境中的默认体验
-
-一句话收束：
+一句话：
 
 > `Delete` 的意思是“删 PVC 后删卷”，不是“删 Pod 后删数据”。
 
-### 为什么这一页要提前打标签和注解
+### 节点标签与注解如何控制默认数据盘
 
-第四章不是在 Longhorn UI 里手工点盘，而是提前通过 Kubernetes 节点：
-
-- `label`
-- `annotation`
-
-告诉 Longhorn：
+第四章不是在 `Longhorn UI` 里手工点盘，而是直接通过 Kubernetes 节点元数据告诉 `Longhorn`：
 
 - 哪些节点现在就要创建默认磁盘
-- 默认磁盘路径就是 `/var/lib/longhorn`
+- 默认磁盘路径是什么
+- 这块默认磁盘是否允许调度卷副本
 
-这样更适合教材复现，也更利于后面讲第 4 个节点怎么加入。
+关系可以先看成这样：
+
+```mermaid
+flowchart LR
+  nodes["1. 首批节点<br/>wk-app01 / wk-app02 / wk-obs01"]
+  meta["2. 脚本写入 Node metadata<br/>kubectl label / annotate<br/>label + annotation"]
+  mgr["3. longhorn-manager<br/>读取节点元数据"]
+  disk["4. 默认数据盘<br/>/var/lib/longhorn"]
+  sched["5. 允许调度卷副本"]
+
+  nodes --> meta
+  meta --> mgr
+  mgr --> disk
+  disk --> sched
+```
+
+这不是仓库里的独立配置文件，而是本步脚本直接写入 Kubernetes `Node` 对象 `metadata` 的两项内容：
+
+```text
+label:
+node.longhorn.io/create-default-disk=config
+
+annotation:
+node.longhorn.io/default-disks-config='[{"path":"/var/lib/longhorn","allowScheduling":true}]'
+```
+
+如果把它放回节点对象里，可以粗略理解成下面这段节点对象的 `metadata`：
+
+```yaml
+metadata:
+  labels:
+    node.longhorn.io/create-default-disk: config
+  annotations:
+    node.longhorn.io/default-disks-config: '[{"path":"/var/lib/longhorn","allowScheduling":true}]'
+```
+
+这两项分别表示：
+
+- `node.longhorn.io/create-default-disk=config`
+  - 表示默认数据盘配置从节点注解读取
+- `node.longhorn.io/default-disks-config`
+  - 提供默认数据盘配置；本章当前只定义一块路径为 `/var/lib/longhorn`、允许调度卷副本的默认数据盘
+
+有了这些标签和注解后，`Longhorn` 会把 `/var/lib/longhorn` 识别为这些节点上的默认数据盘，并允许在其上调度卷副本。
+
+因此，本步不是“Helm 自动把所有节点都变成存储节点”，而是只把 `wk-app01`、`wk-app02`、`wk-obs01` 这 3 个节点纳入默认数据盘初始化范围。
 
 ---
 
@@ -195,14 +262,17 @@ persistence:
 脚本原始代码：
 
 ```bash
+DISK_CONFIG='[{"path":"/var/lib/longhorn","allowScheduling":true}]'
+
 kubectl_retry label node "${node}" node.longhorn.io/create-default-disk=config --overwrite
 kubectl_retry annotate node "${node}" node.longhorn.io/default-disks-config="${DISK_CONFIG}" --overwrite
 ```
 
 关键介绍：
 
-- 告诉 Longhorn：这些节点现在就要创建默认磁盘
-- 默认磁盘路径固定为 `/var/lib/longhorn`
+- `label` 决定这些节点按注解配置创建默认数据盘
+- `annotation` 里给出默认数据盘的实际配置
+- 本章当前默认只创建一块路径为 `/var/lib/longhorn`、允许调度的默认数据盘
 
 ### 关键任务 2：通过本地 Chart 安装 Longhorn
 

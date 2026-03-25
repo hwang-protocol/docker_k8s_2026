@@ -67,7 +67,7 @@ flowchart LR
 这里也可以顺手区分两个目录：
 
 - `manifests/`
-  - 保存手工维护的源配置，例如 `values` 与独立 `YAML`
+  - 保存手工维护的源配置文件，例如 `values` 与独立 `YAML`
 - `artifacts/`
   - 保存下载或生成后的安装制品，例如 `chart.tgz`、`rendered manifest` 和镜像清单
 
@@ -95,75 +95,9 @@ flowchart LR
 - `bitnamilegacy`
   - MongoDB Helm 案例镜像
 
-### 本步关键配置
+### 本步关键说明
 
-第四章当前需要先明确的一份关键配置是：
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>YAML 文件：</strong><code>manifests/01_longhorn_values.yaml</code><br/>
-<strong>本页重点对象：</strong><code>Longhorn Helm values</code><br/>
-<strong>作用：</strong>定义第四章 Longhorn 安装参数，包括默认数据路径、默认副本数和默认 <code>StorageClass</code> 行为
-</div>
-
-关键字段摘录：
-
-```yaml
-global:
-  imageRegistry: harbor.qytk8s.com
-  cattle:
-    systemDefaultRegistry: harbor.qytk8s.com
-
-privateRegistry:
-  registryUrl: harbor.qytk8s.com
-
-defaultSettings:
-  createDefaultDiskLabeledNodes: true
-  defaultDataPath: /var/lib/longhorn
-  defaultReplicaCount: 3
-  replicaAutoBalance: least-effort
-  storageMinimalAvailablePercentage: 10
-  upgradeChecker: false
-
-persistence:
-  defaultClass: true
-  defaultClassReplicaCount: 3
-  defaultDataLocality: disabled
-  reclaimPolicy: Delete
-
-service:
-  ui:
-    type: ClusterIP
-
-preUpgradeChecker:
-  upgradeVersionCheck: false
-```
-
-关键字段说明：
-
-- `global.imageRegistry`、`global.cattle.systemDefaultRegistry` 与 `privateRegistry.registryUrl`
-  - 统一把 Longhorn chart 涉及的镜像 registry 收敛到 `harbor.qytk8s.com`，并与 Longhorn 私有仓库配置保持一致
-- `createDefaultDiskLabeledNodes: true`
-  - 只有带 `node.longhorn.io/create-default-disk` 标签的节点，才会自动创建默认数据盘；这就是为什么第四章先标记首批 3 个存储节点
-- `defaultDataPath: /var/lib/longhorn`
-  - 和第 2 步准备好的宿主机路径严格对齐
-- `defaultReplicaCount: 3`
-  - 写入 Longhorn 的全局默认设置 `default-replica-count`，对应第四章初始 `3` 副本主线
-- `replicaAutoBalance: least-effort`
-  - Longhorn 会尽量做副本均衡，但不会把副本迁移与重平衡当成本章主线展开
-- `storageMinimalAvailablePercentage: 10`
-  - 当磁盘可用空间低于这个阈值时，Longhorn 会停止继续向该磁盘调度新副本
-- `upgradeChecker: false`
-  - 关闭课堂环境中不需要的版本检查
-- `defaultClass: true`
-  - 把 `longhorn` 标记为默认 `StorageClass`
-- `defaultClassReplicaCount: 3`
-  - 写入默认 `StorageClass` 的 `numberOfReplicas: "3"`，也就是通过 `PVC` 动态创建出来的卷默认按 `3` 副本执行
-- `defaultDataLocality: disabled`
-  - 写入默认 `StorageClass` 的 `dataLocality: "disabled"`；本章先不强调本地副本贴近工作负载节点的数据本地性优化
-- `service.ui.type: ClusterIP`
-  - Longhorn UI 先保留集群内访问，后续再通过 `Gateway API + HTTPS` 正式发布
-- `preUpgradeChecker.upgradeVersionCheck: false`
-  - 关闭课堂环境中不需要的升级检查
+本步只负责把后续步骤会直接使用的 `Chart`、`rendered manifest` 和镜像准备好。
 
 ---
 
@@ -237,7 +171,7 @@ helm template qytang-mongodb-demo "${MONGODB_CHART_PACKAGE}" \
 
 - 不只保存 `Chart`
 - 还会把后续安装会生成的主要对象结构提前渲染出来
-- 其中 `mongodb-rendered-15.6.0.yaml` 会直接用于 [08_statefulset_intro.md](/docker_k8s_2026/k8s/04-storage-and-stateful/docs/08_statefulset_intro.md) 讲解 `StatefulSet`、`Headless Service` 和 `volumeClaimTemplates`
+- 两份 `rendered manifest` 主要用于后续讲解与排查
 - 但后续真正安装时，仍然使用本地 `Chart + values`
 
 ### 关键任务 4：推送镜像到 Harbor 并预拉
