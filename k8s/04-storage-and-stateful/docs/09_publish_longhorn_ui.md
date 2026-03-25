@@ -24,123 +24,86 @@ https://longhorn.qytk8s.com
 说明：
 
 - 这一页不是再单独搞一套新的入口
-- 它的意义是把第四章的存储 GUI 也统一纳入整门课的北向 HTTPS 体系
+- 而是把第四章的存储 GUI 也统一纳入整门课既有的北向 `HTTPS` 体系
 
 ---
 
 ## 问题背景
 
-从这门课的整体风格看，后续所有 GUI 都不能只停留在：
-
-- `kubectl port-forward`
-- `ClusterIP`
-- 仅集群内访问
-
-而是要统一落实为：
-
-- 从 `win2019` 浏览器访问
-- 使用业务域名
-- 使用 `HTTPS`
-
-Longhorn UI 也必须遵守这个规则。
+Longhorn UI 这一页的目标很简单：把第四章的存储 GUI 也统一纳入课程既有的“域名 + HTTPS”发布方式。
 
 ---
 
 ## 理论说明
 
-### Longhorn UI 发布链路图
+### Longhorn UI 北向发布总关系图
 
 ```mermaid
 flowchart LR
-  browser[win2019 浏览器]
-  dns[longhorn.qytk8s.com]
-  vip[10.1.1.60]
-  gateway[gateway-demo<br/>app-gateway]
-  route[HTTPRoute]
-  grant[ReferenceGrant]
-  svc[longhorn-system<br/>longhorn-frontend]
+  browser["1. win2019 浏览器"]
+  vip["2. 统一入口 VIP<br/>10.1.1.60"]
+  dnsapp["4. app.qytk8s.com"]
+  dnslh["4. longhorn.qytk8s.com"]
 
-  browser --> dns
-  dns --> vip
+  subgraph gwdemo["gateway-demo"]
+    gateway["3. Gateway<br/>app-gateway"]
+    lapp["5. app listener<br/>http / https"]
+    rapp["6. HTTPRoute<br/>app -> whoami"]
+    sapp["7. whoami Service"]
+
+    llh["5. longhorn listener<br/>longhorn-http / longhorn-https"]
+    rlh["6. HTTPRoute<br/>跳转 / 转发规则"]
+  end
+
+  subgraph lhsys["longhorn-system"]
+    slh["7. longhorn-frontend Service"]
+    grant["Gateway API: ReferenceGrant<br/>允许 gateway-demo 的 HTTPRoute<br/>跨命名空间引用本命名空间 Service"]
+  end
+
+  browser --> dnsapp
+  browser --> dnslh
+  dnsapp --> vip
+  dnslh --> vip
   vip --> gateway
-  gateway --> route
-  route --> grant
-  grant --> svc
+
+  gateway -->|hostname = app.qytk8s.com| lapp
+  lapp --> rapp
+  rapp --> sapp
+
+  gateway -->|hostname = longhorn.qytk8s.com| llh
+  llh --> rlh
+  rlh --> slh
+  grant -.授权.-> slh
 ```
 
-这张图说明：
+> 说明：
+> 只有 `Longhorn UI` 这条分支跨命名空间，因此需要 `ReferenceGrant`；`app.qytk8s.com -> whoami` 这条分支仍在 `gateway-demo` 内，不需要它。`ReferenceGrant` 是 `Gateway API` 的授权对象，不是流量转发节点。
+
+图中要点：
 
 - 第四章没有单独再分配一个新 VIP
 - 而是继续复用第三章已经建立好的统一入口
-- Longhorn UI 只是新增了属于自己的域名、专用 listener、路由和转发规则
+- `app.qytk8s.com` 和 `longhorn.qytk8s.com` 都先进入同一个 VIP、同一个 Gateway
+- 真正区分 `whoami` 和 `Longhorn UI` 的依据，不再是 IP，而是进入 `Gateway` 后的域名与 listener
+- `ReferenceGrant` 是 `Gateway API` 的授权对象，用于允许 `gateway-demo` 里的 `HTTPRoute` 跨命名空间引用 `longhorn-system/longhorn-frontend`
 
-### 为什么这一页复用第三章的 `app-gateway`
+### 本步关键 YAML
 
-这一节不是再单独搞一套新的 VIP，而是继续复用第三章已经建立的统一入口：
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/21_gateway_longhorn_ui.yaml</code><br/>
+<strong>本页重点对象：</strong><code>HTTPRoute + ReferenceGrant</code><br/>
+<strong>作用：</strong>为 <code>longhorn.qytk8s.com</code> 增加 <code>HTTP -> HTTPS</code> 跳转、<code>HTTPS -> longhorn-frontend</code> 转发，以及跨命名空间后端引用授权
+</div>
 
-- VIP 仍然是 `10.1.1.60`
-- Gateway 仍然是 `gateway-demo/app-gateway`
-- Longhorn UI 后端仍然是 `longhorn-system/longhorn-frontend`
+这份清单只负责新增：
 
-只是新增了：
+- `longhorn-http-redirect`
+- `longhorn-https-backend`
+- `allow-gateway-demo-to-longhorn-frontend`
 
-- `longhorn.qytk8s.com`
-- `app-gateway` 下专门服务 `longhorn.qytk8s.com` 的 `longhorn-http/longhorn-https` listener
-- 对 `longhorn-frontend` 的转发规则
-- 跨命名空间访问 `longhorn-frontend` 所需的 `ReferenceGrant`
-
-这样课程整体风格才统一。
-
-这里要特别分清：
-
-- 对外入口 IP 仍然是同一个 `10.1.1.60`
-- 但进入 `Gateway` 之后，真正区分不同业务的依据已经不是 IP
-- 而是 `Gateway` 在七层根据域名进行路由转发
-
-也就是说：
-
-- `app.qytk8s.com` 会被转发到 `whoami`
-- `longhorn.qytk8s.com` 会被转发到 `longhorn-frontend`
-
-### 本步关键清单
-
-本步会使用下面这份清单：
-
-- `manifests/21_gateway_longhorn_ui.yaml`
-
-但要注意：
-
-- `21_gateway_longhorn_ui.yaml` 只负责新增：
-  - Longhorn UI 的两个 `HTTPRoute`
-  - `ReferenceGrant`
-- `app-gateway` 上那 4 个最终 listener 结构，不是直接写死在这份清单里
-- 它来自脚本里的 `reconcile_gateway_listeners`
-
-这一页继续复用第三章已经存在的：
-
-- 同一个 VIP：`10.1.1.60`
-- 同一个 Gateway：`gateway-demo/app-gateway`
-
-但不会再把 `longhorn.qytk8s.com` 塞进第三章原有的 `app.qytk8s.com` 那组 listener。
-
-这里采用的是更稳定的做法：
-
-- `app.qytk8s.com`
-  - 继续使用原来的 `http/https` listener
-- `longhorn.qytk8s.com`
-  - 新增自己的 `longhorn-http/longhorn-https` listener
-
-这样做的意义是：
-
-- 仍然只用同一个 VIP
-- 仍然只用同一个 Gateway
-- 但每个域名有自己独立的 `80/443` listener 和自己的证书
-- 这样更符合当前这套 `Cilium Gateway` 的实际行为，也更稳定
+它不直接定义最终的 `Gateway listener` 结构；`app-gateway` 上的 4 个 listener 由脚本里的 `reconcile_gateway_listeners` 动态收敛。
 
 #### `HTTP -> HTTPS` 跳转规则
-
-- 来源文件：`manifests/21_gateway_longhorn_ui.yaml`
-- 对象类型：`HTTPRoute`
 
 ```yaml
 kind: HTTPRoute
@@ -158,9 +121,6 @@ spec:
 - 并遵循“80 只负责跳转，443 才承载正式内容”的统一入口模型
 
 #### `HTTPS -> longhorn-frontend` 转发规则
-
-- 来源文件：`manifests/21_gateway_longhorn_ui.yaml`
-- 对象类型：`HTTPRoute`
 
 ```yaml
 kind: HTTPRoute
@@ -181,7 +141,29 @@ spec:
 
 - 后端 Service 位于 `longhorn-system`
 - 因此这一页必须补 `ReferenceGrant`
-- `ReferenceGrant` 必须创建在被访问的命名空间，也就是 `longhorn-system`
+
+#### 跨命名空间授权
+
+```yaml
+kind: ReferenceGrant
+metadata:
+  name: allow-gateway-demo-to-longhorn-frontend
+  namespace: longhorn-system
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: gateway-demo
+  to:
+    - group: ""
+      kind: Service
+      name: longhorn-frontend
+```
+
+关键字段说明：
+
+- `ReferenceGrant` 必须创建在被访问后端所在的命名空间，也就是 `longhorn-system`
+- 没有这项授权，`gateway-demo` 里的 `HTTPRoute` 不能跨命名空间引用 `longhorn-frontend`
 
 ---
 
@@ -191,7 +173,7 @@ spec:
 
 - `k8s/04-storage-and-stateful/scripts/07_publish_longhorn_ui.sh`
 
-本步会直接消费：
+脚本会直接消费：
 
 - `manifests/21_gateway_longhorn_ui.yaml`
 
@@ -236,10 +218,6 @@ kubectl apply -f "${MANIFEST_URL}"
 
 - 这里应用的就是 `manifests/21_gateway_longhorn_ui.yaml`
 - Longhorn 相关的 `HTTPRoute` 和 `ReferenceGrant` 都在这份清单里
-- `HTTPRoute` 会明确绑定到：
-  - `longhorn-http`
-  - `longhorn-https`
-- `ReferenceGrant` 创建在 `longhorn-system`
 
 ### 关键任务 3：为 Longhorn UI 增加专用 listener
 
@@ -254,13 +232,9 @@ kubectl apply -f "${MANIFEST_URL}"
 reconcile_gateway_listeners
 ```
 
-来源方式：
-
-- 来源文件：`scripts/07_publish_longhorn_ui.sh`
-- 说明：这里不是静态 YAML，而是脚本运行时动态改写 `gateway-demo/app-gateway`
-
 关键介绍：
 
+- 这里不是静态 YAML，而是脚本运行时动态改写 `gateway-demo/app-gateway`
 - 脚本会把 `app-gateway` 的 listener 收敛成固定 4 个：
   - `http`
   - `https`
@@ -301,8 +275,7 @@ kubectl -n gateway-demo label endpointslice "${slice_name}" \
 
 关键介绍：
 
-- 第四章继续复用第三章统一入口
-- 因此这里仍然需要保持 `Cilium Gateway` 与 `MetalLB` 的兼容标签链路
+- 这里继续保持 `Cilium Gateway` 与 `MetalLB` 的兼容标签链路
 
 ---
 
@@ -330,9 +303,11 @@ bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/07_publish_longhorn_ui
 
 ## 验证方法
 
-<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
-<strong>❗ 本步必须粘贴执行</strong><br/>
-下面命令是本步主线必跑命令，用于验证网关与路由对象。
+这一页里，发布脚本属于主线必跑；下面这些验证命令都按需查看即可。
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于验证网关与路由对象。
 </div>
 
 ```bash
@@ -355,9 +330,9 @@ kubectl get gateway,httproute -n gateway-demo
   - `longhorn-http-redirect`
   - `longhorn-https-backend`
 
-<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
-<strong>❗ 本步必须粘贴执行</strong><br/>
-下面命令是本步主线必跑命令，用于验证跨命名空间授权。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于验证跨命名空间授权。
 </div>
 
 ```bash
@@ -374,9 +349,9 @@ kubectl -n longhorn-system get referencegrant
 - `longhorn-system` 下能看到：
   - `allow-gateway-demo-to-longhorn-frontend`
 
-<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
-<strong>❗ 本步必须粘贴执行</strong><br/>
-下面命令是本步主线必跑命令，用于验证 HTTP 到 HTTPS 跳转。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于验证 HTTP 到 HTTPS 跳转。
 </div>
 
 ```bash
@@ -393,9 +368,9 @@ curl -I --resolve longhorn.qytk8s.com:80:10.1.1.60 http://longhorn.qytk8s.com/
 - 返回状态应为 `301` 或等价的重定向结果
 - 响应头里应能看到 `Location: https://longhorn.qytk8s.com/...`
 
-<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
-<strong>❗ 本步必须粘贴执行</strong><br/>
-下面命令是本步主线必跑命令，用于验证 Longhorn UI HTTPS 访问。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于验证 Longhorn UI HTTPS 访问。
 </div>
 
 ```bash
@@ -427,8 +402,6 @@ curl -I --resolve longhorn.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8
 - `HTTP -> HTTPS` 跳转正常
 - `longhorn.qytk8s.com` 已能作为第四章正式 GUI 入口使用
 
----
-
 ## win2019 侧要求
 
 在 `win2019 DNS` 中新增：
@@ -448,6 +421,49 @@ longhorn.qytk8s.com  ->  10.1.1.60
 ```text
 https://longhorn.qytk8s.com
 ```
+
+---
+
+## GUI 页面示意
+
+下面 3 张图用于帮助建立访问成功后的页面印象；重点不是逐项操作 `Longhorn UI`，而是确认已经能从浏览器看到：
+
+- `Dashboard`
+- `Nodes`
+- `Volumes`
+
+### Dashboard
+
+<div style="margin: 10px 0 18px 0;">
+  <img src="../images/dashboard.png" alt="Longhorn Dashboard" style="width:82%; max-width:1200px; border:1px solid #666; border-radius:6px;" />
+</div>
+
+关键看点：
+
+- 能正常打开 `Longhorn Dashboard`
+- 页面已经能显示卷、副本与节点相关汇总信息
+
+### Nodes
+
+<div style="margin: 10px 0 18px 0;">
+  <img src="../images/nodes.png" alt="Longhorn Nodes" style="width:82%; max-width:1200px; border:1px solid #666; border-radius:6px;" />
+</div>
+
+关键看点：
+
+- 能看到 `Longhorn` 已识别并管理的节点
+- 能直接看到节点、磁盘与可调度状态
+
+### Volumes
+
+<div style="margin: 10px 0 18px 0;">
+  <img src="../images/volumes.png" alt="Longhorn Volumes" style="width:82%; max-width:1200px; border:1px solid #666; border-radius:6px;" />
+</div>
+
+关键看点：
+
+- 能看到当前已创建的卷对象
+- 能把 `PVC / Longhorn Volume / 副本` 这条主线和前面章节内容对应起来
 
 ---
 
