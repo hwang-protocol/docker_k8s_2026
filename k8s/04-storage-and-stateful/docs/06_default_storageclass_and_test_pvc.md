@@ -143,6 +143,15 @@ spec:
 - `storage: 2Gi`
   - 演示容量不大，但足够说明动态供给链路已经成立
 
+常见访问模式可以先这样理解：
+
+| 访问模式 | 含义 | 第四章怎么理解 |
+| :--- | :--- | :--- |
+| `ReadWriteOnce` | 一块卷通常由一个实例独占读写 | 本章主线默认使用这一类卷 |
+| `ReadOnlyMany` | 多个实例可同时只读 | 不适合数据库正常写入主线 |
+| `ReadWriteMany` | 多个实例可同时读写同一块卷 | 更适合共享文件类场景，不是这一章重点 |
+| `ReadWriteOncePod` | 一块卷只允许一个 Pod 挂载 | 比 `ReadWriteOnce` 约束更强 |
+
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
 <strong>❗ 本步必须粘贴执行</strong><br/>
 下面命令是主线必跑命令，用于创建命名空间与 PVC 并检查绑定状态。
