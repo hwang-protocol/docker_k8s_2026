@@ -370,6 +370,6 @@ kubectl -n longhorn-system get volumes.longhorn.io
 
 ## 下一步
 
-进入第 6 步，把 `wk-edge01` 初始化为第 4 个 Longhorn 存储节点：
+进入第 6 步，为 `wk-edge01` 启用 Longhorn 默认数据盘：
 
 - `docs/07_expand_longhorn_node.md`

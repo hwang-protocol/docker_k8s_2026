@@ -1,8 +1,8 @@
-# 第 6 步：把 `wk-edge01` 初始化为第 4 个 Longhorn 存储节点
+# 第 6 步：为 `wk-edge01` 启用 Longhorn 默认数据盘
 
 ## 本步目标
 
-把 `wk-edge01` 初始化为带默认数据盘的第 4 个 Longhorn 存储节点。
+为已被 Longhorn 识别的 `wk-edge01` 启用默认数据盘。
 
 ---
 
@@ -13,33 +13,28 @@
 说明：
 
 - 这一页的重点不是“再装一次 Longhorn”
-- 而是验证 Longhorn 可以在系统运行后，把一个已被识别的节点进一步初始化为真正可用的存储节点
+- 而是验证 Longhorn 可以在系统运行后，把一个已被识别的节点进一步补齐为带默认数据盘的可用存储节点
 
 ---
 
 ## 问题背景
 
-如果一开始就把 4 个节点的数据盘都直接初始化到 `Longhorn`，学员往往只能看到“装好了”。
+这一页单独处理 `wk-edge01` 的默认数据盘，目的是把下面两件事分开看清：
 
-但把第 4 个节点的数据盘初始化动作放到后面单独展示，会更容易讲清楚：
-
-- Longhorn 存储池不是一次性写死的
-- 已存在的 Kubernetes 节点也可以后续再启用数据盘
-- “节点被识别”和“节点真正承载卷副本”不是同一个层次
-
-这对理解生产中的“容量扩展”很重要。
+- `wk-edge01` 可能早已被 Longhorn 识别成节点对象
+- 但默认数据盘仍然可以在后续单独启用
 
 ---
 
 ## 理论说明
 
-### 第 4 个存储节点启用前后关系图
+### 主线关系图
 
 ```mermaid
 flowchart LR
   stage1[初始 3 节点<br/>wk-app01 wk-app02 wk-obs01]
   volume[Longhorn 卷]
-  stage2[扩容后 4 节点<br/>wk-edge01 完成数据盘初始化]
+  stage2[启用后<br/>wk-edge01 完成默认数据盘初始化]
 
   stage1 --> volume
   volume --> stage2
@@ -48,16 +43,8 @@ flowchart LR
 这张图强调的是：
 
 - 第四章先把 3 节点主线跑稳
-- 然后再单独展示“存储池可以继续变大”
-
-### 为什么这一步仍然通过节点标签和注解完成
-
-这一节继续沿用第四章的统一风格：
-
-- 不在 Longhorn UI 里手工点盘
-- 仍然通过 Kubernetes 节点标签与注解完成
-
-这样更适合教材化，也更方便和第 4 步安装逻辑形成对照。
+- 然后再单独展示“已识别节点也可以后续启用默认数据盘”
+- 这一页仍然通过 Kubernetes 节点标签与注解完成，不在 Longhorn UI 里手工点盘
 
 ---
 
@@ -139,6 +126,26 @@ kubectl -n longhorn-system patch nodes.longhorn.io "${TARGET_NODE}" --type merge
 
 ## 执行命令
 
+### 1. 扩容前先看 `wk-edge01` 的关键字段
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于先看扩容前的节点状态。
+</div>
+
+```bash
+kubectl -n longhorn-system get nodes.longhorn.io wk-edge01 -o yaml \
+  | egrep 'allowScheduling: true|disks: \\{\\}|diskStatus: \\{\\}'
+```
+
+关键看点：
+
+- 这一页前后真正要对比的，就是这几个关键行
+- 如果此时还能看到：
+  - `disks: {}`
+  - `diskStatus: {}`
+  - 就说明它还没有完成默认数据盘初始化
+
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>ℹ️ 可选预处理命令</strong><br/>
 如果脚本已具备执行权限，这一步可以跳过。
@@ -161,58 +168,64 @@ bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/05_expand_longhorn_nod
 
 ## 验证方法
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于补充确认第 4 个存储节点的识别与磁盘状态。
+### 2. 扩容后再看 `wk-edge01` 的关键字段
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于确认默认数据盘已经注册成功。
 </div>
 
 ```bash
-kubectl -n longhorn-system get nodes.longhorn.io
+kubectl -n longhorn-system get nodes.longhorn.io wk-edge01 -o yaml \
+  | egrep 'allowScheduling: true|path: /var/lib/longhorn|diskPath: /var/lib/longhorn|instanceManagerName:|type: Ready|type: Schedulable|status: \"True\"'
 ```
 
 关键看点：
 
-- `wk-edge01` 在这一步之前，可能已经出现在 `nodes.longhorn.io` 列表里
-- 所以这里重点不再是“它第一次出现没有”
-- 而是要确认它已经从“仅被识别的节点”变成“真正带默认数据盘的存储节点”
+- 这里只看下面几类关键信息：
+  - `allowScheduling: true`
+  - `path: /var/lib/longhorn`
+  - `diskPath: /var/lib/longhorn`
+  - `instanceManagerName: ...`
+  - `type: Ready / Schedulable`
+  - `status: "True"`
+- 前后对比时，重点不是节点对象在不在
+- 而是默认数据盘相关字段是否已经出现
 
 预期结果：
 
-- `nodes.longhorn.io` 列表中能看到：
-  - `wk-app01`
-  - `wk-app02`
-  - `wk-obs01`
-  - `wk-edge01`
-- `wk-edge01` 处于可用、可调度状态
-- `wk-edge01` 已完成默认数据盘初始化
+- 能看到 `allowScheduling: true`
+- 能看到磁盘路径 `/var/lib/longhorn`
+- 能看到 `instanceManagerName`
+- 能看到 `Ready` 和 `Schedulable` 两类状态都为 `True`
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于继续查看第 4 个节点的 Longhorn YAML 细节。
-</div>
+关键字段示意：
 
-```bash
-kubectl -n longhorn-system get nodes.longhorn.io wk-edge01 -o yaml
+```yaml
+spec:
+  allowScheduling: true
+  disks:
+    default-disk-<auto-id>:
+      allowScheduling: true
+      path: /var/lib/longhorn
+status:
+  diskStatus:
+    default-disk-<auto-id>:
+      diskPath: /var/lib/longhorn
+      instanceManagerName: instance-manager-<id>
+      conditions:
+        - type: Ready
+          status: "True"
+        - type: Schedulable
+          status: "True"
 ```
 
-关键看点：
+说明：
 
-- 重点不是把整份 YAML 从头读到尾
-- 而是只抓下面 3 类关键信息：
-  - `spec.allowScheduling`
-  - 磁盘路径 `/var/lib/longhorn`
-  - Longhorn 是否已经在这个节点下创建出磁盘对象
-
-预期结果：
-
-- `spec.allowScheduling: true`
-- 输出中能看到磁盘路径 `/var/lib/longhorn`
-- Longhorn 已经把这块路径识别成 `wk-edge01` 的可用数据盘
-
-通过这一组验证后，应形成下面的判断：
-
-- `wk-edge01` 已经正式完成默认数据盘初始化，并进入 Longhorn 存储池
-- 第四章“先 3 节点跑稳，再启用第 4 个存储节点”的主线已经完成
+- `default-disk-<auto-id>` 是 Longhorn 自动生成的磁盘名，不是固定字符串
+- `instance-manager-<id>` 里的这一串 ID 也是运行时自动生成的，不需要记忆；这里只需确认 Longhorn 已经为这块磁盘关联到了一个 `instance-manager`
+- 如果这里只看到 `disks: {}` 或 `diskStatus: {}`，说明 `wk-edge01` 虽然已经被 Longhorn 识别成节点对象，但还没有完成默认数据盘初始化
+- 第 6 步脚本真正补齐的，就是把 `/var/lib/longhorn` 注册成 `wk-edge01` 的默认数据盘
 
 ---
 

@@ -9,7 +9,7 @@
 - `PVC` 动态供给正常
 - 当前 Pod 被删除后，Deployment 自动拉起新 Pod，并继续挂载原来的 PVC
 - `MongoDB ReplicaSet` StatefulSet 案例正常
-- 第 4 个 Longhorn 存储节点已完成初始化
+- `wk-edge01` 默认数据盘已完成初始化
 - `Longhorn UI` 已能通过 `HTTPS` 域名访问
 
 ---
@@ -37,7 +37,7 @@ flowchart LR
   sc[StorageClass longhorn]
   pvc[PVC 与 PV]
   data[自动重建的新 Pod 继续挂载原 PVC]
-  expand[第 4 个存储节点]
+  expand[`wk-edge01` 默认数据盘]
   ui[Longhorn UI HTTPS 发布]
 
   ctrl --> pvc

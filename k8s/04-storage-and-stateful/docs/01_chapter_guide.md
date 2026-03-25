@@ -12,7 +12,7 @@
 - 应用可以通过 `PVC` 动态申请卷
 - 当前 `Pod` 被删除后，新 `Pod` 仍可继续挂载原来的 `PVC`
 - 能区分 `Deployment` 与 `StatefulSet` 的使用边界，并完成一个 `MongoDB ReplicaSet` `StatefulSet` 案例
-- `wk-edge01` 可以进一步初始化为第 4 个 Longhorn 存储节点
+- `wk-edge01` 可以在后续单独启用 Longhorn 默认数据盘
 - `Longhorn UI` 可以通过域名和 `HTTPS` 访问
 
 ---
@@ -33,7 +33,7 @@
 - 卷如何动态分配
 - 为什么新 `Pod` 重新挂载原 `PVC` 后还能继续读取原数据
 - 什么时候继续使用 `Deployment`，什么时候改用 `StatefulSet`
-- 存储节点后续如何扩容
+- 已识别节点后续如何启用默认数据盘
 
 因此第四章的重点不是“再装一套组件”，而是“把前面已经稳定的集群推进到能承载有状态工作负载”。
 
@@ -132,7 +132,7 @@ flowchart LR
 | 3 | `04_prepare_longhorn_artifacts.md` | 固化 Longhorn 与 MongoDB 制品并推送镜像到 Harbor | `scripts/02_prepare_longhorn_artifacts.sh` | 必须执行 |
 | 4 | `05_install_longhorn.md` | 安装 Longhorn，并初始化首批 3 个存储节点 | `scripts/03_install_longhorn.sh` | 必须执行 |
 | 5 | `06_default_storageclass_and_test_pvc.md` | 验证默认 StorageClass、PVC 动态供给与数据保留 | `scripts/04_deploy_stateful_demo.sh` | 必须执行 |
-| 6 | `07_expand_longhorn_node.md` | 将 `wk-edge01` 初始化为第 4 个 Longhorn 存储节点 | `scripts/05_expand_longhorn_node.sh` | 必须执行 |
+| 6 | `07_expand_longhorn_node.md` | 为 `wk-edge01` 启用 Longhorn 默认数据盘 | `scripts/05_expand_longhorn_node.sh` | 必须执行 |
 | 7 | `08_statefulset_intro.md` | 使用 `MongoDB ReplicaSet` 讲清 `StatefulSet` 主线 | `scripts/08_deploy_statefulset_demo.sh` | 必须执行 |
 | 8 | `09_publish_longhorn_ui.md` | 把 Longhorn UI 正式发布为 `https://longhorn.qytk8s.com` | `scripts/07_publish_longhorn_ui.sh` | 必须执行 |
 | 9 | `10_verify.md` | 执行第四章最终验收 | `scripts/06_verify_storage.sh` | 只读验证 |
@@ -170,7 +170,7 @@ flowchart LR
 
 - 本章实践以 `Longhorn` 为例，暂不展开 `Ceph`
 - 首批 Longhorn 节点固定为 `wk-app01`、`wk-app02`、`wk-obs01`
-- `wk-edge01` 在安装阶段不初始化默认数据盘，而是单独作为扩容演示节点
+- `wk-edge01` 在安装阶段不初始化默认数据盘，而是在后续单独演示默认数据盘启用过程
 - 新增数据盘统一固定为 `/dev/sdb`
 - Longhorn 数据路径统一固定为 `/var/lib/longhorn`
 - Longhorn UI 统一通过第三章已经建立的 `Gateway API + HTTPS + Harbor CA` 方式向 `win2019` 发布

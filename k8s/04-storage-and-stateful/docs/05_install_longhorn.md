@@ -94,7 +94,7 @@ flowchart LR
 - 3 副本
 - 当前 Pod 被删除后，Deployment 自动拉起新 Pod，并继续挂载原来的 PVC
 
-所以安装阶段先固定 3 个节点完成默认数据盘初始化，后面再单独把 `wk-edge01` 初始化为第 4 个可用存储节点。
+所以安装阶段先固定 3 个节点完成默认数据盘初始化，后面再单独给 `wk-edge01` 启用默认数据盘。
 
 ### 本步关键配置
 
@@ -489,7 +489,12 @@ kubectl -n longhorn-system get nodes.longhorn.io
 - Longhorn 节点列表中至少能看到首批 3 个节点
 - `wk-app01`、`wk-app02`、`wk-obs01` 应处于可调度、可用状态
 - 当前如果看到 `wk-edge01` 也出现在列表中，这不算异常
-- 关键区别在于：首批 3 个节点应已经带有 `/var/lib/longhorn` 默认数据盘；而 `wk-edge01` 此时通常还没有完成这一步
+- 关键区别在于：首批 3 个节点应已经带有 `/var/lib/longhorn` 默认数据盘；而 `wk-edge01` 此时即使已经出现在列表中，也可能仍然是 `spec.disks: {}`、`status.diskStatus: {}` 的状态
+
+说明：
+
+- `READY / ALLOWSCHEDULING / SCHEDULABLE` 这些列只能说明 Longhorn 已经识别到这个节点对象，并不等于默认数据盘已经初始化完成
+- 第四章这里真正区分“是否已成为存储节点”的关键，不只是节点是否出现在列表中，而是 Longhorn 是否已经在该节点下识别到 `/var/lib/longhorn` 这块默认数据盘
 
 通过这一组验证后，应形成下面的判断：
 
