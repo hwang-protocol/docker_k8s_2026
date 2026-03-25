@@ -26,7 +26,7 @@ generate_jwt_materials() {
 }
 
 deploy_waypoint() {
-  istioctl waypoint apply --namespace mesh-demo --enroll-namespace --wait
+  istioctl waypoint apply --namespace mesh-demo --enroll-namespace --overwrite --wait
 }
 
 apply_security_objects() {

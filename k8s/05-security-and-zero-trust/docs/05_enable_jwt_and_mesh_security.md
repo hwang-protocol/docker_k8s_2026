@@ -18,7 +18,7 @@
 这一页的执行方式很简单：
 
 1. 先执行主脚本
-2. 再按下面 4.1 到 4.6 的顺序逐项观察现象
+2. 再按下面 3 个测试依次观察现象
 
 ---
 
@@ -303,7 +303,7 @@ python3 "${JWT_GENERATOR}"
 </div>
 
 ```bash
-istioctl waypoint apply --namespace mesh-demo --enroll-namespace --wait
+istioctl waypoint apply --namespace mesh-demo --enroll-namespace --overwrite --wait
 ```
 
 关键介绍：
@@ -336,219 +336,41 @@ kubectl apply -f "${HTTPBIN_AUTHZ_URL}"
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>YAML 文件：</strong><code>manifests/30_requestauthentication_ingress.yaml</code><br/>
-<strong>本页重点对象：</strong><code>RequestAuthentication</code><br/>
-<strong>作用：</strong>让第五章入口网关具备 JWT 验签与身份解析能力
+<strong>对象：</strong><code>RequestAuthentication</code><br/>
+<strong>作用：</strong>让入口具备 JWT 验签与身份解析能力
 </div>
 
-对应变量：
-
-- `REQUEST_AUTH_URL`
-
-实际 URL：
-
-- `http://ops:9000/05-security-and-zero-trust/manifests/30_requestauthentication_ingress.yaml`
-
-来源文件：
-
-- `k8s/05-security-and-zero-trust/manifests/30_requestauthentication_ingress.yaml`
-
-对象类型：
-
-- `RequestAuthentication`
-
-关键原文：
-
-```yaml
-apiVersion: security.istio.io/v1
-kind: RequestAuthentication
-metadata:
-  name: ingress-jwt
-  namespace: istio-ingress
-spec:
-  selector:
-    matchLabels:
-      istio: ingressgateway
-  jwtRules:
-    - issuer: https://secure-app.qytk8s.com/auth
-      jwksUri: http://10.1.1.201:9000/05-security-and-zero-trust/pki/jwks.json
-      forwardOriginalToken: true
-```
-
-关键解释：
-
-- `selector.matchLabels.istio: ingressgateway`
-  - 这说明 JWT 验证规则是挂在第五章入口网关上的
-- `issuer`
-  - 指定“谁签发这个 token”
-- `jwksUri`
-  - 指定入口到哪里下载公钥，用来验证签名
-- `forwardOriginalToken: true`
-  - 表示验证通过后，原始 token 还能继续向后传递
+- 详细配置放到下面“测试 1：入口 JWT 认证与授权”里结合请求一起看
 
 #### 31_authorizationpolicy_ingress_jwt.yaml
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>YAML 文件：</strong><code>manifests/31_authorizationpolicy_ingress_jwt.yaml</code><br/>
-<strong>本页重点对象：</strong><code>AuthorizationPolicy</code><br/>
-<strong>作用：</strong>在入口层按 JWT 身份控制访问，保留 <code>/public</code> 作为匿名对照路径
+<strong>对象：</strong><code>AuthorizationPolicy</code><br/>
+<strong>作用：</strong>在入口层按 JWT 身份决定谁能访问
 </div>
 
-对应变量：
-
-- `INGRESS_AUTHZ_URL`
-
-实际 URL：
-
-- `http://ops:9000/05-security-and-zero-trust/manifests/31_authorizationpolicy_ingress_jwt.yaml`
-
-来源文件：
-
-- `k8s/05-security-and-zero-trust/manifests/31_authorizationpolicy_ingress_jwt.yaml`
-
-对象类型：
-
-- `AuthorizationPolicy`
-
-关键原文：
-
-```yaml
-apiVersion: security.istio.io/v1
-kind: AuthorizationPolicy
-metadata:
-  name: ingress-require-jwt
-  namespace: istio-ingress
-spec:
-  selector:
-    matchLabels:
-      istio: ingressgateway
-  action: ALLOW
-  rules:
-    - to:
-        - operation:
-            hosts:
-              - secure-app.qytk8s.com
-            paths:
-              - /public
-    - from:
-        - source:
-            requestPrincipals:
-              - "https://secure-app.qytk8s.com/auth/*"
-      to:
-        - operation:
-            hosts:
-              - secure-app.qytk8s.com
-```
-
-关键解释：
-
-- 第一条规则只放行 `/public`
-  - 这就是为什么 `/public` 可以作为匿名访问对照路径
-- 第二条规则要求：
-  - 请求里必须带有通过验证后的 `requestPrincipals`
-- `requestPrincipals: "https://secure-app.qytk8s.com/auth/*"`
-  - 表示只有这个签发方签出来、并被入口成功识别的 token 才能满足条件
+- 详细配置放到下面“测试 1：入口 JWT 认证与授权”里结合结果一起看
 
 #### 32_peerauthentication_mesh_demo.yaml
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>YAML 文件：</strong><code>manifests/32_peerauthentication_mesh_demo.yaml</code><br/>
-<strong>本页重点对象：</strong><code>PeerAuthentication</code><br/>
+<strong>对象：</strong><code>PeerAuthentication</code><br/>
 <strong>作用：</strong>把 <code>mesh-demo</code> 命名空间切到 <code>STRICT mTLS</code>，为服务间零信任打底
 </div>
 
-对应变量：
-
-- `PEER_AUTH_URL`
-
-实际 URL：
-
-- `http://ops:9000/05-security-and-zero-trust/manifests/32_peerauthentication_mesh_demo.yaml`
-
-来源文件：
-
-- `k8s/05-security-and-zero-trust/manifests/32_peerauthentication_mesh_demo.yaml`
-
-对象类型：
-
-- `PeerAuthentication`
-
-关键原文：
-
-```yaml
-apiVersion: security.istio.io/v1
-kind: PeerAuthentication
-metadata:
-  name: mesh-demo-strict
-  namespace: mesh-demo
-spec:
-  mtls:
-    mode: STRICT
-```
-
-关键解释：
-
-- 这份对象作用在 `mesh-demo` 命名空间
-- `mtls.mode: STRICT`
-  - 表示该命名空间里的服务间通信必须走严格 `mTLS`
-  - 不再接受普通明文方式的网格内访问
+- 详细配置放到下面“测试 2：命名空间 mTLS 边界验证”里结合对照测试一起看
 
 #### 33_authorizationpolicy_httpbin_waypoint.yaml
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>YAML 文件：</strong><code>manifests/33_authorizationpolicy_httpbin_waypoint.yaml</code><br/>
-<strong>本页重点对象：</strong><code>AuthorizationPolicy</code><br/>
+<strong>对象：</strong><code>AuthorizationPolicy</code><br/>
 <strong>作用：</strong>在 <code>waypoint</code> 路径上限制只有指定服务身份可以访问 <code>httpbin</code>
 </div>
 
-对应变量：
-
-- `HTTPBIN_AUTHZ_URL`
-
-实际 URL：
-
-- `http://ops:9000/05-security-and-zero-trust/manifests/33_authorizationpolicy_httpbin_waypoint.yaml`
-
-来源文件：
-
-- `k8s/05-security-and-zero-trust/manifests/33_authorizationpolicy_httpbin_waypoint.yaml`
-
-对象类型：
-
-- `AuthorizationPolicy`
-
-关键原文：
-
-```yaml
-apiVersion: security.istio.io/v1
-kind: AuthorizationPolicy
-metadata:
-  name: httpbin-waypoint-l7
-  namespace: mesh-demo
-spec:
-  selector:
-    matchLabels:
-      app: httpbin
-  action: ALLOW
-  rules:
-    - from:
-        - source:
-            principals:
-              - cluster.local/ns/istio-ingress/sa/istio-ingressgateway
-    - from:
-        - source:
-            principals:
-              - cluster.local/ns/mesh-demo/sa/trusted-client
-```
-
-关键解释：
-
-- `selector.matchLabels.app: httpbin`
-  - 说明这份授权策略是专门打在 `httpbin` 身上的
-- 第一条允许：
-  - 来自 `istio-ingressgateway` 这个服务账号的访问
-- 第二条允许：
-  - 来自 `trusted-client` 这个服务账号的访问
-- 也就是说，不满足这两类身份的来源，即使已经在网格里，也不会被放行
+- 详细配置放到下面“测试 3：waypoint 上的 L7 服务身份授权”里结合访问结果一起看
 
 ### 动作 4：最后统一查看安全对象
 
@@ -616,205 +438,146 @@ mesh-demo   peerauthentication.security.istio.io/mesh-demo-strict   STRICT   18s
 
 ## 后续讲解与验证方式
 
-主脚本执行完成后，本节内容再拆成 6 个功能单元依次讲解。每个单元均采用统一结构：
+主脚本执行完成后，测试部分只看 3 个边界明确的验证块：
 
-1. 问题背景
-2. 理论说明
-3. 验证方法
-4. 预期结果
+1. 入口 `JWT`
+2. 命名空间 `mTLS`
+3. `waypoint` 上的 `L7` 服务身份控制
 
-也就是说：
+这一段的阅读方式也直接改成：
 
-- 主脚本负责把安全对象铺到位
-- 下面的小节负责解释每个对象到底解决什么问题
-
----
-
-## 讲解顺序
-
-推荐按下面顺序讲：
-
-1. 生成 `JWT` 演示材料
-2. 应用 `RequestAuthentication`
-3. 应用入口 `AuthorizationPolicy`
-4. 将 `mesh-demo` 纳入 `waypoint`
-5. 应用 `PeerAuthentication STRICT`
-6. 应用 `httpbin` 服务身份授权
-
-这一顺序对应的逻辑是：
-
-- 先讲“入口如何识别身份”
-- 再讲“入口如何拒绝未授权请求”
-- 再讲“网格内部如何建立零信任”
+- 先说明本测试对应哪些 `YAML`
+- 再给出关键 `YAML` 配置
+- 然后立刻执行测试命令
+- 最后只看关键结果
 
 ---
 
-## 4.1 生成 JWT 演示材料
+## 测试总览
 
-### 问题背景
+主线只做下面 3 个测试：
 
-如果没有固定的私钥、公钥、`jwks.json` 和示例 token，后面的 `JWT` 认证无法稳定复现。
+1. 测试 1：入口 `JWT` 认证与授权
+2. 测试 2：`mTLS` 边界验证
+3. 测试 3：`waypoint` 上的 `L7` 服务身份授权
 
-### 理论说明
+这 3 个测试分别回答 3 个问题：
 
-本小节需要先明确：
-
-- `JWT` 本身只是一个身份声明
-- 网关不能凭空相信 token
-- 必须先有一套“谁签发、用什么公钥校验”的材料
-
-### 验证方法
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
-</div>
-
-```bash
-ls -lh /docker_k8s_2026/k8s/05-security-and-zero-trust/pki
-```
-
-### 预期结果
-
-这一阶段的重点不是访问返回值，而是确认认证材料已经生成：
-
-- `jwt-demo-private.pem`
-- `jwt-demo-public.pem`
-- `jwks.json`
-- `user.jwt`
-- `admin.jwt`
-
-这 5 个文件分别代表：
-
-- `jwt-demo-private.pem`
-  - 演示环境里的签名私钥
-  - 用来生成 `user.jwt` 和 `admin.jwt`
-  - 这个文件不应该给验证方使用，而是由“签发方”持有
-
-- `jwt-demo-public.pem`
-  - 和私钥对应的公钥
-  - 它本身不负责签发，只负责让别人验证签名
-  - 可以把它理解成“给验证方看的那把钥匙”
-
-- `jwks.json`
-  - `JWT` 验签时更常见的公钥发布格式
-  - 第五章里的 `RequestAuthentication` 就是通过它来拿到公钥信息
-  - 它是入口网关后面真正用来验签的材料
-
-- `user.jwt`
-  - 普通用户身份的演示 token
-  - 后面用它来验证“普通用户带合法 token 时，哪些请求可以通过”
-
-- `admin.jwt`
-  - 管理员身份的演示 token
-  - 后面用它来验证“不同身份的 claim，是否会触发不同访问结果”
+- 入口会不会拒绝无身份或伪造身份的请求
+- 网格内部是不是已经进入严格 `mTLS`
+- 就算都在网格里，是不是也只能按服务身份最小放行
 
 ---
 
-## 4.2 应用 RequestAuthentication
-
-### 问题背景
-
-入口必须先具备“识别 token”的能力，否则后面根本谈不上按身份控制访问。
-
-### 理论说明
-
-本小节应明确：
-
-- `RequestAuthentication` 只负责“验 token”
-- 它负责解析 issuer、签名、公钥信息
-- 它本身不直接决定“放不放行”
-
-### 验证方法
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
-</div>
-
-```bash
-kubectl -n istio-ingress get requestauthentication
-```
-
-### 预期结果
-
-- 输出中应能看到：
-  - `ingress-jwt`
-- 这说明入口 `RequestAuthentication` 对象已经创建到集群中
-- 它的职责是：
-  - 识别 `JWT`
-  - 验签
-  - 解析身份信息
-- 但这些能力是否已经按预期真正生效，仍要结合后面的实际访问测试再确认
-
----
-
-## 4.3 应用入口 AuthorizationPolicy
-
-### 问题背景
-
-只有识别 token 还不够，还必须明确规定：
-
-- 没 token 能不能访问
-- 错 token 能不能访问
-- 正确 token 能不能访问
-
-### 理论说明
-
-本小节的核心关系如下：
-
-- `RequestAuthentication` 负责完成 token 校验
-- `AuthorizationPolicy` 负责完成访问控制决策
-
-### 验证方法
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
-</div>
-
-```bash
-kubectl -n istio-ingress get authorizationpolicy
-```
-
-再把后面要用到的正确 token 先读出来：
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
-</div>
-
-```bash
-cat /docker_k8s_2026/k8s/05-security-and-zero-trust/pki/user.jwt
-```
-
-### 预期结果
-
-- 输出中应能看到：
-  - `ingress-require-jwt`
-- `ACTION=ALLOW`
-  - 说明入口授权对象已经创建到集群中
-- 但这条命令本身只能说明“对象存在”
-  - 不能单独证明访问结果已经完全符合预期
-- 真实访问效果，还要用下面 3 组请求逐个验证
-
-### 必做访问测试
+## 测试 1：入口 JWT 认证与授权
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
-<strong>❗ 以下 3 组测试必须执行</strong><br/>
-重点只看 3 个结果：无 token 返回 `403`，错误 token 返回 `401`，正确 token 返回 `200` 且正文出现 `helloworld`。
+<strong>❗ 测试边界 1</strong><br/>
+本测试只验证入口是否会根据 JWT 结果决定放行或拒绝，不讨论 mesh 内部通信。
 </div>
+
+```mermaid
+flowchart LR
+    c1[无 token] --> ingress[Istio Ingress]
+    c2[错误 token] --> ingress
+    c3[正确 token] --> ingress
+    ingress --> r1[403]
+    ingress --> r2[401]
+    ingress --> r3[200 + helloworld]
+```
 
 <div style="padding: 12px 16px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 14px 0;">
-<strong>测试大类：入口 JWT 访问控制测试</strong><br/>
-即将开始验证入口对 3 类请求的处理结果：无 token、错误 token、正确 token。
+<strong>本测试对应的 YAML</strong><br/>
+本测试验证前面已经应用好的 `30_requestauthentication_ingress.yaml` 和 `31_authorizationpolicy_ingress_jwt.yaml` 是否真正生效。
 </div>
 
-#### 测试 1：不带 token 访问 `/hello`
+开始状态：
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+- 主脚本已经把入口 `JWT` 配好
+- 现在直接用 3 个请求看入口怎么处理
+
+对应的关键 YAML 配置：
+
+`30_requestauthentication_ingress.yaml`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/30_requestauthentication_ingress.yaml</code><br/>
+<strong>对象：</strong><code>RequestAuthentication</code><br/>
+<strong>作用：</strong>让入口具备 JWT 验签与身份解析能力
+</div>
+
+```yaml
+apiVersion: security.istio.io/v1
+kind: RequestAuthentication
+metadata:
+  name: ingress-jwt
+  namespace: istio-ingress
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  jwtRules:
+    - issuer: https://secure-app.qytk8s.com/auth
+      jwksUri: http://10.1.1.201:9000/05-security-and-zero-trust/pki/jwks.json
+      forwardOriginalToken: true
+```
+
+- `issuer`
+  - 指定谁签发这个 token
+- `jwksUri`
+  - 指定入口到哪里拿公钥做验签
+
+`31_authorizationpolicy_ingress_jwt.yaml`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/31_authorizationpolicy_ingress_jwt.yaml</code><br/>
+<strong>对象：</strong><code>AuthorizationPolicy</code><br/>
+<strong>作用：</strong>在入口层按 JWT 身份决定谁能访问
+</div>
+
+```yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: ingress-require-jwt
+  namespace: istio-ingress
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  action: ALLOW
+  rules:
+    - to:
+        - operation:
+            hosts:
+              - secure-app.qytk8s.com
+            paths:
+              - /public
+    - from:
+        - source:
+            requestPrincipals:
+              - "https://secure-app.qytk8s.com/auth/*"
+      to:
+        - operation:
+            hosts:
+              - secure-app.qytk8s.com
+```
+
+- `/public`
+  - 匿名放行，作为对照路径
+- `requestPrincipals`
+  - 要求请求必须带有通过验签后的身份
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本测试必须执行的代码</strong><br/>
+按顺序一条一条执行，每执行一步就看一次结果。
+</div>
+
+### 第 1 步：不带 token 访问一次
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：验证未携带 JWT 时，入口是否直接拒绝访问。
+先看入口对“完全没有身份”的请求会怎么处理。
 </div>
 
 ```bash
@@ -824,17 +587,16 @@ curl -s -o /tmp/ch5_jwt_no_token.txt -w '%{http_code}\n' \
   https://secure-app.qytk8s.com/hello
 ```
 
-预期结果：
+这一步看什么：
 
-- 返回 `403`
+- 应返回 `403`
+- 这说明入口没有拿到可用身份时，会直接拒绝访问
 
----
+### 第 2 步：带错误 token 再访问一次
 
-#### 测试 2：带错误 token 访问 `/hello`
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：验证携带非法 JWT 时，入口是否在验签阶段直接拒绝。
+这次故意带一个错误 token，看是不是会在验签阶段失败。
 </div>
 
 ```bash
@@ -845,17 +607,16 @@ curl -s -o /tmp/ch5_jwt_bad_token.txt -w '%{http_code}\n' \
   https://secure-app.qytk8s.com/hello
 ```
 
-预期结果：
+这一步看什么：
 
-- 返回 `401`
+- 应返回 `401`
+- 这说明 token 在验签阶段就被判定为非法
 
----
+### 第 3 步：带正确 token 访问一次
 
-#### 测试 3：带正确 token 访问 `/hello`
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：读取合法 JWT 并发起请求，验证入口是否允许通过。
+这次读取正确 token，看合法身份能不能通过入口。
 </div>
 
 ```bash
@@ -867,173 +628,92 @@ curl -s -o /tmp/ch5_jwt_good_token.txt -w '%{http_code}\n' \
   https://secure-app.qytk8s.com/hello
 ```
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+这一步看什么：
+
+- 应返回 `200`
+- 这说明正确 token 已经通过入口验签和授权判断
+
+### 第 4 步：把成功响应正文读出来
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：读取成功响应正文，确认返回的确实是后端业务内容。
+最后确认返回的确实是后端业务内容，而不是中间层误判。
 </div>
 
 ```bash
 sed -n '1,20p' /tmp/ch5_jwt_good_token.txt
 ```
 
-预期结果：
+这一步看什么：
 
-- 返回 `200`
-- 正文里能看到 `helloworld` 返回内容
-
----
-
-## 4.4 将 mesh-demo 纳入 waypoint
-
-### 问题背景
-
-第五章后面要讲更细的 HTTP 级治理和 L7 能力，必须先把业务纳入 `waypoint`。
-
-### 理论说明
-
-本小节强调的是能力边界，而不是立即展示拦截现象：
-
-- `ztunnel` 主要负责 L4
-- `waypoint` 才是后续承载 L7 授权能力的关键位置
-
-### 验证方法
-
-先执行第一条命令：
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
-</div>
-
-```bash
-kubectl -n mesh-demo get gateway
-```
-
-再执行第二条命令：
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
-</div>
-
-```bash
-kubectl -n mesh-demo get pods,svc | grep waypoint
-```
-
-### 预期结果
-
-第一条命令的原始输出示例：
-
-```text
-root@ops:/docker_k8s_2026# kubectl -n mesh-demo get gateway
-NAME       CLASS            ADDRESS        PROGRAMMED   AGE
-waypoint   istio-waypoint   10.97.132.53   True         11m
-```
-
-这条输出可以直接说明：
-
-1. `Gateway/waypoint` 已经创建成功
-- `CLASS=istio-waypoint`
-  - 说明这不是普通入口 `Gateway`，而是 `Istio waypoint`
-- `PROGRAMMED=True`
-  - 说明这份 `waypoint` 配置已经被控制面成功接收并下发生效
-
-第二条命令的原始输出示例：
-
-```text
-root@ops:/docker_k8s_2026# kubectl -n mesh-demo get pods,svc | grep waypoint
-pod/waypoint-6848584f99-86bjd        1/1     Running   0          12m
-service/waypoint        ClusterIP   10.97.132.53     <none>        15021/TCP,15008/TCP   12m
-```
-
-这条输出可以直接说明：
-
-2. `waypoint` 对应的实际运行实例已经起来了
-- `pod/waypoint-... 1/1 Running`
-  - 说明 `waypoint` Pod 已正常运行
-
-3. `waypoint` 对应的服务也已经创建完成
-- `service/waypoint ClusterIP 10.97.132.53`
-  - 说明 `waypoint` 已经拥有自己的集群内服务地址
-- `15021/TCP`
-  - 一般用于健康检查等管理端口
-- `15008/TCP`
-  - 是 Ambient / HBONE 相关通信端口
-
-> note
-> `waypoint` 本质上也是一个 Pod 形式的网格代理；当流量需要 L7 处理时，它会位于两端 `ztunnel` 之间，承担七层授权逻辑。
-
-所以这一步真正确认的是：
-
-- `mesh-demo` 已经成功纳入 `waypoint`
-- 后续 L7 授权已经有了承载点
-- 本小节的重点不是立即观察拦截现象，而是先确认 `waypoint` 运行基础已经就绪
+- 应能看到 `helloworld`
+- 这说明请求已经真正到达后端服务
 
 ---
 
-## 4.5 应用 PeerAuthentication STRICT
+## 测试 2：命名空间 mTLS 边界验证
 
-### 问题背景
-
-如果网格内部不要求 `mTLS`，服务之间就没有“默认只信任内部可信链路”的底线。
-
-### 理论说明
-
-本小节需要明确：
-
-- `PeerAuthentication` 的重点不是控制业务路径
-- 而是定义服务间通信是否必须使用 `mTLS`
-- `PERMISSIVE` 表示同时允许明文和 `mTLS`
-- `STRICT` 表示只允许 `mTLS`
-
-参考 Istio 官方在 Ambient 场景中的说明：
-
-- 未纳入 mesh 的 Pod 会直接访问目标服务
-- 如果目标命名空间启用了 `STRICT`
-  - 这类来自 mesh 外的明文访问应被拒绝
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
+<strong>❗ 测试边界 2</strong><br/>
+本测试只验证 `mesh-demo` 命名空间是否已经具备严格 `mTLS` 边界，不讨论 JWT，也不讨论 L7 授权。
+</div>
 
 ```mermaid
 flowchart LR
-    subgraph permissive[PERMISSIVE 阶段]
-        ext1[default 命名空间临时 Pod<br/>未纳入 mesh]
-        svc1[public-whoami<br/>mesh-demo]
-        mode1[PeerAuthentication<br/>PERMISSIVE]
-        ext1 -->|明文访问可通过| svc1
-        mode1 -. 同时允许明文和 mTLS .-> svc1
-    end
-
-    subgraph strict[STRICT 阶段]
-        ext2[default 命名空间临时 Pod<br/>未纳入 mesh]
-        svc2[public-whoami<br/>mesh-demo]
-        mode2[PeerAuthentication<br/>STRICT]
-        ext2 -. 明文访问被拒绝 .-> svc2
-        mode2 -. 只允许 mTLS .-> svc2
-    end
+    ext1[mesh 外 Pod] --> p1[PERMISSIVE]
+    p1 --> ok[访问成功]
+    ext2[同一个 mesh 外 Pod] --> p2[STRICT]
+    p2 --> deny[访问失败]
 ```
 
-这张图只表达一个课堂重点：
-
-- 当 `mesh-demo` 处于 `PERMISSIVE` 时，来自 `default` 命名空间的明文访问可以成功
-- 当 `mesh-demo` 切到 `STRICT` 后，同一条访问路径会被拒绝
-- 所以后面的 6 步测试，本质上就是把这张图里的左右两种状态分别演示一遍
-
-### 验证方法
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
-<strong>❗ 本段必须执行完整对比测试</strong><br/>
-按照官方思路，先验证 `PERMISSIVE` 时网格外访问可以成功，再验证切回 `STRICT` 后同样访问被拒绝。
-</div>
-
 <div style="padding: 12px 16px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 14px 0;">
-<strong>测试大类：PeerAuthentication 官方案例式对比测试</strong><br/>
-即将开始验证 `mesh-demo` 是否从“允许明文访问”切换为“拒绝 mesh 外明文访问”。
+<strong>本测试对应的 YAML</strong><br/>
+本测试验证前面已经应用好的 `32_peerauthentication_mesh_demo.yaml` 是否真正建立了 `mTLS` 边界。
 </div>
 
-#### 测试 1：先切换到 `PERMISSIVE`
+开始状态：
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+- 这份 `YAML` 默认是 `STRICT`
+- 为了让学员看懂边界，这里先临时改成 `PERMISSIVE`
+- 对照测试结束后，再切回 `STRICT`
+
+对应的关键 YAML 配置：
+
+`32_peerauthentication_mesh_demo.yaml`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/32_peerauthentication_mesh_demo.yaml</code><br/>
+<strong>对象：</strong><code>PeerAuthentication</code><br/>
+<strong>作用：</strong>把 <code>mesh-demo</code> 命名空间切到 <code>STRICT mTLS</code>，为服务间零信任打底
+</div>
+
+```yaml
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: mesh-demo-strict
+  namespace: mesh-demo
+spec:
+  mtls:
+    mode: STRICT
+```
+
+- `mtls.mode: STRICT`
+  - 表示这个命名空间默认只接受严格 `mTLS`
+- 为了课堂演示边界
+  - 先临时切到 `PERMISSIVE`
+  - 再切回 `STRICT`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本测试必须执行的代码</strong><br/>
+按顺序一条一条执行，每执行一步就看一次结果。
+</div>
+
+### 第 1 步：先切到 `PERMISSIVE`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：先把 `mesh-demo` 从“只允许 mTLS”切到“允许明文和 mTLS 都通过”。
+先把 `mesh-demo` 从严格模式切到允许明文通过的对照模式。
 </div>
 
 ```bash
@@ -1042,22 +722,16 @@ kubectl -n mesh-demo patch peerauthentication mesh-demo-strict \
   -p '{"spec":{"mtls":{"mode":"PERMISSIVE"}}}'
 ```
 
-#### 测试 2：确认当前模式已经是 `PERMISSIVE`
+这一步看什么：
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+- 只要 patch 成功即可
+- 这表示接下来 mesh 外的明文访问有机会通过
+
+### 第 2 步：在 `PERMISSIVE` 下测试一次
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：确认刚才的切换已经生效，避免后面测试时讲不清当前到底处于什么模式。
-</div>
-
-```bash
-kubectl -n mesh-demo get peerauthentication
-```
-
-#### 测试 3：在 `PERMISSIVE` 模式下，从 mesh 外发起访问
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
-<strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：从未纳入 Ambient 的 `default` 命名空间访问 `public-whoami`，观察明文访问是否可以成功。
+从 mesh 外的 `default` 命名空间访问 `public-whoami`。
 </div>
 
 ```bash
@@ -1068,13 +742,16 @@ kubectl run mtls-check-permissive -n default \
   --command -- sh -c "curl -sS --max-time 5 http://public-whoami.mesh-demo"
 ```
 
----
+这一步看什么：
 
-#### 测试 4：再切换回 `STRICT`
+- 应该能看到正常返回内容
+- 这说明在 `PERMISSIVE` 下，mesh 外明文访问可以通过
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+### 第 3 步：切回 `STRICT`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：把 `mesh-demo` 切回严格 `mTLS`，准备验证同一条 mesh 外访问是否会被拒绝。
+把命名空间切回严格 `mTLS` 模式。
 </div>
 
 ```bash
@@ -1083,22 +760,16 @@ kubectl -n mesh-demo patch peerauthentication mesh-demo-strict \
   -p '{"spec":{"mtls":{"mode":"STRICT"}}}'
 ```
 
-#### 测试 5：确认当前模式已经是 `STRICT`
+这一步看什么：
 
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+- 只要 patch 成功即可
+- 这表示接下来同一条 mesh 外明文访问应该被拒绝
+
+### 第 4 步：在 `STRICT` 下再测一次
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：确认当前已经回到严格模式。
-</div>
-
-```bash
-kubectl -n mesh-demo get peerauthentication
-```
-
-#### 测试 6：在 `STRICT` 模式下，从 mesh 外再次发起访问
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
-<strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：继续从 `default` 命名空间访问同一个服务，观察严格 `mTLS` 是否会拒绝 mesh 外明文流量。
+继续从 `default` 命名空间访问同一路径，观察结果是否发生变化。
 </div>
 
 ```bash
@@ -1109,109 +780,90 @@ kubectl run mtls-check-strict -n default \
   --command -- sh -c "curl -sS --max-time 5 -o /dev/null -w '%{http_code}\n' http://public-whoami.mesh-demo || true"
 ```
 
-### 预期结果
+这一步看什么：
 
-重点只看下面 2 组结果：
-
-1. `PERMISSIVE` 阶段
-- `kubectl -n mesh-demo get peerauthentication` 中应看到 `MODE=PERMISSIVE`
-- 访问 `public-whoami.mesh-demo` 时，应能看到正常返回内容
-
-2. `STRICT` 阶段
-- `kubectl -n mesh-demo get peerauthentication` 中应看到 `MODE=STRICT`
-- 再次访问 `public-whoami.mesh-demo` 时，不应成功
-- 常见表现是：
+- 这里不应该成功
+- 常见现象包括：
   - 返回 `000`
   - `Recv failure: Connection reset by peer`
-  - 或其他非成功现象
-
-通过标准：
-
-- `PERMISSIVE` 时，mesh 外访问可以成功
-- `STRICT` 时，同一条 mesh 外访问失败
-- 这就说明 `mesh-demo` 已经从“允许明文”切换为“只允许 `mTLS`”
-
-补充说明：
-
-- 这份对象不是在本小节单独创建的
-- 而是在本页主脚本 `04_enable_jwt_and_mesh_security.sh` 的“动作 3：统一应用安全对象”里一起 apply 进去的
-- 对应清单文件是 `32_peerauthentication_mesh_demo.yaml`
+  - 或其他非成功结果
+- 这说明切回 `STRICT` 后，mesh 外明文访问已经被拒绝
 
 ---
 
-## 4.6 应用 httpbin 服务身份授权
+## 测试 3：waypoint 上的 L7 服务身份授权
 
-### 问题背景
-
-即使都在网格里，也不能默认谁都能访问谁。
-
-### 理论说明
-
-本小节需要明确：
-
-- `mTLS` 解决“你是不是网格里的可信对象”
-- 服务身份授权解决“你虽然在网格里，但你有没有权限访问我”
-
-### 验证方法
-
-先确认服务间授权对象已经存在：
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选查看命令</strong><br/>
-下面命令用于查看当前状态。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
+<strong>❗ 测试边界 3</strong><br/>
+本测试只验证 `waypoint` 路径上的 L7 服务身份控制，不再重复验证入口 JWT，也不再重复验证 mTLS 开关。
 </div>
 
-```bash
-kubectl -n mesh-demo get authorizationpolicy
+```mermaid
+flowchart LR
+    t[trusted-client] --> wp[waypoint]
+    u[untrusted-client] --> wp
+    wp --> ok[200]
+    wp --> deny[拒绝]
 ```
 
-如果看到类似输出：
+<div style="padding: 12px 16px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 14px 0;">
+<strong>本测试对应的 YAML</strong><br/>
+本测试验证前面已经应用好的 `33_authorizationpolicy_httpbin_waypoint.yaml` 是否真的把不同服务身份区分开了。
+</div>
 
-```text
-root@ops:/docker_k8s_2026# kubectl -n mesh-demo get authorizationpolicy
-NAME                  ACTION   AGE
-httpbin-waypoint-l7   ALLOW    25m
+开始状态：
+
+- `waypoint` 已经在主脚本里创建好了
+- 这份策略已经把 `trusted-client` 放进允许名单
+- `untrusted-client` 不在允许名单里
+
+对应的关键 YAML 配置：
+
+`33_authorizationpolicy_httpbin_waypoint.yaml`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/33_authorizationpolicy_httpbin_waypoint.yaml</code><br/>
+<strong>对象：</strong><code>AuthorizationPolicy</code><br/>
+<strong>作用：</strong>在 <code>waypoint</code> 路径上限制只有指定服务身份可以访问 <code>httpbin</code>
+</div>
+
+```yaml
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: httpbin-waypoint-l7
+  namespace: mesh-demo
+spec:
+  selector:
+    matchLabels:
+      app: httpbin
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/istio-ingress/sa/istio-ingressgateway
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/mesh-demo/sa/trusted-client
 ```
-
-就说明：
-
-- `httpbin-waypoint-l7`
-  - 这份 `AuthorizationPolicy` 对象已经创建成功
-- `ACTION=ALLOW`
-  - 表示它采用“只允许命中规则的来源通过”这种白名单授权方式
-
-这份对象不是在这一小节单独创建的，而是：
-
-- 在本页主脚本 `04_enable_jwt_and_mesh_security.sh` 的“动作 3：统一应用安全对象”里一起 apply 进去的
-- 对应清单文件是：
-  - `33_authorizationpolicy_httpbin_waypoint.yaml`
-
-它的关键原文在前面已经展开过，重点看的是：
 
 - `selector.matchLabels.app: httpbin`
   - 说明策略直接作用在 `httpbin`
 - `principals`
-  - 只允许指定服务身份访问它
+  - 只允许 `istio-ingressgateway` 和 `trusted-client`
 
-确认对象存在之后，再分别做 `trusted-client` 和 `untrusted-client` 的访问测试。
-
-### 必做访问测试
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
-<strong>❗ 以下 2 组测试必须执行</strong><br/>
-重点只看 2 个结果：`trusted-client` 返回 `200`，`untrusted-client` 出现拒绝结果。
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本测试必须执行的代码</strong><br/>
+按顺序一条一条执行，每执行一步就看一次结果。
 </div>
 
-<div style="padding: 12px 16px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 14px 0;">
-<strong>测试大类：Waypoint 来源身份授权测试</strong><br/>
-即将开始验证 `waypoint` 是否会根据不同服务身份给出放行或拒绝结果。
-</div>
+### 第 1 步：先让 `trusted-client` 访问
 
-#### 测试 1：trusted-client 访问 `httpbin`
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：验证被允许的 `trusted-client` 是否可以正常访问 `httpbin`。
+先看被允许的服务身份能不能正常访问 `httpbin`。
 </div>
 
 ```bash
@@ -1220,17 +872,16 @@ kubectl -n mesh-demo exec deploy/curl-trusted -- \
   http://httpbin.mesh-demo:8000/get
 ```
 
-预期结果：
+这一步看什么：
 
 - 应返回 `200`
+- 这说明 `trusted-client` 的服务身份命中了允许规则
 
----
+### 第 2 步：再让 `untrusted-client` 访问
 
-#### 测试 2：untrusted-client 访问 `httpbin`
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-用途：验证未被授权的 `untrusted-client` 是否会被策略拒绝。
+再看不在允许名单里的服务身份会不会被拒绝。
 </div>
 
 ```bash
@@ -1239,27 +890,22 @@ kubectl -n mesh-demo exec deploy/curl-untrusted -- \
   http://httpbin.mesh-demo:8000/get
 ```
 
-预期结果：
+这一步看什么：
 
-- 应返回拒绝结果
-- 常见表现是：
+- 这里不应该返回 `200`
+- 常见现象包括：
   - `000`
   - `command terminated with exit code 56`
-  - 或者其他非 `200` 的拒绝现象
-
-- 第五章的安全模型不仅作用于入口，也作用于服务间访问
-- 网格内部访问同样遵循按身份最小授权的原则
+  - 或其他非 `200` 结果
+- 这说明 `untrusted-client` 没有命中允许规则，`waypoint` 已按服务身份拒绝访问
 
 ---
 
 ## 本节通过标准
 
-- `JWT` 材料已经生成
-- 入口 `RequestAuthentication` 已存在
-- 入口 `AuthorizationPolicy` 已存在
-- `mesh-demo` 已纳入 `waypoint`
-- `PeerAuthentication STRICT` 已生效
-- `httpbin` 服务身份授权已生效
+- 测试 1 已验证入口 `JWT` 认证与授权生效
+- 测试 2 已验证 `mesh-demo` 命名空间 `mTLS` 边界生效
+- 测试 3 已验证 `waypoint` 上的 `L7` 服务身份授权生效
 
 ---
 
