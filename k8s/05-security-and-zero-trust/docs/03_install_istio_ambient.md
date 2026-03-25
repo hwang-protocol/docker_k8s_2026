@@ -39,36 +39,47 @@
 ### Ambient 基础能力关系图
 
 ```mermaid
-flowchart TD
-    subgraph base[底层网络底座]
-        cilium[Cilium]
+flowchart LR
+    subgraph control[控制面]
+        istiod[1. istiod]
     end
 
-    subgraph ambient[Istio Ambient 基础组件]
-        istiod[istiod]
-        ztunnel[各节点 ztunnel]
-        istioCni[istio-cni]
+    subgraph base[底层网络底座：Cilium]
+        subgraph nodeA[源节点]
+            cniA[2. istio-cni Pod]
+            ztunnelA[3. ztunnel Pod]
+            workloadA[4. 已纳入 Ambient 的工作负载 A]
+        end
+
+        subgraph nodeB[目标节点]
+            cniB[2. istio-cni Pod]
+            ztunnelB[3. ztunnel Pod]
+            workloadB[4. 已纳入 Ambient 的工作负载 B]
+        end
     end
 
-    subgraph apps[业务工作负载]
-        workloadA[工作负载 A]
-        workloadB[工作负载 B]
-    end
+    istiod -. 下发配置与策略 .-> cniA
+    istiod -. 下发配置与策略 .-> ztunnelA
+    istiod -. 下发配置与策略 .-> cniB
+    istiod -. 下发配置与策略 .-> ztunnelB
 
-    cilium --> workloadA
-    cilium --> workloadB
+    cniA -->|把工作负载接入节点网络路径| workloadA
+    cniB -->|把工作负载接入节点网络路径| workloadB
+    workloadA --> ztunnelA
+    ztunnelA -->|基础 mTLS / L4 通道| ztunnelB
+    ztunnelB --> workloadB
 
-    istiod --> ztunnel
-    istiod --> istioCni
-    ztunnel --> workloadA
-    ztunnel --> workloadB
-    istioCni --> cilium
+    linkStyle 4,5,6,7,8 stroke:#ffb45c,stroke-width:3px;
+    linkStyle 0,1,2,3 stroke:#cfcfcf,stroke-width:2px,stroke-dasharray: 5 5;
 ```
 
 这张图要讲清两个事实：
 
-- `Cilium` 还在，底层网络没有被拔掉
-- `Istio` 是以 `istiod + ztunnel + istio-cni` 的方式叠加进来
+- 外层背景框表示 `Cilium` 还在，底层网络没有被替换
+- 节点侧真正新增的是 `istio-cni + ztunnel`
+- `istio-cni` 负责把工作负载接入节点网络路径
+- `ztunnel` 负责在源节点和目标节点之间建立基础 `mTLS / L4` 通道
+- `istiod` 作为控制面把 Ambient 所需配置下发到节点侧组件
 
 ### 为什么这里要先调整 `cni-exclusive`
 
@@ -86,11 +97,25 @@ flowchart TD
 - 这不是仓库里的静态 YAML 清单
 - 它来自脚本运行时对现有集群对象的直接修改
 
-来源如下：
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>运行时对象：</strong><code>ConfigMap/cilium-config</code><br/>
+<strong>命名空间：</strong><code>kube-system</code><br/>
+<strong>作用：</strong>把 <code>cni-exclusive</code> 从 <code>true</code> 调整为 <code>false</code>，允许 <code>Istio CNI</code> 和 <code>Cilium</code> 在当前集群里共同参与节点网络路径
+</div>
 
-- 来源文件：`k8s/05-security-and-zero-trust/scripts/02_install_istio_ambient.sh`
-- 对象类型：`ConfigMap/cilium-config`
-- 命名空间：`kube-system`
+关键 YAML 形态示意：
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cilium-config
+  namespace: kube-system
+data:
+  cni-exclusive: "false"
+```
+
+实际执行方式：`kubectl patch`
 
 对应脚本原文如下：
 
@@ -124,7 +149,7 @@ kubectl -n kube-system rollout restart daemonset/cilium
 ```mermaid
 flowchart LR
     subgraph cluster[当前 Kubernetes 集群]
-        subgraph ambientNs[已纳入 Ambient 的命名空间]
+        subgraph ambientNs[已纳入 Ambient 的命名空间<br/>istio.io/dataplane-mode=ambient]
             meshPodA[工作负载 A]
             meshPodB[工作负载 B]
         end
@@ -135,20 +160,24 @@ flowchart LR
         end
     end
 
-    cilium[Cilium 网络底座] --> meshPodA
-    cilium --> meshPodB
-    cilium --> normalPodA
-    cilium --> normalPodB
+    cilium[Cilium 网络底座]
+    ztunnel[Ambient ztunnel]
 
-    ztunnel[各节点 ztunnel] --> meshPodA
-    ztunnel --> meshPodB
+    meshPodA -->|进入 Ambient 安全通道| ztunnel
+    ztunnel -->|经 ztunnel 处理后再到对端| meshPodB
+
+    normalPodA -->|保持普通网络路径| cilium
+    cilium -->|仅走 Cilium 底座| normalPodB
+
+    linkStyle 0,1 stroke:#ffb45c,stroke-width:3px;
+    linkStyle 2,3 stroke:#6ec1ff,stroke-width:3px;
 ```
 
 这张图要表达的核心是：
 
-- `Cilium` 仍然为整个集群提供底层网络
-- 只有已经纳入 Ambient 的工作负载，才会进入 `ztunnel`
+- 只有已经打上 Ambient 标签的命名空间，工作负载才会进入 `ztunnel`
 - 没纳入 Ambient 的工作负载，仍然只是普通 `Cilium` 网络流量
+- 因此同一个集群里会同时存在普通网络路径和 Ambient 安全路径
 
 所以当前集群里会同时存在两类流量：
 

@@ -82,6 +82,18 @@ flowchart LR
 - `Istio` 在这个底座之上补“身份、安全、治理”
 - 第五章不是重做第三章，而是在第三章之上加能力
 
+这里还要特别分清一个容易混淆的点：
+
+- `Istio` 不是主 `CNI`
+- `Istio CNI` 也不是用来替代集群基础网络插件的主 `CNI`
+- 集群里的 `Pod` 基础联网能力，仍然要由真正的主 `CNI` 提供
+- 在这门课里，这个主 `CNI` 仍然是 `Cilium`
+
+一句话可以先记成：
+
+- `Cilium` 解决“Pod 怎么联网”
+- `Istio` 解决“连上以后怎么做身份、安全和治理”
+
 ---
 
 ## `MetalLB`、`Cilium Gateway API`、`Istio Ingress Gateway` 的关系
