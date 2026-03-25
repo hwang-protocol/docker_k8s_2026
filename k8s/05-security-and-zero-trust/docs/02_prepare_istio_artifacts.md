@@ -7,7 +7,7 @@
 - `istioctl`
 - `Istio 1.29.0` 离线安装包
 - Harbor 中的 `istio` 项目
-- `pilot`、`proxyv2`、`ztunnel`、`install-cni`
+- `Istio` 核心平台镜像
 - `helloworld`、`httpbin`、`curl` 演示镜像
 
 这样后续安装与课堂演示都会更稳定，不依赖临时公网状态。
@@ -49,6 +49,33 @@
 - 平台镜像：`pilot`、`proxyv2`、`ztunnel`、`install-cni`
 - 业务演示镜像：`helloworld`、`httpbin`、`curl`
 
+这里的 `pilot`、`proxyv2`、`ztunnel`、`install-cni` 都是镜像名，当前省略了完整仓库前缀。可以先这样理解：
+
+| 镜像名 | 主要用途 |
+| :--- | :--- |
+| `pilot` | `Istio` 控制面镜像，对应当前运行的 `istiod` |
+| `proxyv2` | `Envoy` 代理镜像，入口网关和后续 `waypoint` 都会用到 |
+| `ztunnel` | `Ambient` 模式下的节点级 `L4` 代理镜像 |
+| `install-cni` | `Istio CNI` 安装镜像，用来把网格流量接入节点网络路径 |
+
+本步完成后，`ops` 本地 `artifacts` 目录可以先理解成下面这样：
+
+```text
+/docker_k8s_2026/k8s/05-security-and-zero-trust/artifacts/
+├── istio-1.29.0/
+│   └── bin/
+│       └── istioctl
+├── istio-source-images-1.29.0.txt
+└── istio-harbor-images-1.29.0.txt
+```
+
+其中：
+
+- `istio-1.29.0/` 是展开后的 `Istio` 离线安装目录
+- `bin/istioctl` 是离线目录里自带的 `CLI`
+- 脚本会再把它安装到 `/usr/local/bin/istioctl`
+- 两个 `txt` 文件分别记录源镜像列表和 Harbor 目标镜像列表
+
 只有先把它们统一放进本地环境和 Harbor，后面才能做到：
 
 - 安装命令稳定
@@ -58,33 +85,45 @@
 ### 制品流转关系图
 
 ```mermaid
-flowchart TD
-  github[GitHub Release]
-  dockerhub[Docker Hub]
-  ops[ops 本地 artifacts]
-  cli[istioctl]
-  harbor[Harbor 项目<br/>istio]
-  nodes[各 Kubernetes 节点]
-  install[后续 Istio 安装]
-  demo[后续演示工作负载]
+flowchart LR
+  subgraph cli[离线包 / CLI 链]
+    github[1. GitHub Release]
+    ops[2. ops 本地 artifacts<br/>istio-1.29.0 目录]
+    bundle[3. Istio 离线安装目录]
+    cliTool[4. istioctl<br/>安装到 /usr/local/bin]
 
-  github --> ops
-  ops --> cli
-  ops --> install
+    github -->|下载| ops
+    ops -->|保留安装包| bundle
+    ops -->|安装 CLI| cliTool
+  end
 
-  dockerhub --> harbor
-  harbor --> nodes
+  subgraph image[镜像链]
+    dockerhub[1. Docker Hub]
+    harbor[2. Harbor 项目<br/>istio]
+    nodes[3. 各 Kubernetes 节点<br/>预拉镜像]
+
+    dockerhub -->|同步镜像| harbor
+    harbor -->|内网拉取| nodes
+  end
+
+  install[5. 后续 Istio 安装]
+  demo[6. 后续演示工作负载]
+
+  bundle --> install
+  cliTool --> install
   nodes --> install
   nodes --> demo
 ```
 
 这张图说明：
 
+- 左侧是离线包与 `CLI` 链，右侧是镜像链
 - `GitHub Release` 只负责 `Istio` 离线包和 `istioctl`
-- `Harbor` 这条链路来自镜像同步，不来自 `GitHub Release`
-- `ops` 既是离线包落地点，也是 `istioctl` 安装点
-- `Harbor` 负责统一承载第五章镜像
-- 节点预拉镜像后，后面安装与演示都会更顺
+- `Harbor` 只负责承载第五章镜像，不负责提供离线包
+- 后续 `Istio` 安装同时依赖：
+  - `ops` 本地的 `istioctl` 与离线包
+  - 节点已经预拉好的平台镜像
+- 后续演示工作负载只走镜像链，不依赖 `GitHub Release`
 
 ---
 
