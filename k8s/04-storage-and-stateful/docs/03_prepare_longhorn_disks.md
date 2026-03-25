@@ -58,8 +58,8 @@ flowchart LR
 
 这张图说明：
 
-- Longhorn 识别的不是“裸盘名字”
-- 而是最终可调度的数据路径
+- `Longhorn` 最终识别和使用的是宿主机上的数据目录 `/var/lib/longhorn`
+- 它不是直接按裸盘名字本身来使用存储
 
 ### 为什么这一步会顺手处理 `nfs-common`、`iscsid`、`multipathd`
 
@@ -70,9 +70,9 @@ flowchart LR
 - `iscsid`
   - Longhorn 数据面需要的基础宿主机服务
 - `multipathd`
-  - 在课堂环境里通常不需要，保留它反而可能干扰磁盘识别
+  - 本章不存在多路径存储那种“同一块 LUN 有多条链路”的场景；如果保持启用，反而可能把普通数据盘额外映射成 `dm/mapper` 设备，增加磁盘识别复杂度，因此本章禁用
 - `dm_crypt`
-  - Longhorn 常见宿主机内核模块前提之一
+  - `dm_crypt` 是 Linux 磁盘加密相关内核模块；本章并不展开加密，只是顺手补齐 Longhorn 常见宿主机前提
 
 这一步的教学重点不是把这些组件讲到最深，而是让学员知道：
 
@@ -148,7 +148,7 @@ systemctl enable --now iscsid >/dev/null 2>&1 || true
 
 关键介绍：
 
-- 关闭课堂环境里不需要的 `multipathd`
+- 本章禁用不需要的 `multipathd`
 - 确保 `dm_crypt` 模块与 `iscsid` 服务处于可用状态
 
 ---
