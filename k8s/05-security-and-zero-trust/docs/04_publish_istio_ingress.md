@@ -46,9 +46,9 @@ flowchart LR
     dns --> vip[MetalLB VIP<br/>10.1.1.62]
     vip --> ingress[Istio Ingress Gateway]
 
-    ingress --> publicPath[路径 /public]
-    ingress --> helloPath[路径 /hello]
-    ingress --> httpbinPath[路径 /get 等]
+    ingress --> publicPath[路径 /public<br/>先验证入口与 HTTPS]
+    ingress --> helloPath[路径 /hello<br/>后续 JWT 入口验证]
+    ingress --> httpbinPath[路径 /get 等<br/>后续服务间访问控制]
 
     publicPath --> publicSvc[public-whoami]
     helloPath --> helloSvc[helloworld]
@@ -221,7 +221,52 @@ spec:
 - `credentialName`
   - 指向本步脚本创建的 TLS Secret
 
+这里还要补清 `secure-app-qytk8s-com-tls` 是怎么来的：
+
+- 脚本会先为 `secure-app.qytk8s.com` 生成证书与私钥
+- 再通过 `kubectl create secret tls ... --dry-run=client -o yaml | kubectl apply -f -`
+  把它们导入成 Kubernetes `TLS Secret`
+- 最终由 `Gateway` 的 `credentialName: secure-app-qytk8s-com-tls` 去引用这份证书
+
+可以先把它理解成下面这份对象：
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secure-app-qytk8s-com-tls
+  namespace: istio-ingress
+type: kubernetes.io/tls
+data:
+  tls.crt: <base64-encoded certificate>
+  tls.key: <base64-encoded private key>
+```
+
 #### 基线路由 `VirtualService`
+
+`VirtualService` 是 `Istio` 里定义七层路由规则的核心对象。可以先把它理解成：
+
+- `Gateway`
+  - 决定入口监听哪个域名、哪个端口、用哪张证书
+- `VirtualService`
+  - 决定进入入口之后，不同请求路径应该转发到哪个后端服务
+
+关系图如下：
+
+```mermaid
+flowchart LR
+    client[外部客户端] --> gateway[Gateway<br/>secure-app-gateway]
+    gateway --> vs[VirtualService]
+    vs --> publicSvc[路径 /public<br/>public-whoami<br/>先验证入口与 HTTPS]
+    vs --> helloSvc[路径 /hello<br/>helloworld<br/>后续 JWT 入口验证]
+    vs --> httpbinSvc[路径 /get<br/>httpbin<br/>后续服务间访问控制]
+```
+
+这张图要表达的核心是：
+
+- `Gateway` 先把入口接住
+- `VirtualService` 再按七层规则分流
+- 后端真正收到请求的，是 `public-whoami`、`helloworld`、`httpbin` 这些服务
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>YAML 文件：</strong><code>manifests/21_virtualservice_baseline.yaml</code><br/>
@@ -238,12 +283,34 @@ spec:
     - secure-app-gateway
   http:
     - name: public
+      match:
+        - uri:
+            prefix: /public
+      route:
+        - destination:
+            host: public-whoami
     - name: hello
+      match:
+        - uri:
+            prefix: /hello
+      route:
+        - destination:
+            host: helloworld
     - name: httpbin-get
+      match:
+        - uri:
+            prefix: /get
+      route:
+        - destination:
+            host: httpbin
 ```
 
 关键字段说明：
 
+- `hosts`
+  - 限定这份 `VirtualService` 只处理 `secure-app.qytk8s.com`
+- `gateways`
+  - 说明这份七层路由规则挂到 `secure-app-gateway` 这个入口上
 - `public`
   - 作为“入口和 HTTPS 正常”的对照路径
 - `hello`
@@ -477,15 +544,21 @@ secure-app.qytk8s.com  ->  10.1.1.62
 - `https://secure-app.qytk8s.com/public`
   - 验证入口、证书、HTTPS 与基础路由
 - `https://secure-app.qytk8s.com/hello`
-  - 验证 `helloworld`
+  - 验证 `/hello` 路径已经正确转发到 `helloworld`
 - `https://secure-app.qytk8s.com/get`
-  - 验证 `httpbin`
+  - 验证 `/get` 路径已经正确转发到 `httpbin`，并返回标准 HTTP 回显结果
 - `https://secure-app.qytk8s.com/headers`
-  - 验证 `httpbin`
+  - 验证入口转发后，请求头会由 `httpbin` 以 `JSON` 形式回显出来
 - `https://secure-app.qytk8s.com/status/200`
-  - 验证 `httpbin`
+  - 验证入口转发后，能够按路径返回指定状态码
 - `https://secure-app.qytk8s.com/delay/3`
-  - 验证 `httpbin`
+  - 验证入口转发后，能够返回带延迟的 HTTP 响应
+
+这里要特别理解：
+
+- `httpbin` 不是为了“看一个漂亮页面”
+- 它的价值是提供稳定的 HTTP 回显接口
+- 后面做 `JWT`、授权、策略和请求行为观察时，都会更容易验证
 
 当前这一步里，下面这些地址出现 `404` 或不适合作为浏览器验证，都属于正常现象：
 
