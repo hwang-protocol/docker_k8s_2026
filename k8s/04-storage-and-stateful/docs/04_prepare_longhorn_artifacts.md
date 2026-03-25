@@ -6,8 +6,8 @@
 
 - `Longhorn Helm Chart`
 - `MongoDB Helm Chart`
-- Longhorn 安装渲染清单
-- MongoDB 安装渲染清单
+- Longhorn `rendered manifest`（供讲解与排查）
+- MongoDB `rendered manifest`（供讲解与排查）
 - Longhorn 所需镜像
 - 有状态演示镜像
 - MongoDB 副本集案例所需镜像
@@ -17,10 +17,6 @@
 ## 执行标记
 
 - **执行标记：必须执行**
-
-说明：
-
-- 这是第四章的制品预热步骤
 - 本步完成后，后续安装过程尽量不再依赖公网临时下载
 
 ---
@@ -34,11 +30,11 @@
 - 部署有状态演示应用
 - 部署一个真实的 `MongoDB ReplicaSet` StatefulSet 案例
 
-如果每一步都临时去公网拉 Chart、镜像或渲染清单，课堂演示很容易受外网抖动影响。
+如果每一步都临时去公网拉 `Chart`、镜像或 `rendered manifest`，课堂演示很容易受外网波动影响。
 
 因此这一页的意义很明确：
 
-- 先把第四章会用到的 Chart、YAML 和镜像预热到本地与 Harbor
+- 先把第四章会用到的 `Chart`、`rendered manifest` 和镜像预热到本地与 Harbor
 - 把后续部署步骤变成“拿本地制品安装”
 
 ---
@@ -63,22 +59,24 @@ flowchart LR
 
 这张图说明：
 
-- `Chart` 与渲染清单固化到 `ops` 本地 `artifacts/`
+- `Chart` 与 `rendered manifest` 固化到 `ops` 本地 `artifacts/`
 - 镜像统一进入 Harbor
 - 节点提前从 Harbor 预拉镜像
-- 后续安装步骤优先消费本地制品
+- 后续安装优先消费这些本地制品
 
-### 为什么第四章仍然坚持“制品、配置、脚本职责分离”
+这里也可以顺手区分两个目录：
 
-第四章依然遵守整门课的一个重要规则：
+- `manifests/`
+  - 保存手工维护的源配置，例如 `values` 与独立 `YAML`
+- `artifacts/`
+  - 保存下载或生成后的安装制品，例如 `chart.tgz`、`rendered manifest` 和镜像清单
 
-- 脚本负责下载、推送、预拉、安装
-- 原始 values 与 YAML 仍然独立保存在项目目录中
+这里的 `rendered manifest` 可以直接理解为：
 
-这样做有两个直接好处：
+- 保留原始 `Chart`
+- 再用 `helm template` 提前生成一份渲染后的对象清单
 
-1. 课堂上可以单独讲清每份 values / YAML 是干什么的。
-2. 后续维护时，不需要去脚本里反向提取配置。
+它不是 `Chart` 包本身，而是 `Chart + values` 生成出来的安装结果。第四章后续真正安装时，仍然使用 `Chart + values`；`rendered manifest` 主要用于提前查看对象结构、课堂讲解与后续排查。
 
 ### 第四章 Harbor 项目的角色
 
@@ -99,92 +97,73 @@ flowchart LR
 
 ### 本步关键配置
 
-第四章真正会被后续安装直接消费的关键配置是：
+第四章当前需要先明确的一份关键配置是：
 
-- `manifests/01_longhorn_values.yaml`
-- `manifests/07_mongodb_values.yaml`
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/01_longhorn_values.yaml</code><br/>
+<strong>本页重点对象：</strong><code>Longhorn Helm values</code><br/>
+<strong>作用：</strong>定义第四章 Longhorn 安装参数，包括默认数据路径、默认副本数和默认 <code>StorageClass</code> 行为
+</div>
 
-- 来源文件：`manifests/01_longhorn_values.yaml`
-- 文件类型：`Helm values`
-
-关键字段如下：
-
-```yaml
-defaultSettings:
-  createDefaultDiskLabeledNodes: true
-  defaultDataPath: /var/lib/longhorn
-  defaultReplicaCount: 3
-```
-
-以及：
-
-- 来源文件：`manifests/01_longhorn_values.yaml`
-- 文件类型：`Helm values`
-
-```yaml
-persistence:
-  defaultClass: true
-  defaultClassReplicaCount: 3
-  reclaimPolicy: Delete
-```
-
-关键字段说明：
-
-- `createDefaultDiskLabeledNodes: true`
-  - 只有被标记的节点才会自动创建默认数据盘
-- `defaultDataPath: /var/lib/longhorn`
-  - 和第 2 步准备好的宿主机路径严格对齐
-- `defaultReplicaCount: 3`
-  - 对应第四章初始 3 节点副本教学主线
-- `defaultClass: true`
-  - 让 `longhorn` 作为默认 `StorageClass`
-
-MongoDB Helm 案例真正会被后续安装直接消费的关键配置是：
-
-- `manifests/07_mongodb_values.yaml`
-
-- 来源文件：`manifests/07_mongodb_values.yaml`
-- 文件类型：`Helm values`
-
-关键字段如下：
+关键字段摘录：
 
 ```yaml
 global:
   imageRegistry: harbor.qytk8s.com
+  cattle:
+    systemDefaultRegistry: harbor.qytk8s.com
 
-fullnameOverride: qytang-statefulset-mongodb-demo
-architecture: replicaset
-replicaCount: 3
-```
+privateRegistry:
+  registryUrl: harbor.qytk8s.com
 
-以及：
-
-- 来源文件：`manifests/07_mongodb_values.yaml`
-- 文件类型：`Helm values`
-
-```yaml
-auth:
-  rootUser: root
-  rootPassword: QytangMongo123456
-  replicaSetKey: QytangReplicaSet123456
+defaultSettings:
+  createDefaultDiskLabeledNodes: true
+  defaultDataPath: /var/lib/longhorn
+  defaultReplicaCount: 3
+  replicaAutoBalance: least-effort
+  storageMinimalAvailablePercentage: 10
+  upgradeChecker: false
 
 persistence:
-  storageClass: longhorn
-  size: 2Gi
+  defaultClass: true
+  defaultClassReplicaCount: 3
+  defaultDataLocality: disabled
+  reclaimPolicy: Delete
+
+service:
+  ui:
+    type: ClusterIP
+
+preUpgradeChecker:
+  upgradeVersionCheck: false
 ```
 
 关键字段说明：
 
-- `global.imageRegistry: harbor.qytk8s.com`
-  - 第四章 `MongoDB` 案例镜像统一从 Harbor 拉取
-- `architecture: replicaset`
-  - 这一页明确采用真实副本集，而不是单实例
-- `replicaCount: 3`
-  - 对应 3 个固定编号的数据库成员
-- `replicaSetKey`
-  - 用于副本集成员之间认证
-- `persistence.storageClass: longhorn`
-  - 明确把数据库卷落到第四章已经安装的 `Longhorn`
+- `global.imageRegistry`、`global.cattle.systemDefaultRegistry` 与 `privateRegistry.registryUrl`
+  - 统一把 Longhorn chart 涉及的镜像 registry 收敛到 `harbor.qytk8s.com`，并与 Longhorn 私有仓库配置保持一致
+- `createDefaultDiskLabeledNodes: true`
+  - 只有带 `node.longhorn.io/create-default-disk` 标签的节点，才会自动创建默认数据盘；这就是为什么第四章先标记首批 3 个存储节点
+- `defaultDataPath: /var/lib/longhorn`
+  - 和第 2 步准备好的宿主机路径严格对齐
+- `defaultReplicaCount: 3`
+  - 写入 Longhorn 的全局默认设置 `default-replica-count`，对应第四章初始 `3` 副本主线
+- `replicaAutoBalance: least-effort`
+  - Longhorn 会尽量做副本均衡，但不会把副本迁移与重平衡当成本章主线展开
+- `storageMinimalAvailablePercentage: 10`
+  - 当磁盘可用空间低于这个阈值时，Longhorn 会停止继续向该磁盘调度新副本
+- `upgradeChecker: false`
+  - 关闭课堂环境中不需要的版本检查
+- `defaultClass: true`
+  - 把 `longhorn` 标记为默认 `StorageClass`
+- `defaultClassReplicaCount: 3`
+  - 写入默认 `StorageClass` 的 `numberOfReplicas: "3"`，也就是通过 `PVC` 动态创建出来的卷默认按 `3` 副本执行
+- `defaultDataLocality: disabled`
+  - 写入默认 `StorageClass` 的 `dataLocality: "disabled"`；本章先不强调本地副本贴近工作负载节点的数据本地性优化
+- `service.ui.type: ClusterIP`
+  - Longhorn UI 先保留集群内访问，后续再通过 `Gateway API + HTTPS` 正式发布
+- `preUpgradeChecker.upgradeVersionCheck: false`
+  - 关闭课堂环境中不需要的升级检查
 
 ---
 
@@ -238,9 +217,9 @@ helm pull oci://registry-1.docker.io/bitnamicharts/mongodb \
 关键介绍：
 
 - 把第四章固定版本 `Longhorn` 与 `MongoDB` Chart 都固化到本地
-- 后续安装直接消费这些本地 Chart
+- 后续安装仍直接消费这些本地 `Chart`
 
-### 关键任务 3：渲染本地安装清单
+### 关键任务 3：生成 `rendered manifest`
 
 脚本原始代码：
 
@@ -256,9 +235,10 @@ helm template qytang-mongodb-demo "${MONGODB_CHART_PACKAGE}" \
 
 关键介绍：
 
-- 不只是保存 Chart
-- 还会把第四章最终会安装出来的大致对象结构提前渲染好
-- 其中 `mongodb-rendered-15.6.0.yaml` 会直接用于第 7 步讲解 `StatefulSet`、`Headless Service` 和 `volumeClaimTemplates`
+- 不只保存 `Chart`
+- 还会把后续安装会生成的主要对象结构提前渲染出来
+- 其中 `mongodb-rendered-15.6.0.yaml` 会直接用于 [08_statefulset_intro.md](/docker_k8s_2026/k8s/04-storage-and-stateful/docs/08_statefulset_intro.md) 讲解 `StatefulSet`、`Headless Service` 和 `volumeClaimTemplates`
+- 但后续真正安装时，仍然使用本地 `Chart + values`
 
 ### 关键任务 4：推送镜像到 Harbor 并预拉
 
@@ -280,7 +260,7 @@ crictl --runtime-endpoint unix:///run/containerd/containerd.sock pull "${image}"
 
 - 先把第四章镜像统一进入 Harbor
 - 再让各节点提前从 Harbor 预拉，保证后续安装稳定
-- 第 7 步 `MongoDB` 案例也不再临时直连公网仓库
+- 后面的 `MongoDB` 案例也不再临时直连公网仓库
 
 ---
 
@@ -314,7 +294,7 @@ ls -lh /docker_k8s_2026/k8s/04-storage-and-stateful/artifacts/
   - `mongodb-source-images-15.6.0.txt`
   - `mongodb-harbor-images-15.6.0.txt`
 - `longhorn-1.11.0.tgz` 和 `mongodb-15.6.0.tgz` 说明本地 Chart 已固化完成
-- 两份 `rendered` 清单说明 Helm 渲染结果已提前生成
+- 两份 `rendered` 文件说明 `rendered manifest` 已提前生成
 - 四份 `images` 清单说明第四章镜像来源和 Harbor 目标地址都已经整理出来
 
 预期结果：
@@ -344,20 +324,21 @@ curl -I http://ops:9000/04-storage-and-stateful/artifacts/longhorn-rendered-1.11
 
 关键看点：
 
-- 重点看这份渲染清单是否也已经被 `ops:9000` 正常发布
-- 这说明课堂上后续如果要讲对象结构或排查安装内容，已经有一份可直接访问的本地渲染结果
+- 重点看这份 `rendered manifest` 是否也已经被 `ops:9000` 正常发布
+- 这说明后续如果要讲对象结构或排查安装内容，已经有一份可直接访问的本地渲染结果
 
 预期结果：
 
 - 返回状态行为应为 `HTTP/1.0 200 OK` 或 `HTTP/1.1 200 OK`
 - 这说明 `longhorn-rendered-1.11.0.yaml` 已经可通过 `ops` 本地 HTTP 服务访问
 
-通过这一组验证后，应形成下面的判断：
+判断：
 
 - 本地 Longhorn Chart 已固化完成
-- Longhorn 渲染清单已固化完成
-- 镜像清单已整理完成
+- Longhorn `rendered manifest` 已固化完成
+- MongoDB 制品与镜像清单也已整理完成
 - `ops:9000` 已能为后续第四章步骤提供这些本地制品
+- 后续安装仍将按 `Chart + values` 执行
 
 ---
 
@@ -365,7 +346,9 @@ curl -I http://ops:9000/04-storage-and-stateful/artifacts/longhorn-rendered-1.11
 
 - Harbor 项目 `longhornio` 已就绪
 - Harbor 项目 `storage` 已就绪
-- Longhorn Chart 已落地到本地 `artifacts/`
+- Harbor 项目 `bitnamilegacy` 已就绪
+- Longhorn 与 MongoDB Chart 都已落地到本地 `artifacts/`
+- Longhorn 与 MongoDB `rendered manifest` 都已生成完成
 - 所有节点都已预拉第四章所需镜像
 
 ---

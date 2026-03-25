@@ -187,10 +187,13 @@ flowchart LR
 
 ## 本步关键配置
 
-### Helm values
+### MongoDB Helm values
 
-- 来源文件：`manifests/07_mongodb_values.yaml`
-- 文件类型：`Helm values`
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/07_mongodb_values.yaml</code><br/>
+<strong>本页重点对象：</strong><code>MongoDB Helm values</code><br/>
+<strong>作用：</strong>定义第四章 MongoDB ReplicaSet 案例的安装参数，包括副本集模式、镜像来源、认证信息、反亲和与持久化卷配置
+</div>
 
 ```yaml
 global:
@@ -204,46 +207,65 @@ image:
 architecture: replicaset
 replicaCount: 3
 replicaSetName: rs0
-```
 
-以及：
-
-- 来源文件：`manifests/07_mongodb_values.yaml`
-- 文件类型：`Helm values`
-
-```yaml
 auth:
   enabled: true
   rootUser: root
   rootPassword: QytangMongo123456
   replicaSetKey: QytangReplicaSet123456
 
+arbiter:
+  enabled: false
+
+hidden:
+  enabled: false
+
+podAntiAffinityPreset: soft
+
 persistence:
+  enabled: true
   storageClass: longhorn
+  accessModes:
+    - ReadWriteOnce
   size: 2Gi
 ```
 
 关键字段说明：
 
-- `global.imageRegistry: harbor.qytk8s.com`
-  - 这一页使用的镜像统一从 Harbor 拉取
+- `global.imageRegistry: harbor.qytk8s.com` 与 `image.repository: bitnamilegacy/mongodb`
+  - 组合后的实际镜像来源是 `harbor.qytk8s.com/bitnamilegacy/mongodb`
+- `fullnameOverride: qytang-statefulset-mongodb-demo`
+  - 固定这套案例的对象名字，便于课堂观察 `Pod`、`PVC`、`Headless Service` 与副本集成员
 - `architecture: replicaset`
-  - 明确要求创建副本集，而不是单实例
+  - 明确要求创建 `ReplicaSet`，而不是单实例
 - `replicaCount: 3`
-  - 对应 3 个固定编号成员
-- `fullnameOverride`
-  - 固定这套案例的对象名字，便于课堂观察
-- `image.repository: bitnamilegacy/mongodb`
-  - 固定使用课程当前验证可用的 MongoDB 基础镜像，再统一同步到 Harbor
+  - 对应 3 个固定编号成员：`-0`、`-1`、`-2`
+- `replicaSetName: rs0`
+  - 指定副本集名称，后续 `rs.status()` 看到的就是这套成员关系
+- `auth.enabled: true`、`rootUser`、`rootPassword`
+  - 开启认证，并显式固定课堂环境使用的管理员账号
 - `replicaSetKey`
   - 供副本集成员之间认证
+- `arbiter.enabled: false`、`hidden.enabled: false`
+  - 当前案例只保留 3 个可见、可承载数据的正式成员，不额外引入仲裁节点或隐藏节点
+- `podAntiAffinityPreset: soft`
+  - 优先把副本分散到不同节点，但不把它设成硬性调度约束
 - `persistence.storageClass: longhorn`
-  - 明确每个成员的卷都由 Longhorn 提供
+  - 明确每个成员的卷都由 `Longhorn` 提供
+- `persistence.enabled: true`
+  - 开启持久化卷，而不是把数据库数据写在容器临时层
+- `accessModes: ReadWriteOnce`
+  - 每个成员独占自己的卷，这也符合数据库单成员独立数据盘的常见方式
+- `size: 2Gi`
+  - 当前课堂案例给每个成员分配 `2Gi` 存储空间
 
 ### 渲染后的 Headless Service
 
-- 来源文件：`artifacts/mongodb-rendered-15.6.0.yaml`
-- 对象类型：`Service`
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>artifacts/mongodb-rendered-15.6.0.yaml</code><br/>
+<strong>本页重点对象：</strong><code>Headless Service</code><br/>
+<strong>作用：</strong>为 MongoDB 副本集成员提供稳定 DNS 名字，而不是提供统一负载均衡入口
+</div>
 
 ```yaml
 kind: Service
@@ -267,8 +289,11 @@ spec:
 
 ### 渲染后的 StatefulSet
 
-- 来源文件：`artifacts/mongodb-rendered-15.6.0.yaml`
-- 对象类型：`StatefulSet`
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>artifacts/mongodb-rendered-15.6.0.yaml</code><br/>
+<strong>本页重点对象：</strong><code>StatefulSet</code><br/>
+<strong>作用：</strong>为 MongoDB 生成固定编号成员，并让每个成员拥有自己的独立卷
+</div>
 
 ```yaml
 kind: StatefulSet
