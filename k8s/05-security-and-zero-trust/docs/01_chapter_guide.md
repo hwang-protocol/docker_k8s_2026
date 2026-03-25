@@ -15,13 +15,11 @@
 
 ---
 
-## 课前理论导读
+## 理论导读
 
-正式操作前，建议先阅读：
+先阅读 `docs/00_security_theory.md`。
 
-- `docs/00_security_theory.md`
-
-它负责把本章最容易混淆的几个点讲清楚：
+这一页主要讲清：
 
 - `Cilium` 和 `Istio` 的边界
 - `MetalLB`、`Cilium Gateway API` 与 `Istio Ingress Gateway` 的关系
@@ -33,9 +31,7 @@
 
 ---
 
-## 本章重点边界
-
-第五章只聚焦：
+## 本章重点
 
 - `Istio Ingress Gateway`
 - `JWT`
@@ -44,17 +40,6 @@
 - `PeerAuthentication`
 - `Ambient`
 - `waypoint`
-
-还不展开：
-
-- 完整 `OIDC / Keycloak` 认证体系
-- 多集群网格
-- 外部授权服务
-- 证书自动轮换
-- 复杂审计与策略编排
-- 更高级的流量治理能力
-
-这些内容放到后续增强实验。
 
 ---
 
@@ -71,52 +56,52 @@
 先看这张总关系图，再进入每一步细节：
 
 ```mermaid
-flowchart TD
-    user[用户浏览器或客户端] --> dns[DNS]
-    dns --> vip[MetalLB VIP<br/>10.1.1.62]
-    vip --> ingress[Istio Ingress Gateway]
-
-    subgraph base[底层网络底座]
-        cilium[Cilium]
+flowchart LR
+    subgraph outside[集群外]
+        user[北向 1. 浏览器 / 客户端]
+        dns[北向 2. DNS<br/>secure-app.qytk8s.com]
     end
 
-    subgraph mesh[Istio 控制与数据面]
-        istiod[istiod]
-        ztunnel[各节点 ztunnel]
-        waypoint[mesh-demo waypoint]
+    subgraph base[底层网络底座：Cilium]
+        subgraph north[第五章北向入口链]
+            vip[北向 3. MetalLB VIP<br/>10.1.1.62]
+            ingress[北向 4. Istio Ingress Gateway]
+            publicSvc[北向 5. public-whoami<br/>先验证入口是否成功]
+        end
+
+        subgraph mesh[网格内安全主线]
+            helloSvc[网格 1. helloworld]
+            ztunnelSrc[网格 2. 源节点 ztunnel]
+            waypoint[网格 3. mesh-demo waypoint]
+            ztunnelDst[网格 4. 目标节点 ztunnel]
+            httpbinSvc[网格 5. httpbin]
+        end
     end
 
-    subgraph apps[第五章演示业务]
-        publicSvc[public-whoami]
-        helloSvc[helloworld]
-        httpbinSvc[httpbin]
+    subgraph control[控制面]
+        istiod[istiod<br/>下发配置与策略]
     end
 
-    ingress --> publicSvc
-    ingress --> helloSvc
-    ingress --> httpbinSvc
+    user --> dns --> vip --> ingress --> publicSvc
+    helloSvc --> ztunnelSrc --> waypoint --> ztunnelDst --> httpbinSvc
 
-    istiod --> ingress
-    istiod --> ztunnel
-    istiod --> waypoint
+    istiod -. 管理 .-> ingress
+    istiod -. 管理 .-> ztunnelSrc
+    istiod -. 管理 .-> waypoint
+    istiod -. 管理 .-> ztunnelDst
 
-    ztunnel --> helloSvc
-    ztunnel --> httpbinSvc
-    waypoint --> httpbinSvc
-
-    cilium --> ingress
-    cilium --> publicSvc
-    cilium --> helloSvc
-    cilium --> httpbinSvc
+    linkStyle 0,1,2,3 stroke:#6ec1ff,stroke-width:3px;
+    linkStyle 4,5,6,7 stroke:#ffb45c,stroke-width:3px;
+    linkStyle 8,9,10,11 stroke:#cfcfcf,stroke-width:2px,stroke-dasharray: 5 5;
 ```
 
 这张图只需要先抓住 5 个点：
 
+- 蓝色主线是第五章新增的北向入口链：`浏览器 -> DNS -> VIP -> Istio Ingress Gateway -> public-whoami`
+- 橙色主线是网格内安全链：`helloworld -> ztunnel -> waypoint -> ztunnel -> httpbin`
 - `MetalLB` 负责把 `10.1.1.62` 这个 VIP 发布出来
-- `Cilium` 继续作为底层网络底座存在，但不是这一章的讲解重点
-- `Istio Ingress Gateway` 是第五章新增的北向增强入口
 - `istiod` 是控制面，负责把配置和策略下发出去
-- `ztunnel` 管 L4，`waypoint` 作为后续可扩展的 L7 承载点
+- 外层背景框表示这些流量路径仍然运行在 `Cilium` 网络底座之上
 
 ### 第五章几个演示服务分别做什么
 
@@ -125,15 +110,6 @@ flowchart TD
 | `public-whoami` | 用来验证第五章新入口是否已经发布成功 |
 | `helloworld` | 用来配合 `JWT`、`mTLS`、服务间访问控制等安全实验 |
 | `httpbin` | 用来演示服务间访问控制，并作为后续扩展实验目标 |
-
-可以先把它们记成：
-
-- `public-whoami`
-  - 入口验证用
-- `helloworld`
-  - 安全机制演示用
-- `httpbin`
-  - 服务间访问控制演示用
 
 ---
 
@@ -152,7 +128,7 @@ flowchart TD
 
 ## 本章执行顺序
 
-请严格按下面顺序执行：
+按下面顺序执行：
 
 0. `00_security_theory.md`
 1. `02_prepare_istio_artifacts.md`
@@ -160,33 +136,6 @@ flowchart TD
 3. `04_publish_istio_ingress.md`
 4. `05_enable_jwt_and_mesh_security.md`
 5. `06_verify.md`
-
----
-
-## 扩展内容
-
-如果想继续深入学习第五章的扩展内容，可以再阅读下面这些备份页面：
-
-- `docs/advanced/06_apply_traffic_management.md`
-- `docs/advanced/07_fault_injection_and_canary.md`
-- `docs/advanced/08_manual_tests.md`
-
-这些内容不再放入当前主线任务，主线到 `06_verify.md` 为止；主线里只做安全与零信任闭环。
-
----
-
-## 第五章起点状态
-
-第五章开始前，默认你已经完成第四章，并满足下面条件：
-
-- 所有节点均为 `Ready`
-- 第四章最终验收已通过
-- `MetalLB` 正常
-- `Cilium` 正常
-- `app.qytk8s.com`、`longhorn.qytk8s.com` 已可通过 `HTTPS` 访问
-- `ops` 已具备 `kubectl`、`helm`
-- `ops` 已提供 `http://ops:9000/`
-- Harbor 仍然保留
 
 ---
 
@@ -212,6 +161,6 @@ flowchart TD
 
 ## 下一步
 
-先进入第 1 步，准备第五章所需制品：
+先进入第 1 步：
 
 - `docs/02_prepare_istio_artifacts.md`
