@@ -52,7 +52,7 @@
 - 外部授权服务
 - 证书自动轮换
 - 复杂审计与策略编排
-- 更高级的流量治理与故障注入演示
+- 更高级的流量治理能力
 
 这些内容放到后续增强实验。
 
@@ -137,16 +137,16 @@ flowchart TD
 
 ---
 
-## 本章脚本执行矩阵
+## 本章小单元与对应脚本
 
-| 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
+| 步骤 | 文档 | 主要任务 | 对应脚本 | 执行标记 |
 | :--- | :--- | :--- | :--- | :--- |
-| 0 | `00_security_theory.md` | 无 | 建议先读 | 先理清 `Istio` 安全与治理主线 |
-| 1 | `02_prepare_istio_artifacts.md` | `scripts/01_prepare_istio_artifacts.sh` | 必须执行 | 预热 `istioctl`、离线包、镜像与演示材料 |
-| 2 | `03_install_istio_ambient.md` | `scripts/02_install_istio_ambient.sh` | 必须执行 | 安装 `istiod`、`ztunnel` 与 Ambient 基础能力 |
-| 3 | `04_publish_istio_ingress.md` | `scripts/03_publish_istio_ingress_demo.sh` | 必须执行 | 部署新入口、TLS、演示应用与基础路由 |
-| 4 | `05_enable_jwt_and_mesh_security.md` | `scripts/04_enable_jwt_and_mesh_security.sh` | 必须执行 | 开启 `JWT`、`mTLS`、`AuthorizationPolicy` |
-| 5 | `06_verify.md` | `scripts/07_verify_istio_security.sh` | 只读验收 | 第五章主线最终验收 |
+| 0 | `00_security_theory.md` | 先理清 `Istio` 安全与零信任主线 | 无 | 建议先读 |
+| 1 | `02_prepare_istio_artifacts.md` | 预热 `istioctl`、离线包、镜像与演示材料 | `scripts/01_prepare_istio_artifacts.sh` | 必须执行 |
+| 2 | `03_install_istio_ambient.md` | 安装 `istiod`、`ztunnel` 与 Ambient 基础能力 | `scripts/02_install_istio_ambient.sh` | 必须执行 |
+| 3 | `04_publish_istio_ingress.md` | 部署新入口、TLS、演示应用与基础路由 | `scripts/03_publish_istio_ingress_demo.sh` | 必须执行 |
+| 4 | `05_enable_jwt_and_mesh_security.md` | 开启 `JWT`、`mTLS`、`AuthorizationPolicy` | `scripts/04_enable_jwt_and_mesh_security.sh` | 必须执行 |
+| 5 | `06_verify.md` | 完成第五章主线最终验收 | `scripts/07_verify_istio_security.sh` | 建议执行 |
 
 ---
 

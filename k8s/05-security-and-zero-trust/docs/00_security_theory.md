@@ -6,6 +6,25 @@
 
 ---
 
+## 什么是 Istio
+
+`Istio` 是 Kubernetes 场景中常见的服务网格实现，用来补齐服务之间的身份、安全、流量治理与可观测能力。
+
+在第五章里，可以先把它理解成下面这组能力：
+
+- 为服务建立稳定身份
+- 为服务间通信提供 `mTLS`
+- 提供 `JWT`、授权策略和入口安全控制
+- 在入口与网格内补充更细粒度的 `L7` 治理能力
+
+官方入口：
+
+- 官网：<https://istio.io/>
+- 官方文档：<https://istio.io/latest/docs/>
+- GitHub：<https://github.com/istio/istio>
+
+---
+
 ## 第五章为什么要新增 Istio 入口
 
 第三章已经完成了：
@@ -23,7 +42,6 @@
 - 服务间 `mTLS`
 - L4/L7 授权
 - 服务间零信任
-- 故障演练
 
 如果继续把这一章全部压在第三章的 `Cilium Gateway API` 上，教学主线会分散；因此第五章单独新增 `Istio Ingress Gateway`，专门承载安全与零信任能力。
 
@@ -76,8 +94,8 @@ flowchart LR
 
 答案是：
 
-- 可以同时存在
-- 但它们并不是互相替代 `MetalLB`
+- 可以先这样理解：第五章确实又新增了一套入口实现
+- 但更准确地说，它和第三章入口可以并存，对外 `VIP` 仍然由 `MetalLB` 提供
 
 在这门课的裸机环境里，`MetalLB` 的角色始终比较稳定：
 
@@ -104,15 +122,18 @@ flowchart TD
   svc1[whoami / Hubble UI / Longhorn UI]
   svc2[第五章安全与治理实验服务]
 
-  dns1 --> metallb
-  dns2 --> metallb
-  dns3 --> metallb
+  dns1 -->|第三/四章域名| metallb
+  dns2 -->|第三/四章域名| metallb
+  dns3 -->|第五章域名| metallb
 
-  metallb --> ciliumgw
-  metallb --> istiogw
+  metallb -->|Cilium 入口链| ciliumgw
+  metallb -->|Istio 入口链| istiogw
 
-  ciliumgw --> svc1
-  istiogw --> svc2
+  ciliumgw -->|转发到既有业务| svc1
+  istiogw -->|转发到第五章实验服务| svc2
+
+  linkStyle 0,1,3,5 stroke:#6ec1ff,stroke-width:3px;
+  linkStyle 2,4,6 stroke:#ffb45c,stroke-width:3px;
 ```
 
 这张图要表达的核心是：
@@ -120,31 +141,8 @@ flowchart TD
 - `MetalLB` 负责“把外部 VIP 发出来”
 - `Cilium Gateway API` 和 `Istio Ingress Gateway` 负责“拿到 VIP 后怎么接流量、怎么转发”
 - 因此在同一个集群里，完全可以同时存在两套入口承载方式
-
-### 应该怎么理解“是不是两套入口方案”
-
-可以近似理解成：
-
-- 对，是两套不同的入口方案并存
-
-但更准确地说：
-
-- `MetalLB`
-  - 是裸机环境里的 VIP 提供者
-- `Cilium Gateway API`
-  - 是第三章、第四章主要使用的入口实现
-- `Istio Ingress Gateway`
-  - 是第五章为了讲安全、身份和治理而引入的入口实现
-
-所以第五章不是推翻第三章，而是：
-
-- 保留第三章已经跑通的裸机 VIP 能力
-- 在这个基础上，再引入一套更适合讲安全与治理的入口承载者
-
-一句话总结：
-
-- `MetalLB` 负责“给入口一个对外地址”
-- `Gateway API` 或 `Istio Ingress Gateway` 负责“拿到这个地址后怎么处理流量”
+- 蓝色线表示第三章、第四章继续沿用的 `Cilium Gateway API` 入口链
+- 橙色线表示第五章新增的 `Istio Ingress Gateway` 入口链
 
 ---
 
@@ -313,17 +311,33 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    appA[Pod A 应用] --> ztunnelA[节点 ztunnel]
-    ztunnelA --> waypoint[waypoint]
-    waypoint --> ztunnelB[节点 ztunnel]
-    ztunnelB --> appB[Pod B 应用]
+    subgraph nodeA[源节点]
+        appA[Pod A 应用]
+        ztunnelA[ztunnel Pod]
+    end
+
+    subgraph nodeW[waypoint 所在节点]
+        waypoint[waypoint Pod]
+    end
+
+    subgraph nodeB[目标节点]
+        ztunnelB[ztunnel Pod]
+        appB[Pod B 应用]
+    end
+
+    appA --> ztunnelA
+    ztunnelA -->|基础 L4 / mTLS 直通| ztunnelB
+    ztunnelB --> appB
+
+    ztunnelA -. 启用 L7 时额外进入 .-> waypoint
+    waypoint -. 回到安全通道 .-> ztunnelB
 ```
 
 这张图要表达的核心是：
 
 - 业务 Pod 本身不注入 sidecar
-- 基础安全通道由节点级 `ztunnel` 提供
-- 需要 `L7` 处理时，再额外经过 `waypoint`
+- 基础安全通道是 `Pod A -> ztunnel -> ztunnel -> Pod B`
+- 需要 `L7` 处理时，流量才会在这条通道上额外经过 `waypoint`
 
 这里一定要和传统 `sidecar` 模式区分开：
 
@@ -336,6 +350,23 @@ flowchart LR
 
 - 传统 `Istio` 是“每个业务 Pod 自带代理”
 - `Ambient` 是“每个节点先铺一个基础代理，再为整个节点上的工作负载提供基础安全通道”
+
+这里还要补清两个对象形态：
+
+- `ztunnel`
+  - 在 Kubernetes 里也是 `Pod`
+  - 由 `DaemonSet` 形式部署，基本可以理解成 `1 Node 1 Pod`
+- `waypoint`
+  - 最终也以 `Pod` 形式运行
+  - 但它不是 `DaemonSet`
+  - 而是按命名空间或服务账号按需部署的 `L7` 代理
+
+说明：
+
+- 第五章当前实验里，`mesh-demo` 只部署 `1` 个 `waypoint`
+- 它最终表现为 `pod/waypoint-...` 和 `service/waypoint`
+- 这个 `waypoint Pod` 可以调度在任意节点上
+- 如果源工作负载、目标工作负载和 `waypoint` 不在同一个节点，流量就需要通过集群网络先到 `waypoint` 所在节点，再回到目标节点上的 `ztunnel`
 
 这一章选择 `Ambient`，真正的优势不是“更新”，而是这三点：
 
@@ -358,21 +389,6 @@ flowchart LR
 
 - 不是一装 `Ambient` 就自动拥有全部 L7 能力
 - 真正的 L7 策略和治理，要通过 `waypoint` 来体现
-
-### Ambient 数据面关系图
-
-```mermaid
-flowchart LR
-    src[源工作负载] --> ztunnelSrc[源节点 ztunnel]
-    ztunnelSrc --> waypoint[waypoint]
-    waypoint --> ztunnelDst[目标节点 ztunnel]
-    ztunnelDst --> target[目标工作负载]
-```
-
-- 只看 `ztunnel`，可以把它理解成 Ambient 的基础 L4 安全通道
-- 需要 HTTP 级授权时，流量会在这条基础通道上额外经过 `waypoint`
-- `waypoint` 不是绕开 `ztunnel`，而是插入到这条安全数据路径中的 L7 处理点
-- 所以 `Ambient` 是“分层数据面”，不是“单一代理做完全部事情”
 
 ---
 
