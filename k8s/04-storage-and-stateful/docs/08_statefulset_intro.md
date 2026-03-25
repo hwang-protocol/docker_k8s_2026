@@ -357,9 +357,19 @@ spec:
 
 ## 执行命令
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选预处理命令</strong><br/>
+如果脚本已具备执行权限，这一步可以跳过。
+</div>
+
 ```bash
 chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/08_deploy_statefulset_demo.sh
 ```
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/08_deploy_statefulset_demo.sh
@@ -371,11 +381,21 @@ bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/08_deploy_statefulset_
 
 先取出 root 密码，后面几条命令都会复用它：
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是后续验证会复用的前置命令。
+</div>
+
 ```bash
 MONGO_ROOT_PASSWORD=$(kubectl -n qytang-mongodb-demo get secret qytang-statefulset-mongodb-demo -o jsonpath='{.data.mongodb-root-password}' | base64 -d)
 ```
 
 ### 验证 1：固定编号的 Pod 是否真的出现
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于检查固定编号成员。
+</div>
 
 ```bash
 kubectl -n qytang-mongodb-demo get pods -o wide
@@ -394,6 +414,11 @@ kubectl -n qytang-mongodb-demo get pods -o wide
 - 名字应保持固定编号，而不是随机名字
 
 ### 验证 2：每个成员是否真的有自己的 PVC
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于检查独立 PVC。
+</div>
 
 ```bash
 kubectl -n qytang-mongodb-demo get pvc
@@ -414,6 +439,11 @@ kubectl -n qytang-mongodb-demo get pvc
 
 ### 验证 3：Headless Service 是否已经出现
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于检查 Headless Service。
+</div>
+
 ```bash
 kubectl -n qytang-mongodb-demo get svc
 kubectl -n qytang-mongodb-demo get svc qytang-statefulset-mongodb-demo-headless -o yaml | sed -n '1,80p'
@@ -430,6 +460,11 @@ kubectl -n qytang-mongodb-demo get svc qytang-statefulset-mongodb-demo-headless 
 - YAML 输出中应明确看到 `clusterIP: None`
 
 ### 验证 4：副本集状态是否正常
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于检查副本集状态。
+</div>
 
 ```bash
 kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
@@ -452,6 +487,11 @@ kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
 
 先执行写入命令：
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于写入测试数据。
+</div>
+
 ```bash
 kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
   mongosh admin -u root -p "${MONGO_ROOT_PASSWORD}" --quiet \
@@ -464,6 +504,11 @@ kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
 - 为后面“删除 `-1` 后数据仍然存在”的验证先埋下证据
 
 再执行读取命令：
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于确认测试数据已写入。
+</div>
 
 ```bash
 kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
@@ -488,6 +533,11 @@ kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
 
 ### 验证 6：删除 `-1` 后是否按原编号自动恢复
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于验证按原编号自动恢复。
+</div>
+
 ```bash
 kubectl -n qytang-mongodb-demo delete pod/qytang-statefulset-mongodb-demo-1 --wait=true
 kubectl -n qytang-mongodb-demo wait --for=condition=Ready pod/qytang-statefulset-mongodb-demo-1 --timeout=900s
@@ -509,6 +559,11 @@ kubectl -n qytang-mongodb-demo get pods
 
 先执行副本集状态检查：
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于确认恢复后副本集状态。
+</div>
+
 ```bash
 kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
   mongosh admin -u root -p "${MONGO_ROOT_PASSWORD}" --quiet \
@@ -521,6 +576,11 @@ kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
 - 重点看是否仍然是 `1 PRIMARY + 2 SECONDARY`
 
 再执行数据读取检查：
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于确认恢复后数据仍然存在。
+</div>
 
 ```bash
 kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-1 -- \

@@ -86,9 +86,19 @@ flowchart LR
 
 ## 执行命令
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选预处理命令</strong><br/>
+如果脚本已具备执行权限，这一步可以跳过。
+</div>
+
 ```bash
 chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/06_verify_storage.sh
 ```
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/06_verify_storage.sh
@@ -100,6 +110,11 @@ bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/06_verify_storage.sh
 
 ### 验证 1：Kubernetes 节点
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是最终验收必跑命令，用于检查节点状态。
+</div>
+
 ```bash
 kubectl get nodes -o wide
 ```
@@ -109,6 +124,11 @@ kubectl get nodes -o wide
 - 所有节点为 `Ready`
 
 ### 验证 2：Longhorn 组件
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是最终验收必跑命令，用于检查 Longhorn 组件。
+</div>
 
 ```bash
 kubectl -n longhorn-system get pods -o wide
@@ -123,6 +143,11 @@ kubectl -n longhorn-system get pods -o wide
 
 ### 验证 3：Longhorn 节点与磁盘
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是最终验收必跑命令，用于检查 Longhorn 节点与数据盘。
+</div>
+
 ```bash
 kubectl -n longhorn-system get nodes.longhorn.io
 kubectl -n longhorn-system get nodes.longhorn.io wk-edge01 -o yaml
@@ -135,6 +160,11 @@ kubectl -n longhorn-system get nodes.longhorn.io wk-edge01 -o yaml
 - `wk-edge01` 的 YAML 输出中能看到 `/var/lib/longhorn` 对应的数据盘信息
 
 ### 验证 4：StorageClass、PVC、PV
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是最终验收必跑命令，用于检查 StorageClass、PVC 与 PV。
+</div>
 
 ```bash
 kubectl get sc
@@ -150,6 +180,11 @@ kubectl get pv
 
 ### 验证 5：Longhorn 卷
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是最终验收必跑命令，用于检查 Longhorn 卷对象。
+</div>
+
 ```bash
 kubectl -n longhorn-system get volumes.longhorn.io
 ```
@@ -159,6 +194,11 @@ kubectl -n longhorn-system get volumes.longhorn.io
 - 能看到由 `qytang-pvc-demo` 触发创建的 Longhorn 卷
 
 ### 验证 6：Deployment 有状态数据
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是最终验收必跑命令，用于检查 Deployment 演示数据。
+</div>
 
 ```bash
 kubectl -n qytang-stateful-demo exec deploy/qytang-deployment-volume-demo -- sh -c 'cat /data/hello.txt'
@@ -171,6 +211,11 @@ kubectl -n qytang-stateful-demo exec deploy/qytang-deployment-volume-demo -- sh 
 ### 验证 7：MongoDB ReplicaSet StatefulSet 案例
 
 先取出 root 密码，并查看基础对象：
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是最终验收必跑命令，用于检查 MongoDB 基础对象。
+</div>
 
 ```bash
 MONGO_ROOT_PASSWORD=$(kubectl -n qytang-mongodb-demo get secret qytang-statefulset-mongodb-demo -o jsonpath='{.data.mongodb-root-password}' | base64 -d)
@@ -186,6 +231,11 @@ kubectl -n qytang-mongodb-demo get svc
 
 再检查副本集状态：
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是最终验收必跑命令，用于检查副本集状态。
+</div>
+
 ```bash
 kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
   mongosh admin -u root -p "${MONGO_ROOT_PASSWORD}" --quiet \
@@ -198,6 +248,11 @@ kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
 - 重点看是否仍然是 3 个成员
 
 最后检查测试数据：
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是最终验收必跑命令，用于检查 MongoDB 测试数据。
+</div>
 
 ```bash
 kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
@@ -217,6 +272,11 @@ kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-0 -- \
 
 先确认 `Gateway` listener 结构已经正确：
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是最终验收必跑命令，用于检查 Gateway listener。
+</div>
+
 ```bash
 kubectl -n gateway-demo get gateway app-gateway -o yaml
 ```
@@ -233,6 +293,11 @@ kubectl -n gateway-demo get gateway app-gateway -o yaml
   - `longhorn-http/longhorn-https` 对应 `longhorn.qytk8s.com`
 
 再验证 Longhorn UI 的 HTTPS 入口：
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是最终验收必跑命令，用于验证 Longhorn UI HTTPS 访问。
+</div>
 
 ```bash
 curl -I --resolve longhorn.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt https://longhorn.qytk8s.com/

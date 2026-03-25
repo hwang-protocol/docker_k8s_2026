@@ -75,6 +75,11 @@ flowchart LR
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 kubectl label node "${TARGET_NODE}" node.longhorn.io/create-default-disk=config --overwrite
 kubectl annotate node "${TARGET_NODE}" node.longhorn.io/default-disks-config="${DISK_CONFIG}" --overwrite
@@ -87,6 +92,11 @@ kubectl annotate node "${TARGET_NODE}" node.longhorn.io/default-disks-config="${
 ### 关键任务 2：等待 Longhorn 自动识别新节点磁盘
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 disk_path="$(kubectl -n longhorn-system get nodes.longhorn.io "${TARGET_NODE}" -o yaml 2>/dev/null \
@@ -101,6 +111,11 @@ disk_path="$(kubectl -n longhorn-system get nodes.longhorn.io "${TARGET_NODE}" -
 ### 关键任务 3：必要时补充 Longhorn Node CR
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 kubectl -n longhorn-system patch nodes.longhorn.io "${TARGET_NODE}" --type merge -p '{
@@ -124,9 +139,19 @@ kubectl -n longhorn-system patch nodes.longhorn.io "${TARGET_NODE}" --type merge
 
 ## 执行命令
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选预处理命令</strong><br/>
+如果脚本已具备执行权限，这一步可以跳过。
+</div>
+
 ```bash
 chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/05_expand_longhorn_node.sh
 ```
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/05_expand_longhorn_node.sh
@@ -135,6 +160,11 @@ bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/05_expand_longhorn_nod
 ---
 
 ## 验证方法
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于补充确认第 4 个存储节点的识别与磁盘状态。
+</div>
 
 ```bash
 kubectl -n longhorn-system get nodes.longhorn.io
@@ -155,6 +185,11 @@ kubectl -n longhorn-system get nodes.longhorn.io
   - `wk-edge01`
 - `wk-edge01` 处于可用、可调度状态
 - `wk-edge01` 已完成默认数据盘初始化
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于继续查看第 4 个节点的 Longhorn YAML 细节。
+</div>
 
 ```bash
 kubectl -n longhorn-system get nodes.longhorn.io wk-edge01 -o yaml

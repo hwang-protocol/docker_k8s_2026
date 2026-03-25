@@ -95,6 +95,11 @@ flowchart LR
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 DEVICE="/dev/sdb"
 PARTITION="/dev/sdb1"
@@ -109,6 +114,11 @@ MOUNT_POINT="/var/lib/longhorn"
 ### 关键任务 2：创建分区、格式化并挂载
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 printf ',,L\n' | sfdisk "${DEVICE}" >/dev/null
@@ -126,6 +136,11 @@ mount "${PARTITION}" "${MOUNT_POINT}"
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 uuid="$(blkid -s UUID -o value "${PARTITION}")"
 fstab_line="UUID=${uuid} ${MOUNT_POINT} ext4 defaults 0 2"
@@ -139,6 +154,11 @@ fstab_line="UUID=${uuid} ${MOUNT_POINT} ext4 defaults 0 2"
 ### 关键任务 4：补齐宿主机前提
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 systemctl disable --now multipathd.service multipathd.socket >/dev/null 2>&1 || true
@@ -155,9 +175,19 @@ systemctl enable --now iscsid >/dev/null 2>&1 || true
 
 ## 执行命令
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选预处理命令</strong><br/>
+如果脚本已具备执行权限，这一步可以跳过。
+</div>
+
 ```bash
 chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/01_prepare_longhorn_disks.sh
 ```
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/01_prepare_longhorn_disks.sh
@@ -169,6 +199,11 @@ bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/01_prepare_longhorn_di
 
 建议至少抽查 `wk-app01` 和 `wk-obs01`。
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于抽查宿主机磁盘、挂载点与服务状态。
+</div>
+
 ```bash
 ssh root@wk-app01 'env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin bash --noprofile --norc -c "lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINT,TYPE"'
 ```
@@ -176,6 +211,11 @@ ssh root@wk-app01 'env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin bash --noprofile --
 ```bash
 ssh root@wk-obs01 'env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin bash --noprofile --norc -c "df -h /var/lib/longhorn"'
 ```
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于继续抽查宿主机服务状态。
+</div>
 
 ```bash
 ssh root@wk-app01 'systemctl is-active iscsid'

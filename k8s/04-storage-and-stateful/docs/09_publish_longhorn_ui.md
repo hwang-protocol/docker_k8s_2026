@@ -203,6 +203,11 @@ spec:
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 DOMAIN="longhorn.qytk8s.com"
 SECRET_NAME="longhorn-qytk8s-com-tls"
@@ -217,6 +222,11 @@ SECRET_NAMESPACE="gateway-demo"
 ### 关键任务 2：应用 Longhorn UI 清单
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 kubectl apply -f "${MANIFEST_URL}"
@@ -234,6 +244,11 @@ kubectl apply -f "${MANIFEST_URL}"
 ### 关键任务 3：为 Longhorn UI 增加专用 listener
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 reconcile_gateway_listeners
@@ -274,6 +289,11 @@ listeners:
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 kubectl -n gateway-demo label endpointslice "${slice_name}" \
   kubernetes.io/service-name="${GATEWAY_SERVICE}" --overwrite
@@ -288,9 +308,19 @@ kubectl -n gateway-demo label endpointslice "${slice_name}" \
 
 ## 执行命令
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选预处理命令</strong><br/>
+如果脚本已具备执行权限，这一步可以跳过。
+</div>
+
 ```bash
 chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/07_publish_longhorn_ui.sh
 ```
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/07_publish_longhorn_ui.sh
@@ -299,6 +329,11 @@ bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/07_publish_longhorn_ui
 ---
 
 ## 验证方法
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于验证网关与路由对象。
+</div>
 
 ```bash
 kubectl get gateway,httproute -n gateway-demo
@@ -320,6 +355,11 @@ kubectl get gateway,httproute -n gateway-demo
   - `longhorn-http-redirect`
   - `longhorn-https-backend`
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于验证跨命名空间授权。
+</div>
+
 ```bash
 kubectl -n longhorn-system get referencegrant
 ```
@@ -334,6 +374,11 @@ kubectl -n longhorn-system get referencegrant
 - `longhorn-system` 下能看到：
   - `allow-gateway-demo-to-longhorn-frontend`
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于验证 HTTP 到 HTTPS 跳转。
+</div>
+
 ```bash
 curl -I --resolve longhorn.qytk8s.com:80:10.1.1.60 http://longhorn.qytk8s.com/
 ```
@@ -347,6 +392,11 @@ curl -I --resolve longhorn.qytk8s.com:80:10.1.1.60 http://longhorn.qytk8s.com/
 
 - 返回状态应为 `301` 或等价的重定向结果
 - 响应头里应能看到 `Location: https://longhorn.qytk8s.com/...`
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令，用于验证 Longhorn UI HTTPS 访问。
+</div>
 
 ```bash
 curl -I --resolve longhorn.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt https://longhorn.qytk8s.com/

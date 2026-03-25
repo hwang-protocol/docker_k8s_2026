@@ -104,6 +104,11 @@ flowchart LR
 
 重新开机后，在各节点里应能看到：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于补充确认新数据盘是否已经被系统识别。
+</div>
+
 ```bash
 lsblk
 ```

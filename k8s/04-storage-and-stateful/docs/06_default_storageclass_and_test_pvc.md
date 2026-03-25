@@ -5,76 +5,58 @@
 通过一个最小有状态演示，把下面这条链路走通：
 
 ```mermaid
-flowchart LR
-  ctrl[Deployment 1 副本]
-  pvc[PVC]
-  volume[Longhorn 动态创建卷]
-  pod1[当前 Pod 挂载卷]
-  write[写入数据]
-  delete[删除当前 Pod]
-  pod2[控制器自动拉起新 Pod]
-  data[数据仍然存在]
+flowchart TB
+  ctrl["1. Deployment 控制器<br/>保持 1 副本"]
+  pvc["同一个 PVC"]
+  sc["StorageClass longhorn"]
+  volume["同一个 Longhorn Volume"]
 
-  ctrl --> pod1
-  ctrl --> pod2
-  pvc --> volume
-  volume --> pod1
-  pod1 --> write
-  write --> delete
-  delete --> pod2
-  pod2 --> data
+  subgraph old["节点 A"]
+    direction TB
+    pod1["2. 当前 Pod"]
+    write["3. 写入数据"]
+    delete["4. 删除当前 Pod"]
+    pod1 --> write
+    write --> delete
+  end
+
+  subgraph new["节点 B"]
+    direction TB
+    pod2["5. Deployment 自动拉起新 Pod"]
+    read["6. 继续读取原有数据"]
+    pod2 --> read
+  end
+
+  ctrl -->|先创建| pod1
+  delete -->|副本缺失| ctrl
+  ctrl -->|自动补齐| pod2
+
+  pod1 -->|挂载| pvc
+  pod2 -->|重新挂载| pvc
+  pvc --> sc
+  sc --> volume
 ```
 
 ---
 
 ## 理论说明
 
-### 这一页真正要验证什么
+### 按图理解这一页
 
-很多人安装完存储组件后，只看：
+- `1`
+  - `Deployment` 维持 `1` 个副本
+- `2 -> 4`
+  - 当前 `Pod` 挂载卷、写入数据、随后被删除
+- `5`
+  - 控制器自动补齐新 `Pod`
+- `2` 和 `5`
+  - 前后挂载的是同一个 `PVC`
+- `PVC -> StorageClass -> Longhorn Volume`
+  - 说明卷对象没有因为删除 `Pod` 而消失
+- `6`
+  - 新 `Pod` 仍然可以继续读取之前写入的数据
 
-- Pod 是不是 `Running`
-- `StorageClass` 在不在
-
-但真正要验证的是：
-
-- 卷有没有真正被动态供给
-- 数据有没有真正落盘
-- 工作负载自动重建后卷是不是还在
-
-第四章的“有状态”闭环，就是在这一页完成的。
-
-### 这一页的完整故事
-
-这一页真正要讲清楚的，不是“手工起两个 Pod”。
-
-它要讲的是：
-
-- 有一个受控制器管理的工作负载
-- 这个工作负载挂载一个固定的 `PVC`
-- 当前 Pod 被删除后，控制器会自动拉起一个新 Pod
-- 新 Pod 会继续挂载原来的卷
-- 因此业务状态能够“重生”
-
-第四章这里选择用 `Deployment replicas=1` 来演示这条主线。
-
-这样学员既能看清：
-
-- `Pod` 会变化
-- `PVC / PV / Longhorn Volume` 不会因为删除 Pod 而消失
-- Kubernetes 控制器和持久卷能力是一起完成“自动恢复”的
-
-### 为什么这里先用“删 Pod”演示，而不是直接做节点故障
-
-节点故障当然也是这条故事的一部分，但它会同时引入：
-
-- Node `NotReady` 判定时间
-- Pod 驱逐与重调度时间
-- Longhorn 卷 `detach / attach` 时间
-
-对课堂第一版主线来说，先用“删除 Pod”更稳定，也更容易把机制讲清楚。
-
-只要这一页跑通，后面再做“节点故障后跨节点恢复”，本质上就是同一个故事的进一步展开。
+这一页先用“删除 Pod”演示这条主线，不直接展开节点故障路径。
 
 ### `PVC -> PV -> Pod` 关系图
 
@@ -107,29 +89,6 @@ flowchart LR
 - 数据真正保存在 Longhorn 卷里
 - Pod 没了，卷还在
 
-### 为什么 `reclaimPolicy=Delete` 不影响这一页的演示
-
-第四章这一页验证的是：
-
-- 删除当前 Pod
-- `Deployment` 自动重建新 Pod
-- 新 Pod 重新挂载同一个卷
-- 数据仍然存在
-
-这里的关键点是：
-
-- 被删除的是 Pod
-- 没有删除 `PVC`
-
-因此即使 `longhorn` `StorageClass` 的回收策略是 `Delete`，也不会影响这一页的结果。
-
-`Delete` 只会在后续显式删除 `PVC` 时，决定底层卷是否一起回收。
-
-这里再次强调：
-
-- `Delete` = 删除 `PVC` 后回收卷
-- 不是删除当前 Pod 后回收卷
-
 ---
 
 ## 测试过程与关键看点
@@ -138,13 +97,24 @@ flowchart LR
 
 这一组命令实际对应两份清单：
 
-- `manifests/00_stateful_demo_namespace.yaml`
-- `manifests/02_demo_pvc.yaml`
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/00_stateful_demo_namespace.yaml</code><br/>
+<strong>本页重点对象：</strong><code>Namespace</code><br/>
+<strong>作用：</strong>创建 <code>qytang-stateful-demo</code> 命名空间，把第四章这组最小有状态演示对象与系统组件隔离开
+</div>
 
-其中最关键的是下面这份 `PVC` 清单：
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: qytang-stateful-demo
+```
 
-- 来源文件：`manifests/02_demo_pvc.yaml`
-- 对象类型：`PersistentVolumeClaim`
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/02_demo_pvc.yaml</code><br/>
+<strong>本页重点对象：</strong><code>PersistentVolumeClaim</code><br/>
+<strong>作用：</strong>申请一块由 <code>longhorn</code> 动态供给的持久卷，供后续演示工作负载挂载使用
+</div>
 
 ```yaml
 kind: PersistentVolumeClaim
@@ -173,6 +143,11 @@ spec:
 - `storage: 2Gi`
   - 演示容量不大，但足够说明动态供给链路已经成立
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是主线必跑命令，用于创建命名空间与 PVC 并检查绑定状态。
+</div>
+
 ```bash
 kubectl apply -f http://ops:9000/04-storage-and-stateful/manifests/00_stateful_demo_namespace.yaml
 kubectl apply -f http://ops:9000/04-storage-and-stateful/manifests/02_demo_pvc.yaml
@@ -185,6 +160,11 @@ kubectl -n qytang-stateful-demo get pvc
 - 这一步说明 `longhorn` 已经可以动态供给卷
 
 ### 2. 查看自动生成的 PV
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是主线必跑命令，用于查看自动生成的 PV。
+</div>
 
 ```bash
 kubectl get pv
@@ -199,14 +179,11 @@ kubectl get pv
 
 这一组命令实际对应的是：
 
-- `manifests/03_demo_app.yaml`
-
-来源说明：
-
-- 来源文件：`manifests/03_demo_app.yaml`
-- 对象类型：`Deployment`
-
-其中最关键的内容是：
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/03_demo_app.yaml</code><br/>
+<strong>本页重点对象：</strong><code>Deployment</code><br/>
+<strong>作用：</strong>部署一个最小 1 副本工作负载，把前面申请到的 <code>PVC</code> 真正挂进 Pod，用于验证“删除 Pod 后自动恢复且数据仍保留”
+</div>
 
 ```yaml
 kind: Deployment
@@ -293,6 +270,11 @@ flowchart LR
 - 删除当前 Pod 后，让系统自动拉起新 Pod
 - 再证明新 Pod 读到的还是原来的卷数据
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是主线必跑命令，用于部署 1 副本演示工作负载并等待就绪。
+</div>
+
 ```bash
 kubectl apply -f http://ops:9000/04-storage-and-stateful/manifests/03_demo_app.yaml
 kubectl -n qytang-stateful-demo rollout status deploy/qytang-deployment-volume-demo --timeout=300s
@@ -306,6 +288,11 @@ kubectl -n qytang-stateful-demo get pods -o wide
 
 ### 4. 先向卷里写入测试数据
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是主线必跑命令，用于向卷挂载路径写入测试数据。
+</div>
+
 ```bash
 kubectl -n qytang-stateful-demo exec deploy/qytang-deployment-volume-demo -- sh -c 'echo hello-from-longhorn > /data/hello.txt && cat /data/hello.txt'
 ```
@@ -316,6 +303,11 @@ kubectl -n qytang-stateful-demo exec deploy/qytang-deployment-volume-demo -- sh 
 - 而是确认数据已经真正写进卷挂载路径 `/data`
 
 ### 5. 删除当前 Pod，观察系统自动重建
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是主线必跑命令，用于删除当前 Pod 并观察控制器自动重建。
+</div>
 
 ```bash
 OLD_POD=$(kubectl -n qytang-stateful-demo get pod -l app=qytang-deployment-volume-demo -o jsonpath='{.items[0].metadata.name}')
@@ -333,6 +325,11 @@ kubectl -n qytang-stateful-demo get pods -o wide
 
 ### 6. 在自动重建的新 Pod 中再次读取数据
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是主线必跑命令，用于在新 Pod 中再次读取数据。
+</div>
+
 ```bash
 kubectl -n qytang-stateful-demo exec deploy/qytang-deployment-volume-demo -- sh -c 'cat /data/hello.txt'
 ```
@@ -347,6 +344,11 @@ kubectl -n qytang-stateful-demo exec deploy/qytang-deployment-volume-demo -- sh 
   - 原来的数据没有丢
 
 ### 7. 可选补充：查看 Longhorn 卷对象
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于补充观察 Longhorn 卷对象。
+</div>
 
 ```bash
 kubectl -n longhorn-system get volumes.longhorn.io

@@ -126,6 +126,11 @@ flowchart LR
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 create_harbor_project "${HARBOR_PROJECT_LONGHORN}"
 create_harbor_project "${HARBOR_PROJECT_DEMO}"
@@ -140,6 +145,11 @@ create_harbor_project "${HARBOR_PROJECT_BITNAMI}"
 ### 关键任务 2：下载 Longhorn 与 MongoDB Chart
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 helm pull longhorn/longhorn --version "${LONGHORN_VERSION}" --destination "${ARTIFACTS_DIR}"
@@ -156,6 +166,11 @@ helm pull oci://registry-1.docker.io/bitnamicharts/mongodb \
 ### 关键任务 3：生成 `rendered manifest`
 
 脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 helm template longhorn "${CHART_PACKAGE}" \
@@ -178,6 +193,11 @@ helm template qytang-mongodb-demo "${MONGODB_CHART_PACKAGE}" \
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 docker pull "${src}"
 docker tag "${src}" "${dst}"
@@ -185,6 +205,11 @@ docker push "${dst}"
 ```
 
 以及：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
 
 ```bash
 crictl --runtime-endpoint unix:///run/containerd/containerd.sock pull "${image}"
@@ -200,9 +225,19 @@ crictl --runtime-endpoint unix:///run/containerd/containerd.sock pull "${image}"
 
 ## 执行命令
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选预处理命令</strong><br/>
+如果脚本已具备执行权限，这一步可以跳过。
+</div>
+
 ```bash
 chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/02_prepare_longhorn_artifacts.sh
 ```
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/02_prepare_longhorn_artifacts.sh
@@ -211,6 +246,11 @@ bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/02_prepare_longhorn_ar
 ---
 
 ## 验证方法
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于补充确认本地制品与 HTTP 发布状态。
+</div>
 
 ```bash
 ls -lh /docker_k8s_2026/k8s/04-storage-and-stateful/artifacts/
@@ -237,6 +277,11 @@ ls -lh /docker_k8s_2026/k8s/04-storage-and-stateful/artifacts/
 - 文件大小不是 `0`
 - 文件修改时间应接近本次执行脚本的时间
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于补充确认 Longhorn Chart 的 HTTP 发布状态。
+</div>
+
 ```bash
 curl -I http://ops:9000/04-storage-and-stateful/artifacts/longhorn-1.11.0.tgz
 ```
@@ -251,6 +296,11 @@ curl -I http://ops:9000/04-storage-and-stateful/artifacts/longhorn-1.11.0.tgz
 - 返回状态行为应为 `HTTP/1.0 200 OK` 或 `HTTP/1.1 200 OK`
 - 响应头里通常能看到 `Content-Type` 和 `Content-Length`
 - 只要状态码是 `200`，就说明后续 Helm 安装阶段可以直接消费这份本地 Chart
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于继续确认 Longhorn rendered manifest 的 HTTP 发布状态。
+</div>
 
 ```bash
 curl -I http://ops:9000/04-storage-and-stateful/artifacts/longhorn-rendered-1.11.0.yaml

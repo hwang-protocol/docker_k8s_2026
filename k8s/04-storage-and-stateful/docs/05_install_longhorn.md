@@ -261,6 +261,11 @@ metadata:
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 DISK_CONFIG='[{"path":"/var/lib/longhorn","allowScheduling":true}]'
 
@@ -278,6 +283,11 @@ kubectl_retry annotate node "${node}" node.longhorn.io/default-disks-config="${D
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 helm upgrade --install longhorn "${CHART_URL}" \
   --namespace longhorn-system \
@@ -294,6 +304,11 @@ helm upgrade --install longhorn "${CHART_URL}" \
 
 脚本原始代码：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
 ```bash
 kubectl -n longhorn-system rollout status ds/longhorn-manager --timeout=600s
 kubectl -n longhorn-system rollout status deploy/longhorn-driver-deployer --timeout=600s
@@ -309,9 +324,19 @@ kubectl -n longhorn-system rollout status deploy/longhorn-ui --timeout=600s
 
 ## 执行命令
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选预处理命令</strong><br/>
+如果脚本已具备执行权限，这一步可以跳过。
+</div>
+
 ```bash
 chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/03_install_longhorn.sh
 ```
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本步必须粘贴执行</strong><br/>
+下面命令是本步主线必跑命令。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/03_install_longhorn.sh
@@ -320,6 +345,11 @@ bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/03_install_longhorn.sh
 ---
 
 ## 验证方法
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于补充确认 Longhorn 组件与 StorageClass 状态。
+</div>
 
 ```bash
 kubectl -n longhorn-system get pods -o wide
@@ -391,6 +421,11 @@ longhorn-ui-68b4446bcf-rx282                        1/1     Running   0         
 - `CSI` 相关组件大多为 `Running`
 - 整体上，大多数 Longhorn 相关 Pod 应显示为 `Running`
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于补充确认 Longhorn StorageClass 状态。
+</div>
+
 ```bash
 kubectl get sc
 ```
@@ -426,6 +461,11 @@ longhorn-static      driver.longhorn.io   Delete          Immediate           tr
 - `longhorn` 已经成为可用的动态存储类
 - 默认回收策略是“删 PVC 后删卷”
 - 这不等于“删 Pod 后删数据”
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看命令</strong><br/>
+下面命令用于继续确认 Longhorn 节点对象状态。
+</div>
 
 ```bash
 kubectl -n longhorn-system get nodes.longhorn.io
