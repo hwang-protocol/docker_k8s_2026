@@ -8,6 +8,8 @@
 - `wk-app02`
 - `wk-obs01`
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -16,6 +18,8 @@
 
 - 这是第四章真正把 Kubernetes 持久卷能力装起来的一步
 - 本步完成后，集群会第一次具备动态分配 Longhorn 卷的能力
+
+---
 
 ## 问题背景
 
@@ -33,6 +37,8 @@
 - 让 `Longhorn` 进入集群
 - 让 `longhorn` `StorageClass` 出现
 - 让首批 3 个节点成为可调度的存储节点
+
+---
 
 ## 理论说明
 
@@ -167,6 +173,8 @@ persistence:
 
 这样更适合教材复现，也更利于后面讲第 4 个节点怎么加入。
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -177,6 +185,8 @@ persistence:
 
 - `artifacts/longhorn-1.11.0.tgz`
 - `manifests/01_longhorn_values.yaml`
+
+---
 
 ## 脚本关键任务
 
@@ -225,6 +235,8 @@ kubectl -n longhorn-system rollout status deploy/longhorn-ui --timeout=600s
 - Longhorn 不是只看单个 Pod
 - 至少要确认 `manager`、`driver-deployer` 和 `ui` 都已就绪
 
+---
+
 ## 执行命令
 
 ```bash
@@ -234,6 +246,8 @@ chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/03_install_longhor
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/03_install_longhorn.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -374,11 +388,15 @@ kubectl -n longhorn-system get nodes.longhorn.io
 - 首批 3 个存储节点已经被 Longhorn 正常纳入
 - 后续第 4 个节点扩容，指的是把 `wk-edge01` 也初始化成真正可用的数据盘节点，而不是让它第一次在列表里出现
 
+---
+
 ## 通过标准
 
 - Longhorn 核心 Pod 均正常
 - `longhorn` `StorageClass` 已出现
 - `wk-app01`、`wk-app02`、`wk-obs01` 已被 Longhorn 正常识别
+
+---
 
 ## 下一步
 

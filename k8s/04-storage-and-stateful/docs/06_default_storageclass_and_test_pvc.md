@@ -25,6 +25,8 @@ flowchart LR
   pod2 --> data
 ```
 
+---
+
 ## 理论说明
 
 ### 这一页真正要验证什么
@@ -127,6 +129,8 @@ flowchart LR
 
 - `Delete` = 删除 `PVC` 后回收卷
 - 不是删除当前 Pod 后回收卷
+
+---
 
 ## 测试过程与关键看点
 
@@ -353,12 +357,16 @@ kubectl -n longhorn-system get volumes.longhorn.io
 - 能看到由 `qytang-pvc-demo` 触发创建的 Longhorn 卷
 - 这进一步把 Kubernetes 侧的 `PVC/PV` 和 Longhorn 侧的卷对象对应起来
 
+---
+
 ## 通过标准
 
 - `qytang-pvc-demo` 已成功绑定
 - 自动生成了 `PV`
 - 当前 Pod 被删除后，Deployment 自动拉起新 Pod，并继续挂载原来的 `PVC`
 - 学员能解释清楚 `PVC / PV / Pod` 三者关系
+
+---
 
 ## 下一步
 

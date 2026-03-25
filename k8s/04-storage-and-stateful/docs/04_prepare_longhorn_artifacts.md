@@ -12,6 +12,8 @@
 - 有状态演示镜像
 - MongoDB 副本集案例所需镜像
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -20,6 +22,8 @@
 
 - 这是第四章的制品预热步骤
 - 本步完成后，后续安装过程尽量不再依赖公网临时下载
+
+---
 
 ## 问题背景
 
@@ -36,6 +40,8 @@
 
 - 先把第四章会用到的 Chart、YAML 和镜像预热到本地与 Harbor
 - 把后续部署步骤变成“拿本地制品安装”
+
+---
 
 ## 理论说明
 
@@ -180,6 +186,8 @@ persistence:
 - `persistence.storageClass: longhorn`
   - 明确把数据库卷落到第四章已经安装的 `Longhorn`
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -196,6 +204,8 @@ persistence:
 - `artifacts/mongodb-rendered-15.6.0.yaml`
 - `artifacts/mongodb-source-images-15.6.0.txt`
 - `artifacts/mongodb-harbor-images-15.6.0.txt`
+
+---
 
 ## 脚本关键任务
 
@@ -272,6 +282,8 @@ crictl --runtime-endpoint unix:///run/containerd/containerd.sock pull "${image}"
 - 再让各节点提前从 Harbor 预拉，保证后续安装稳定
 - 第 7 步 `MongoDB` 案例也不再临时直连公网仓库
 
+---
+
 ## 执行命令
 
 ```bash
@@ -281,6 +293,8 @@ chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/02_prepare_longhor
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/02_prepare_longhorn_artifacts.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -345,12 +359,16 @@ curl -I http://ops:9000/04-storage-and-stateful/artifacts/longhorn-rendered-1.11
 - 镜像清单已整理完成
 - `ops:9000` 已能为后续第四章步骤提供这些本地制品
 
+---
+
 ## 通过标准
 
 - Harbor 项目 `longhornio` 已就绪
 - Harbor 项目 `storage` 已就绪
 - Longhorn Chart 已落地到本地 `artifacts/`
 - 所有节点都已预拉第四章所需镜像
+
+---
 
 ## 下一步
 

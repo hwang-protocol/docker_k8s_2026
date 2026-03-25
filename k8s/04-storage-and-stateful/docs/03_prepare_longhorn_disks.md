@@ -9,6 +9,8 @@
 - 文件系统：`ext4`
 - 挂载点：`/var/lib/longhorn`
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -17,6 +19,8 @@
 
 - 这是第四章真正进入宿主机存储准备的一步
 - 本步完成后，Longhorn 才有可识别的宿主机数据路径
+
+---
 
 ## 问题背景
 
@@ -31,6 +35,8 @@
 ```
 
 这样后面 Longhorn 节点标签、默认磁盘配置和课堂讲解都能保持一致。
+
+---
 
 ## 理论说明
 
@@ -73,11 +79,15 @@ flowchart LR
 - Kubernetes 存储不只是一条 `kubectl apply`
 - 底层宿主机准备同样是存储主线的一部分
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
 
 - `k8s/04-storage-and-stateful/scripts/01_prepare_longhorn_disks.sh`
+
+---
 
 ## 脚本关键任务
 
@@ -141,6 +151,8 @@ systemctl enable --now iscsid >/dev/null 2>&1 || true
 - 关闭课堂环境里不需要的 `multipathd`
 - 确保 `dm_crypt` 模块与 `iscsid` 服务处于可用状态
 
+---
+
 ## 执行命令
 
 ```bash
@@ -150,6 +162,8 @@ chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/01_prepare_longhor
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/01_prepare_longhorn_disks.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -179,11 +193,15 @@ ssh root@wk-app01 'systemctl is-active iscsid'
 - 重点不是“分区命令有没有执行过”
 - 而是最终宿主机上是否已经形成可重复识别的数据路径
 
+---
+
 ## 通过标准
 
 - 4 个工作节点都已存在 `/var/lib/longhorn`
 - 新增数据盘都已挂载成功
 - `iscsid` 仍为 `active`
+
+---
 
 ## 下一步
 

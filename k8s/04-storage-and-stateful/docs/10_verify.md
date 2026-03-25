@@ -12,6 +12,8 @@
 - 第 4 个 Longhorn 存储节点已完成初始化
 - `Longhorn UI` 已能通过 `HTTPS` 域名访问
 
+---
+
 ## 执行标记
 
 - **执行标记：只读验证**
@@ -20,6 +22,8 @@
 
 - 本页的目标不是重新执行第四章每一步
 - 而是确认第四章是否已经达到标准结束状态
+
+---
 
 ## 理论说明
 
@@ -55,6 +59,8 @@ flowchart LR
   - 存储扩容
   - GUI 发布
 
+---
+
 ## 验收顺序
 
 请按下面顺序检查：
@@ -68,11 +74,15 @@ flowchart LR
 7. MongoDB ReplicaSet StatefulSet 案例
 8. Longhorn UI HTTPS 访问
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
 
 - `k8s/04-storage-and-stateful/scripts/06_verify_storage.sh`
+
+---
 
 ## 执行命令
 
@@ -83,6 +93,8 @@ chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/06_verify_storage.
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/06_verify_storage.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -230,6 +242,8 @@ curl -I --resolve longhorn.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8
 
 - 返回 `200 OK`
 - 已能通过 `HTTPS` 正常访问 Longhorn UI
+
+---
 
 ## 通过标准
 

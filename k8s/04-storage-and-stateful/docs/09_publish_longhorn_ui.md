@@ -15,6 +15,8 @@
 https://longhorn.qytk8s.com
 ```
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -23,6 +25,8 @@ https://longhorn.qytk8s.com
 
 - 这一页不是再单独搞一套新的入口
 - 它的意义是把第四章的存储 GUI 也统一纳入整门课的北向 HTTPS 体系
+
+---
 
 ## 问题背景
 
@@ -39,6 +43,8 @@ https://longhorn.qytk8s.com
 - 使用 `HTTPS`
 
 Longhorn UI 也必须遵守这个规则。
+
+---
 
 ## 理论说明
 
@@ -177,6 +183,8 @@ spec:
 - 因此这一页必须补 `ReferenceGrant`
 - `ReferenceGrant` 必须创建在被访问的命名空间，也就是 `longhorn-system`
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -186,6 +194,8 @@ spec:
 本步会直接消费：
 
 - `manifests/21_gateway_longhorn_ui.yaml`
+
+---
 
 ## 脚本关键任务
 
@@ -274,6 +284,8 @@ kubectl -n gateway-demo label endpointslice "${slice_name}" \
 - 第四章继续复用第三章统一入口
 - 因此这里仍然需要保持 `Cilium Gateway` 与 `MetalLB` 的兼容标签链路
 
+---
+
 ## 执行命令
 
 ```bash
@@ -283,6 +295,8 @@ chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/07_publish_longhor
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/07_publish_longhorn_ui.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -363,6 +377,8 @@ curl -I --resolve longhorn.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8
 - `HTTP -> HTTPS` 跳转正常
 - `longhorn.qytk8s.com` 已能作为第四章正式 GUI 入口使用
 
+---
+
 ## win2019 侧要求
 
 在 `win2019 DNS` 中新增：
@@ -383,11 +399,15 @@ longhorn.qytk8s.com  ->  10.1.1.60
 https://longhorn.qytk8s.com
 ```
 
+---
+
 ## 通过标准
 
 - `longhorn.qytk8s.com` 已能通过 `HTTPS` 访问
 - Longhorn UI 已可从 `win2019` 浏览器打开
 - 本章 GUI 访问方式与第三章保持完全一致
+
+---
 
 ## 下一步
 

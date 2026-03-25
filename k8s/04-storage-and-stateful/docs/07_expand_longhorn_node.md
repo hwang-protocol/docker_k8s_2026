@@ -4,6 +4,8 @@
 
 把 `wk-edge01` 初始化为带默认数据盘的第 4 个 Longhorn 存储节点。
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -12,6 +14,8 @@
 
 - 这一页的重点不是“再装一次 Longhorn”
 - 而是验证 Longhorn 可以在系统运行后，把一个已被识别的节点进一步初始化为真正可用的存储节点
+
+---
 
 ## 问题背景
 
@@ -24,6 +28,8 @@
 - “节点被识别”和“节点真正承载卷副本”不是同一个层次
 
 这对理解生产中的“容量扩展”很重要。
+
+---
 
 ## 理论说明
 
@@ -53,11 +59,15 @@ flowchart LR
 
 这样更适合教材化，也更方便和第 4 步安装逻辑形成对照。
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
 
 - `k8s/04-storage-and-stateful/scripts/05_expand_longhorn_node.sh`
+
+---
 
 ## 脚本关键任务
 
@@ -110,6 +120,8 @@ kubectl -n longhorn-system patch nodes.longhorn.io "${TARGET_NODE}" --type merge
 - 如果自动识别超时，脚本会补一个更直接的 `Node CR` 配置
 - 但目标仍然不变：让 `wk-edge01` 成为真正带默认数据盘的 Longhorn 可调度节点
 
+---
+
 ## 执行命令
 
 ```bash
@@ -119,6 +131,8 @@ chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/05_expand_longhorn
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/05_expand_longhorn_node.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -165,10 +179,14 @@ kubectl -n longhorn-system get nodes.longhorn.io wk-edge01 -o yaml
 - `wk-edge01` 已经正式完成默认数据盘初始化，并进入 Longhorn 存储池
 - 第四章“先 3 节点跑稳，再启用第 4 个存储节点”的主线已经完成
 
+---
+
 ## 通过标准
 
 - `wk-edge01` 已完成默认数据盘初始化
 - `wk-edge01` 的 Longhorn Node 对象中能够看到 `/var/lib/longhorn`
+
+---
 
 ## 下一步
 

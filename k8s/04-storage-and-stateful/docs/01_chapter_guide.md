@@ -15,6 +15,8 @@
 - `wk-edge01` 可以进一步初始化为第 4 个 Longhorn 存储节点
 - `Longhorn UI` 可以通过 `win2019 + HTTPS + 域名` 访问
 
+---
+
 ## 问题背景
 
 前三章已经解决：
@@ -35,7 +37,9 @@
 
 因此第四章的重点不是“再装一套组件”，而是“把前面已经稳定的集群推进到能承载有状态工作负载”。
 
-## 课前理论导读
+---
+
+## 理论导读
 
 正式操作前，建议先阅读：
 
@@ -47,6 +51,8 @@
 - 为什么第四章主线选 `Longhorn`
 - `Longhorn`、`Ceph`、传统 `iSCSI` 的边界
 - 为什么本章采用“先 3 节点、再加第 4 节点”的节奏
+
+---
 
 ## 本章重点边界
 
@@ -68,6 +74,8 @@
 - `Ceph` 的完整实施
 
 这些内容放到后续增强章节或补充实验。
+
+---
 
 ## 本章总关系图
 
@@ -101,6 +109,8 @@ flowchart LR
 - 再用真实 MongoDB 案例讲 `StatefulSet` 的稳定身份、独立卷和自动恢复
 - 最后把 `Longhorn UI` 也统一纳入课程的北向 HTTPS 访问方式
 
+---
+
 ## 本章学习方式
 
 第四章继续采用“文档主导 + 脚本辅助 + 清单独立发布”的方式：
@@ -110,6 +120,8 @@ flowchart LR
 3. 所有 YAML 与 Chart 继续通过 `http://ops:9000/` 提供
 4. 所有镜像继续统一走 `harbor.qytk8s.com`
 
+---
+
 ## 执行标记说明
 
 为了便于在 `ops` 上直接执行，本章继续采用统一执行标记：
@@ -118,52 +130,40 @@ flowchart LR
 - **必须执行**：从第四章标准起点开始时，默认需要实际执行
 - **只读验证**：这一项主要用于检查结果，不会改配置
 
-## 本章脚本执行矩阵
+---
 
-| 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
+## 本章小单元与对应脚本
+
+| 步骤 | 文档 | 主要任务 | 对应脚本 | 执行标记 |
 | :--- | :--- | :--- | :--- | :--- |
-| 0 | `00_storage_theory.md` | 无 | 建议先读 | Longhorn、Ceph、传统 iSCSI 理论对比 |
-| 1 | `02_add_vmware_disks.md` | 无 | 人工前置 | 先在 VMware 中给 4 个工作节点加独立数据盘 |
-| 2 | `03_prepare_longhorn_disks.md` | `scripts/01_prepare_longhorn_disks.sh` | 必须执行 | 在 Linux 内初始化并挂载数据盘 |
-| 3 | `04_prepare_longhorn_artifacts.md` | `scripts/02_prepare_longhorn_artifacts.sh` | 必须执行 | 固化 Longhorn Chart，推送镜像到 Harbor |
-| 4 | `05_install_longhorn.md` | `scripts/03_install_longhorn.sh` | 必须执行 | 安装 Longhorn，初始化首批 3 个存储节点 |
-| 5 | `06_default_storageclass_and_test_pvc.md` | `scripts/04_deploy_stateful_demo.sh` | 必须执行 | 验证 PVC 动态供给与数据保留 |
-| 6 | `07_expand_longhorn_node.md` | `scripts/05_expand_longhorn_node.sh` | 必须执行 | 将 `wk-edge01` 初始化为第 4 个 Longhorn 存储节点 |
-| 7 | `08_statefulset_intro.md` | `scripts/08_deploy_statefulset_demo.sh` | 必须执行 | 使用 Helm 部署并验证一个真实的 `MongoDB ReplicaSet` StatefulSet 案例 |
-| 8 | `09_publish_longhorn_ui.md` | `scripts/07_publish_longhorn_ui.sh` | 必须执行 | 把 Longhorn UI 正式发布为 `https://longhorn.qytk8s.com` |
-| 9 | `10_verify.md` | `scripts/06_verify_storage.sh` | 只读验证 | 第四章最终验收 |
+| 1 | `02_add_vmware_disks.md` | 在 VMware 中给 4 个工作节点补齐独立数据盘 | 无 | 人工前置 |
+| 2 | `03_prepare_longhorn_disks.md` | 在 Linux 内初始化并挂载 Longhorn 数据盘 | `scripts/01_prepare_longhorn_disks.sh` | 必须执行 |
+| 3 | `04_prepare_longhorn_artifacts.md` | 固化 Longhorn 与 MongoDB 制品并推送镜像到 Harbor | `scripts/02_prepare_longhorn_artifacts.sh` | 必须执行 |
+| 4 | `05_install_longhorn.md` | 安装 Longhorn，并初始化首批 3 个存储节点 | `scripts/03_install_longhorn.sh` | 必须执行 |
+| 5 | `06_default_storageclass_and_test_pvc.md` | 验证默认 StorageClass、PVC 动态供给与数据保留 | `scripts/04_deploy_stateful_demo.sh` | 必须执行 |
+| 6 | `07_expand_longhorn_node.md` | 将 `wk-edge01` 初始化为第 4 个 Longhorn 存储节点 | `scripts/05_expand_longhorn_node.sh` | 必须执行 |
+| 7 | `08_statefulset_intro.md` | 使用 `MongoDB ReplicaSet` 讲清 `StatefulSet` 主线 | `scripts/08_deploy_statefulset_demo.sh` | 必须执行 |
+| 8 | `09_publish_longhorn_ui.md` | 把 Longhorn UI 正式发布为 `https://longhorn.qytk8s.com` | `scripts/07_publish_longhorn_ui.sh` | 必须执行 |
+| 9 | `10_verify.md` | 执行第四章最终验收 | `scripts/06_verify_storage.sh` | 只读验证 |
 
-说明：
-
-- 第 7 步会通过 `MongoDB ReplicaSet` 这个真实案例，把 `StatefulSet` 的稳定身份、独立 PVC、Headless Service 和自动恢复讲清
-- 但第四章当前“自动恢复 + 数据保留”的第一主线，仍然以 `Deployment + PVC` 为准
+---
 
 ## 本章执行顺序
 
 请严格按下面顺序执行：
 
-0. `00_storage_theory.md`
-1. `02_add_vmware_disks.md`
-2. `03_prepare_longhorn_disks.md`
-3. `04_prepare_longhorn_artifacts.md`
-4. `05_install_longhorn.md`
-5. `06_default_storageclass_and_test_pvc.md`
-6. `07_expand_longhorn_node.md`
-7. `08_statefulset_intro.md`
-8. `09_publish_longhorn_ui.md`
-9. `10_verify.md`
+1. `00_storage_theory.md`
+2. `02_add_vmware_disks.md`
+3. `03_prepare_longhorn_disks.md`
+4. `04_prepare_longhorn_artifacts.md`
+5. `05_install_longhorn.md`
+6. `06_default_storageclass_and_test_pvc.md`
+7. `07_expand_longhorn_node.md`
+8. `08_statefulset_intro.md`
+9. `09_publish_longhorn_ui.md`
+10. `10_verify.md`
 
-## 第四章起点状态
-
-第四章开始前，默认你已经完成第三章，并满足下面这些条件：
-
-- 所有节点均为 `Ready`
-- 第三章最终验收已经通过
-- `ops` 已具备 `kubectl`、`helm`
-- `ops` 已提供 `http://ops:9000/`
-- `Harbor` 可用且镜像仓库保留
-- 你已经在 `VMware` 中给 4 个工作节点都加好了独立数据盘
-- `win2019 DNS` 后续可为 `longhorn.qytk8s.com` 指向 `10.1.1.60`
+---
 
 ## 版本冻结
 
@@ -173,6 +173,8 @@ flowchart LR
 - 数据盘挂载点：`/var/lib/longhorn`
 - Longhorn UI 服务类型：`ClusterIP`
 
+---
+
 ## 关键设计冻结
 
 - 第四章主线选 `Longhorn`，不切到 `Ceph`
@@ -181,6 +183,8 @@ flowchart LR
 - 新增数据盘统一固定为 `/dev/sdb`
 - Longhorn 数据路径统一固定为 `/var/lib/longhorn`
 - Longhorn UI 统一通过第三章已经建立的 `Gateway API + HTTPS + Harbor CA` 方式向 `win2019` 发布
+
+---
 
 ## 下一步
 

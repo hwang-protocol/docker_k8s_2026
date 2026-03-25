@@ -9,6 +9,8 @@
 - 为什么每个副本都要有自己的 `PVC`
 - 删除一个成员后，为什么系统会按原编号自动恢复
 
+---
+
 ## 这一页的完整故事
 
 这一页真正要让学员看到的是下面这条完整链路：
@@ -24,6 +26,8 @@
 
 也就是说，这一页不是为了讲 MongoDB 运维细节，而是借一个真实数据库案例，把 `StatefulSet` 的意义讲清楚。
 
+---
+
 ## 执行标记
 
 - **执行标记：必须执行**
@@ -32,6 +36,8 @@
 
 - 安装过程尽量交给 `Helm`
 - 手工重点只放在 `show` 和验证
+
+---
 
 ## 问题背景
 
@@ -52,6 +58,8 @@
 - 故障后按原身份恢复
 
 这正是 `StatefulSet` 发挥价值的地方。
+
+---
 
 ## 理论说明
 
@@ -133,6 +141,8 @@ MongoDB 这一步里，每个副本都不是共用一块卷，而是各自使用
 - 应用自身负责复制、选主和同步
 - 存储层只负责把“每个成员自己的卷”稳定提供出来
 
+---
+
 ## 本步对象关系图
 
 ```mermaid
@@ -172,6 +182,8 @@ flowchart LR
 - `StatefulSet` 负责稳定身份
 - `Headless Service` 负责稳定 DNS
 - `Longhorn` 负责每个成员自己的独立卷
+
+---
 
 ## 本步关键配置
 
@@ -275,6 +287,8 @@ spec:
 - `replicas: 3`
   - 会生成 `-0`、`-1`、`-2` 这 3 个成员
 
+---
+
 ## 对应脚本
 
 本步对应脚本：
@@ -292,6 +306,8 @@ spec:
 
 - 脚本负责自动部署
 - 课堂上的手工动作只负责 `show`、写测试数据、删除成员和观察恢复
+
+---
 
 ## 本页验证顺序
 
@@ -312,6 +328,8 @@ spec:
 - 再看稳定 DNS
 - 最后看自动恢复和数据保留
 
+---
+
 ## 执行命令
 
 ```bash
@@ -321,6 +339,8 @@ chmod +x /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/08_deploy_stateful
 ```bash
 bash /docker_k8s_2026/k8s/04-storage-and-stateful/scripts/08_deploy_statefulset_demo.sh
 ```
+
+---
 
 ## 验证方法
 
@@ -498,6 +518,8 @@ kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-1 -- \
 - 副本集状态再次正常
 - `-1` 上也能读到 `_id: "statefulset-ok"` 这条记录
 
+---
+
 ## 通过标准
 
 满足下面条件后，这一页即可视为通过：
@@ -509,6 +531,8 @@ kubectl -n qytang-mongodb-demo exec pod/qytang-statefulset-mongodb-demo-1 -- \
 - 副本集状态正常
 - 删除 `-1` 后，恢复回来的仍然是 `-1`
 - 恢复后集群和测试数据仍然正常
+
+---
 
 ## 下一步
 
