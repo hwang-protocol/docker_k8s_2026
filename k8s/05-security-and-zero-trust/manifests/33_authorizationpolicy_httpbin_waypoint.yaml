@@ -4,9 +4,10 @@ metadata:
   name: httpbin-waypoint-l7
   namespace: mesh-demo
 spec:
-  selector:
-    matchLabels:
-      app: httpbin
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: httpbin
   action: ALLOW
   rules:
     - from:
@@ -17,3 +18,9 @@ spec:
         - source:
             principals:
               - cluster.local/ns/mesh-demo/sa/trusted-client
+      to:
+        - operation:
+            methods:
+              - GET
+            paths:
+              - /get

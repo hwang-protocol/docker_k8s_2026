@@ -238,11 +238,72 @@ chmod +x /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/04_enable_jwt_a
 bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/04_enable_jwt_and_mesh_security.sh
 ```
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
+<strong>主脚本会自动完成这些动作</strong><br/>
+你在课堂上只需要执行上面这一条命令，下面这些动作都会由主脚本自动完成。
+</div>
+
+1. 检查 `istioctl`
+2. 检查并修正 `Cilium` 的 `bpf-lb-sock-hostns-only=true`
+3. 如有需要自动滚动重启 `cilium`
+4. 生成 `JWT` 演示材料
+5. 用 `--for service` 部署 `waypoint`
+6. 应用 `JWT`、`mTLS`、`L7` 策略
+7. 查看安全对象
+
 ---
 
 ## 这个脚本具体做了什么
 
-### 动作 1：生成 JWT 演示材料
+### 动作 1：检查 istioctl
+
+脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
+```bash
+command -v istioctl
+```
+
+关键介绍：
+
+- 主脚本会先确认 `ops` 节点上已经可以直接使用 `istioctl`
+- 如果这里就失败，后面的 `waypoint` 部署和 `Istio` 相关检查都无法继续
+
+### 动作 2：处理 Cilium 下 waypoint 的常见前置项
+
+脚本原始代码：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选查看代码</strong><br/>
+下面代码为脚本原始逻辑，用于理解本步实现，不需要单独执行。
+</div>
+
+```bash
+kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.kube-proxy-replacement}'
+kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.bpf-lb-sock-hostns-only}'
+kubectl -n kube-system patch cm cilium-config --type merge \
+  -p '{"data":{"bpf-lb-sock-hostns-only":"true"}}'
+kubectl -n kube-system rollout restart ds/cilium
+kubectl -n kube-system rollout status ds/cilium --timeout=600s
+```
+
+关键介绍：
+
+- 如果底层使用的是 `Cilium + kube-proxy replacement`，而 `socket LB` 没有收敛到 `Hostns-only`
+- 发往 `Service` 的流量可能会绕过 `waypoint`
+- 结果就是：
+  - `waypoint` 配置已经存在
+  - 但后面的 `L7` 方法和路径控制看起来“不生效”
+- 所以主脚本会自动：
+  - 检查这个前置项
+  - 不满足时自动修正
+  - 如有需要自动滚动重启 `cilium`
+
+### 动作 3：生成 JWT 演示材料
 
 脚本原始代码：
 
@@ -300,7 +361,7 @@ flowchart LR
 - 公钥 / `jwks.json` 负责“验”
 - `user.jwt` 和 `admin.jwt` 用的是同一套验签材料，但代表两种不同身份
 
-### 动作 2：为 mesh-demo 部署 waypoint
+### 动作 4：为 mesh-demo 部署 waypoint
 
 脚本原始代码：
 
@@ -310,7 +371,7 @@ flowchart LR
 </div>
 
 ```bash
-istioctl waypoint apply --namespace mesh-demo --enroll-namespace --overwrite --wait
+istioctl waypoint apply --namespace mesh-demo --enroll-namespace --for service --overwrite --wait
 ```
 
 关键介绍：
@@ -319,7 +380,9 @@ istioctl waypoint apply --namespace mesh-demo --enroll-namespace --overwrite --w
 - 同时把 `mesh-demo` 纳入 `waypoint` 管理
 - 后面需要经过 `waypoint` 的七层授权能力，都建立在这一步之上
 
-### 动作 3：统一应用安全对象
+> 在 `Cilium + kube-proxy replacement` 的环境里，主脚本会在前面的“动作 2”自动处理这个常见前置项。这个前置项没有满足时，发往 `Service` 的流量可能会绕过 `waypoint`，导致后面的 `L7` 方法和路径控制看起来“配置了但不生效”。
+
+### 动作 5：统一应用安全对象
 
 脚本原始代码：
 
@@ -374,12 +437,12 @@ kubectl apply -f "${HTTPBIN_AUTHZ_URL}"
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>YAML 文件：</strong><code>manifests/33_authorizationpolicy_httpbin_waypoint.yaml</code><br/>
 <strong>对象：</strong><code>AuthorizationPolicy</code><br/>
-<strong>作用：</strong>在 <code>waypoint</code> 路径上限制只有指定服务身份可以访问 <code>httpbin</code>
+<strong>作用：</strong>在 <code>waypoint</code> 路径上按来源身份、HTTP 方法和 URL 路径控制 <code>httpbin</code> 访问
 </div>
 
-- 详细配置见：[测试 3：waypoint 上的 L7 服务身份授权](#test-3-l7-authz)
+- 详细配置见：[测试 3：waypoint 上的 L7 方法、URL 与服务身份控制](#test-3-l7-authz)
 
-### 动作 4：最后统一查看安全对象
+### 动作 6：最后统一查看安全对象
 
 脚本原始代码：
 
@@ -427,7 +490,7 @@ mesh-demo   peerauthentication.security.istio.io/mesh-demo-strict   STRICT   18s
   - 用来控制“哪些入口请求允许访问”
 - `mesh-demo/httpbin-waypoint-l7`
   - 这是 `httpbin` 的服务间授权策略
-  - 用来控制“哪些服务身份可以访问 `httpbin`”
+  - 用来控制“哪些来源身份、方法和 URL 可以访问 `httpbin`”
 
 3. `PeerAuthentication`
 - `mesh-demo/mesh-demo-strict`
@@ -443,30 +506,13 @@ mesh-demo   peerauthentication.security.istio.io/mesh-demo-strict   STRICT   18s
 
 ---
 
-## 后续讲解与验证方式
-
-主脚本执行完成后，测试部分划分为下面 3 个边界明确的验证块：
-
-1. 入口 `JWT`
-2. 命名空间 `mTLS`
-3. `waypoint` 上的 `L7` 服务身份控制
-
-每个验证块统一采用下面结构：
-
-- 先说明本测试对应哪些 `YAML`
-- 再给出关键 `YAML` 配置
-- 然后立刻执行测试命令
-- 最后只看关键结果
-
----
-
 ## 测试总览
 
 主线只做下面 3 个测试：
 
 1. 测试 1：入口 `JWT` 认证与授权
 2. 测试 2：`mTLS` 边界验证
-3. 测试 3：`waypoint` 上的 `L7` 服务身份授权
+3. 测试 3：`waypoint` 上的 `L7` 方法、URL 与服务身份控制
 
 这 3 个测试分别回答 3 个问题：
 
@@ -1032,31 +1078,65 @@ flowchart LR
 ---
 
 <a id="test-3-l7-authz"></a>
-## 测试 3：waypoint 上的 L7 服务身份授权
+## 测试 3：waypoint 上的 L7 方法、URL 与服务身份控制
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
 <strong>❗ 测试边界 3</strong><br/>
-本测试只验证 `waypoint` 路径上的 L7 服务身份控制，不再重复验证入口 JWT，也不再重复验证 mTLS 开关。
+本测试只验证 `waypoint` 路径上的 L7 控制：来源身份、HTTP 方法与 URL 路径。
 </div>
 
 ```mermaid
 flowchart LR
     t[trusted-client] --> wp[waypoint]
     u[untrusted-client] --> wp
-    wp --> ok[200]
-    wp --> deny[拒绝]
+    wp -->|放行后转发| svc[httpbin]
+
+    subgraph result[结果]
+        direction TB
+        ok[200]
+        deny1[拒绝]
+        deny2[拒绝]
+    end
+
+    svc -->|trusted-client + GET /get| ok
+    svc -->|trusted-client + POST /post| deny1
+    svc -->|untrusted-client + GET /get| deny2
+
+    classDef trusted fill:#e6f4ea,stroke:#34a853,stroke-width:2px,color:#111;
+    classDef untrusted fill:#fde7e9,stroke:#d93025,stroke-width:2px,color:#111;
+    classDef waypoint fill:#fff3cd,stroke:#f9ab00,stroke-width:2px,color:#111;
+    classDef target fill:#e8f0fe,stroke:#4285f4,stroke-width:2px,color:#111;
+    classDef allow fill:#e6f4ea,stroke:#34a853,stroke-width:2px,color:#111;
+    classDef deny fill:#fde7e9,stroke:#d93025,stroke-width:2px,color:#111;
+
+    class t trusted;
+    class u untrusted;
+    class wp waypoint;
+    class svc target;
+    class ok allow;
+    class deny1,deny2 deny;
+
+    linkStyle 0 stroke:#4285f4,stroke-width:3px;
+    linkStyle 1 stroke:#4285f4,stroke-width:3px;
+    linkStyle 2 stroke:#4285f4,stroke-width:3px;
+    linkStyle 3 stroke:#34a853,stroke-width:3px;
+    linkStyle 4 stroke:#d93025,stroke-width:3px;
+    linkStyle 5 stroke:#d93025,stroke-width:3px;
 ```
 
 <div style="padding: 12px 16px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 14px 0;">
 <strong>本测试对应的 YAML</strong><br/>
-本测试验证前面已经应用好的 `33_authorizationpolicy_httpbin_waypoint.yaml` 是否真的把不同服务身份区分开了。
+本测试验证前面已经应用好的 `33_authorizationpolicy_httpbin_waypoint.yaml` 是否真的把来源身份、HTTP 方法和 URL 区分开了。
 </div>
 
 开始状态：
 
 - `waypoint` 已经在主脚本里创建好了
-- 这份策略已经把 `trusted-client` 放进允许名单
-- `untrusted-client` 不在允许名单里
+- 这份策略不再只是区分“谁能访问”
+- 而是继续区分：
+  - 哪个来源身份
+  - 什么方法
+  - 什么 URL
 
 对应的关键 YAML 配置：
 
@@ -1065,7 +1145,7 @@ flowchart LR
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>YAML 文件：</strong><code>manifests/33_authorizationpolicy_httpbin_waypoint.yaml</code><br/>
 <strong>对象：</strong><code>AuthorizationPolicy</code><br/>
-<strong>作用：</strong>在 <code>waypoint</code> 路径上限制只有指定服务身份可以访问 <code>httpbin</code>
+<strong>作用：</strong>在 <code>waypoint</code> 路径上按来源身份、HTTP 方法和 URL 路径控制 <code>httpbin</code> 访问
 </div>
 
 ```yaml
@@ -1075,9 +1155,10 @@ metadata:
   name: httpbin-waypoint-l7
   namespace: mesh-demo
 spec:
-  selector:
-    matchLabels:
-      app: httpbin
+  targetRefs:
+    - group: ""
+      kind: Service
+      name: httpbin
   action: ALLOW
   rules:
     - from:
@@ -1088,23 +1169,42 @@ spec:
         - source:
             principals:
               - cluster.local/ns/mesh-demo/sa/trusted-client
+      to:
+        - operation:
+            methods:
+              - GET
+            paths:
+              - /get
 ```
 
-- `selector.matchLabels.app: httpbin`
-  - 说明策略直接作用在 `httpbin`
+- `targetRefs -> Service/httpbin`
+  - 说明这条 L7 策略挂在 `httpbin` 服务对应的 `waypoint` 路径上
 - `principals`
-  - 只允许 `istio-ingressgateway` 和 `trusted-client`
+  - 先按来源身份区分
+- `methods`
+  - 再按 HTTP 方法区分
+- `paths`
+  - 再按访问路径区分
+- 这份规则最终表达的是：
+  - `istio-ingressgateway`
+    - 继续保留访问能力
+  - `trusted-client`
+    - 只允许 `GET /get`
+  - 其他来源
+    - 不放行
+  - `trusted-client` 的其他方法或路径
+    - 也不放行
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本测试必须执行的代码</strong><br/>
 按顺序一条一条执行，每执行一步就看一次结果。
 </div>
 
-### 第 1 步：先让 `trusted-client` 访问
+### 第 1 步：先让 `trusted-client` 执行 `GET /get`
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-先看被允许的服务身份能不能正常访问 `httpbin`。
+先验证被允许的来源身份，访问被允许的方法和路径时，是否可以通过。
 </div>
 
 ```bash
@@ -1116,13 +1216,49 @@ kubectl -n mesh-demo exec deploy/curl-trusted -- \
 这一步看什么：
 
 - 应返回 `200`
-- 这说明 `trusted-client` 的服务身份命中了允许规则
+- 这说明 `trusted-client + GET + /get` 命中了允许规则
 
-### 第 2 步：再让 `untrusted-client` 访问
+示例输出：
+
+```text
+root@ops:/docker_k8s_2026# kubectl -n mesh-demo exec deploy/curl-trusted -- \
+  curl -s -o /dev/null -w '%{http_code}\n' \
+  http://httpbin.mesh-demo:8000/get
+200
+```
+
+### 第 2 步：再让 `trusted-client` 执行 `POST /post`
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-再看不在允许名单里的服务身份会不会被拒绝。
+再验证同一个来源身份，如果方法和 URL 不匹配，会不会被拒绝。
+</div>
+
+```bash
+kubectl -n mesh-demo exec deploy/curl-trusted -- \
+  curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  http://httpbin.mesh-demo:8000/post
+```
+
+这一步看什么：
+
+- 这里应返回 `403`
+- 这说明即使来源身份正确，只要方法和 URL 不匹配，`waypoint` 也会拒绝
+
+示例输出：
+
+```text
+root@ops:/docker_k8s_2026# kubectl -n mesh-demo exec deploy/curl-trusted -- \
+  curl -s -o /dev/null -w '%{http_code}\n' -X POST \
+  http://httpbin.mesh-demo:8000/post
+403
+```
+
+### 第 3 步：最后让 `untrusted-client` 执行 `GET /get`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+最后验证不在允许名单里的来源身份，即使访问同一条 URL，也会被拒绝。
 </div>
 
 ```bash
@@ -1133,12 +1269,17 @@ kubectl -n mesh-demo exec deploy/curl-untrusted -- \
 
 这一步看什么：
 
-- 这里不应该返回 `200`
-- 常见现象包括：
-  - `000`
-  - `command terminated with exit code 56`
-  - 或其他非 `200` 结果
-- 这说明 `untrusted-client` 没有命中允许规则，`waypoint` 已按服务身份拒绝访问
+- 这里应返回 `403`
+- 这说明 `untrusted-client` 没有命中允许规则，`waypoint` 已按来源身份拒绝访问
+
+示例输出：
+
+```text
+root@ops:/docker_k8s_2026# kubectl -n mesh-demo exec deploy/curl-untrusted -- \
+  curl -s -o /dev/null -w '%{http_code}\n' \
+  http://httpbin.mesh-demo:8000/get
+403
+```
 
 ---
 
@@ -1146,7 +1287,7 @@ kubectl -n mesh-demo exec deploy/curl-untrusted -- \
 
 - 测试 1 已验证入口 `JWT` 认证与授权生效
 - 测试 2 已验证 `mesh-demo` 命名空间 `mTLS` 边界生效
-- 测试 3 已验证 `waypoint` 上的 `L7` 服务身份授权生效
+- 测试 3 已验证 `waypoint` 上按来源身份、方法和 URL 的 `L7` 控制生效
 
 ---
 

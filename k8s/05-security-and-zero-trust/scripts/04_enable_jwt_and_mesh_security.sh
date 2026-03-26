@@ -21,12 +21,37 @@ ensure_istioctl() {
   fi
 }
 
+ensure_cilium_waypoint_prereq() {
+  if ! kubectl -n kube-system get cm cilium-config &>/dev/null; then
+    return
+  fi
+
+  local kube_proxy_replacement
+  kube_proxy_replacement="$(kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.kube-proxy-replacement}')"
+  if [[ "${kube_proxy_replacement}" != "true" ]]; then
+    return
+  fi
+
+  local hostns_only
+  hostns_only="$(kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.bpf-lb-sock-hostns-only}')"
+  if [[ "${hostns_only}" == "true" ]]; then
+    echo "Cilium waypoint 前置项已满足: socket LB 仅在 host namespace 生效"
+    return
+  fi
+
+  echo "修正 Cilium waypoint 前置项: 开启 bpf-lb-sock-hostns-only=true"
+  kubectl -n kube-system patch cm cilium-config --type merge \
+    -p '{"data":{"bpf-lb-sock-hostns-only":"true"}}'
+  kubectl -n kube-system rollout restart ds/cilium
+  kubectl -n kube-system rollout status ds/cilium --timeout=600s
+}
+
 generate_jwt_materials() {
   python3 "${JWT_GENERATOR}"
 }
 
 deploy_waypoint() {
-  istioctl waypoint apply --namespace mesh-demo --enroll-namespace --overwrite --wait
+  istioctl waypoint apply --namespace mesh-demo --enroll-namespace --for service --overwrite --wait
 }
 
 apply_security_objects() {
@@ -41,22 +66,25 @@ main() {
   echo "开始开启第五章 JWT 与 Mesh 安全能力"
   echo "========================================================="
 
-  echo "[0/5] 集群连通性检查与恢复"
+  echo "[0/6] 集群连通性检查与恢复"
   bash "${CHAPTER_DIR}/scripts/00_check_and_recover_cluster.sh"
 
-  echo "[1/5] 检查 istioctl"
+  echo "[1/6] 检查 istioctl"
   ensure_istioctl
 
-  echo "[2/5] 生成 JWT 演示材料"
+  echo "[2/6] 检查 Cilium waypoint 前置项"
+  ensure_cilium_waypoint_prereq
+
+  echo "[3/6] 生成 JWT 演示材料"
   generate_jwt_materials
 
-  echo "[3/5] 为 mesh-demo 部署 waypoint"
+  echo "[4/6] 为 mesh-demo 部署 waypoint"
   deploy_waypoint
 
-  echo "[4/5] 应用 JWT、mTLS 与 L7 授权策略"
+  echo "[5/6] 应用 JWT、mTLS 与 L7 授权策略"
   apply_security_objects
 
-  echo "[5/5] 查看安全对象"
+  echo "[6/6] 查看安全对象"
   kubectl get requestauthentication,authorizationpolicy,peerauthentication -A
 
   echo "OK: 第五章 JWT、mTLS 与授权策略已启用"
