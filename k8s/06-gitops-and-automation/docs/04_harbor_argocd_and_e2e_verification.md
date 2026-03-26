@@ -73,9 +73,14 @@ flowchart TD
 - 真正的 `docker build` 在 `git` 节点完成
 - 构建后的镜像再从 `git` 节点推送到 `Harbor`
 
-## 为什么这一节现在要坚持 Harbor-first
+## 为什么这一节优先使用课程内 Harbor
 
-这一节如果大量依赖外部仓库，课堂上最容易出现两类问题：
+这里的意思很简单：
+
+- 这一节构建镜像和安装 `Argo CD` 时，尽量都从课程内的 `Harbor` 拉取
+- 不再把主线建立在外部公共镜像仓库之上
+
+这样做主要是为了避开课堂环境里最常见的两类问题：
 
 - 构建节点临时拉不到基础镜像
 - Kubernetes 节点第一次启动 `Argo CD` 时外部镜像拉取很慢
@@ -86,19 +91,31 @@ flowchart TD
 - `12_install_argocd_and_sync.sh` 使用本地安装清单 `30_argocd_install_v3.3.3_harbor.yaml`
 - `12_install_argocd_and_sync.sh` 会先在各节点预拉 `argocd/dex/redis` 的 Harbor 镜像，再安装控制面
 
-## 为什么安装 `Argo CD` 不能只看官方 YAML
+## 安装后还要补齐的 4 件事
 
-这一节最容易被忽略的问题是：
+这一节不是把 `Argo CD` 装上就结束了，还要把下面 4 件事一起补齐：
 
-- 浏览器能打开私有 Git
-- 不代表 `argocd-repo-server` 一定信任该证书链
+- 让 `Argo CD` 信任私有 Git 的 HTTPS 证书
+- 给 `Argo CD` 配好正式访问域名 `argocd.qytk8s.com`
+- 把 `argocd-server` 固定到课程里的对外访问地址 `10.1.1.50`
+- 创建 `Application`，让它开始自动同步业务应用
 
-所以本节不仅是“安装 Argo CD”，更是在补齐：
+这里最容易忽略的是第一件事：
 
-- 私有 Git HTTPS 信任
-- `argocd.qytk8s.com` 正式入口
-- 固定 VIP
-- Application 自动同步
+- 你的浏览器能打开 `https://git.qytk8s.com`
+- 不代表 `Argo CD` 里的 `argocd-repo-server` 组件也已经信任这张 HTTPS 证书
+
+也就是说：
+
+- 人工访问 Git 页面成功
+- 还不等于 `Argo CD` 自己就一定能用 HTTPS 正常拉取这个 Git 仓库
+
+所以这一节真正要完成的是：
+
+- `Argo CD` 能装起来
+- `Argo CD` 能访问私有 Git
+- `Argo CD` 能通过 `argocd.qytk8s.com -> 10.1.1.50` 这个固定入口对外提供控制面
+- `Argo CD` 能把应用自动同步到集群
 
 ## 本节必刷脚本
 
@@ -164,6 +181,48 @@ YAML 文件：<code>k8s/06-gitops-and-automation/manifests/30_argocd_install_v3.
 作用：使用课程内 <code>Harbor</code> 镜像源安装 <code>Argo CD</code> 控制面，避免课堂环境大量依赖外部拉取。
 </div>
 
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: argocd-server
+spec:
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+    - name: https
+      port: 443
+      targetPort: 8080
+  selector:
+    app.kubernetes.io/name: argocd-server
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: argocd-server
+spec:
+  template:
+    spec:
+      containers:
+        - name: argocd-server
+          image: harbor.qytk8s.com/library/argocd:v3.3.3
+          ports:
+            - containerPort: 8080
+            - containerPort: 8083
+```
+
+这张安装清单很大，课堂上先抓这一段即可：
+
+- `image: harbor.qytk8s.com/library/argocd:v3.3.3`
+  - 说明这一版安装不再走外部默认镜像源，而是统一改用课程内 `Harbor`
+- `Service argocd-server`
+  - 说明控制面正式入口对应的是 `argocd-server` 这个 Service
+- `port: 443 -> targetPort: 8080`
+  - 说明外部访问 `HTTPS 443` 后，最终进的是 `argocd-server` 容器里的 `8080`
+- `containerPort: 8083`
+  - 这是 `argocd-server` 的指标端口，不是浏览器访问入口
+
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
 <strong>YAML 卡片</strong><br/>
 YAML 文件：<code>apps/qytang-netdevops/deploy/gitops/lab/application.yaml</code><br/>
@@ -171,12 +230,53 @@ YAML 文件：<code>apps/qytang-netdevops/deploy/gitops/lab/application.yaml</co
 作用：告诉 <code>Argo CD</code> 从 <code>Gitea</code> 的哪个仓库和路径读取 <code>Helm Chart</code>，并把它同步到 <code>qytang-netdevops</code> 命名空间。
 </div>
 
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: qytang-netdevops
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://git.qytk8s.com/gitadmin/qytang-netdevops.git
+    targetRevision: main
+    path: deploy/helm/qytang-netdevops
+    helm:
+      valueFiles:
+        - values-lab.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: qytang-netdevops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+```
+
+课堂上只抓这几个关键字段：
+
+- `repoURL`
+  - `Argo CD` 从哪个 Git 仓库拉取发布内容
+- `targetRevision: main`
+  - 读取哪个分支
+- `path: deploy/helm/qytang-netdevops`
+  - 这是 Git 仓库里的 Chart 相对路径
+- `valueFiles: values-lab.yaml`
+  - 这是 Chart 目录里的 values 相对路径，不是宿主机本地路径
+- `destination.namespace: qytang-netdevops`
+  - 渲染后的业务资源最终落到哪个命名空间
+- `automated.prune` / `selfHeal`
+  - 开启自动同步、自动清理和自动回正
+
 脚本主要任务：
 
 - 使用第六章本地 Harbor 版安装清单安装 `Argo CD`
 - 让 `Argo CD` 信任 `git.qytk8s.com`
 - 为 `argocd.qytk8s.com` 签发并配置正式证书
-- 固定 `argocd-server` VIP 为 `10.1.1.50`
+- 固定 `argocd-server` 的对外访问地址为 `10.1.1.50`
 - 创建 `Application`
 - 等待 `Synced` 与 `Healthy`
 
@@ -236,6 +336,22 @@ curl -s "http://127.0.0.1:${LOCAL_FRONTEND_PORT}/api/device/api/v1/dashboard/sum
 - 先把集群里的 `frontend Service` 转发到本地
 - 再直接访问业务接口
 - 用返回结果证明这条 GitOps 发布链已经真正打通
+
+### 4. Win2019 浏览器确认 Argo CD 状态
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>可选观察</strong><br/>
+脚本验收通过后，可以再用 <code>Win2019</code> 浏览器确认控制面状态和应用同步结果。
+</div>
+
+- 浏览器访问：`https://argocd.qytk8s.com`
+- 如果实验环境没有独立 DNS，就先在 `Win2019` 的 `hosts` 里把 `argocd.qytk8s.com` 解析到 `10.1.1.50`
+- 登录后重点看：
+  - `qytang-netdevops` 应用是否已经出现
+  - 应用状态是否为 `Synced` 和 `Healthy`
+  - 左侧资源树里是否已经看到 `frontend`、3 个后端和对应 `Service`
+
+<img src="../images/argocd.png" alt="Argo CD UI 状态" width="760" />
 
 ## 本节测试与校验
 
