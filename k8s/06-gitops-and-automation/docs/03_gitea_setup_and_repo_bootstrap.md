@@ -107,11 +107,28 @@ flowchart LR
 
 这一节建议按下面顺序执行：
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
+<strong>本节执行方式</strong><br/>
+这一节按下面 4 条主线脚本顺序执行，每条执行完再做对应验证。
+</div>
+
 ### 1. 安装 Gitea
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+先完成 <code>Gitea</code> 安装、证书签发和管理员初始化。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/07_install_gitea_remote.sh
 ```
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>k8s/06-gitops-and-automation/tmp/docker-compose-gitea.yaml</code><br/>
+对象：<code>Docker Compose</code><br/>
+作用：在 <code>git</code> 节点拉起 <code>gitea</code> 和 <code>gitea-postgres</code>；这一节的 Git 服务本体就是由这份清单启动的。
+</div>
 
 脚本主要任务：
 
@@ -124,6 +141,11 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/07_install_gitea_remo
 
 ### 2. 创建应用仓库
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+在 <code>Gitea</code> 中创建第六章要用的应用发布仓。
+</div>
+
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/08_create_gitea_repo.sh
 ```
@@ -133,6 +155,11 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/08_create_gitea_repo.
 - 使用 Gitea API 创建 `qytang-netdevops` 仓库
 
 ### 3. 验证 Gitea
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+安装完成后立刻验证 <code>Gitea</code> 是否已经可用。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/09_verify_gitea.sh
@@ -146,6 +173,11 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/09_verify_gitea.sh
 - 验证管理员用户是否存在
 
 ### 4. 首次同步应用目录
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+最后把本地应用目录首次同步到 <code>Gitea</code> 发布仓。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/10_push_qytang_netdevops_repo.sh

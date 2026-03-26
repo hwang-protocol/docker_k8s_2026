@@ -16,6 +16,10 @@
 - 本地联调为什么是第六章的必要起点
 - 为什么这一节之后就已经具备进入 GitOps 的工程化基础
 
+## 执行标记
+
+- **执行标记：必须执行**
+
 ## 样板应用定位
 
 `QYT NetDevOps` 不是生产系统，而是第六章到第七章的教学载体。
@@ -260,7 +264,17 @@ flowchart LR
 1. 先启动本地联调环境
 2. 再验证本地联调是否正常
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
+<strong>本节执行方式</strong><br/>
+这一节先把本地联调环境拉起来，再做自动化验证；页面观察放到最后人工确认。
+</div>
+
 ### 1. 启动本地联调
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+先启动本地 <code>docker compose</code> 联调环境。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/01_run_local_preview.sh
@@ -278,6 +292,11 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/01_run_local_preview.
 - 而是先证明应用本身可以在本地跑通
 
 ### 2. 验证本地联调
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+启动完成后立刻验证本地联调是否已经正常。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/02_verify_local_preview.sh
@@ -320,6 +339,11 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/02_verify_local_previ
 这一节更适合保留给学员手工观察的，是 `win2019` 远程打开页面后的实际效果。
 
 ## 建议人工观察
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 建议人工观察</strong><br/>
+下面不是主线必跑命令，而是建议在浏览器中辅助观察的内容。
+</div>
 
 建议在 `win2019` 浏览器中直接打开：
 
@@ -368,6 +392,11 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/02_verify_local_previ
 
 如果这一阶段验证已经完成，也可以主动收掉本地预览进程：
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选执行</strong><br/>
+下面这条不是主线必跑命令；如果本地联调已经验证完成，可以主动停止本地预览环境。
+</div>
+
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/18_stop_local_preview.sh
 ```
@@ -413,6 +442,13 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/18_stop_local_preview
 - 把应用整理成可部署到 Kubernetes 的 `Chart`
 - 把实验环境参数单独放进 `values` 文件
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml</code><br/>
+对象：<code>Helm values</code><br/>
+作用：保存实验环境下的副本数、镜像标签等参数；后面“改 YAML 扩缩容”演示就是直接改这里。
+</div>
+
 ### GitOps 资产
 
 - `apps/qytang-netdevops/deploy/gitops/lab/`
@@ -426,6 +462,13 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/18_stop_local_preview
 
 - 把 `Argo CD` 真正要同步的入口单独整理出来
 - 让后面发布时不需要再从应用目录里临时拼装对象
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>apps/qytang-netdevops/deploy/gitops/lab/application.yaml</code><br/>
+对象：<code>Argo CD Application</code><br/>
+作用：告诉 <code>Argo CD</code> 应该从哪个 Git 仓、哪个 Chart 路径、用哪份 <code>values</code>，把应用同步到哪个命名空间。
+</div>
 
 ## 从应用到 GitOps 资产的过渡图
 

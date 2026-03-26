@@ -8,6 +8,10 @@
 - 当前有哪些域名与账户
 - 当前 Git 备份边界是什么
 
+## 执行标记
+
+- **执行标记：建议执行**
+
 ## 正式业务入口为什么要单独收口
 
 到上一节为止，应用已经在 Kubernetes 中跑起来，并完成了：
@@ -114,15 +118,37 @@ flowchart LR
 - 业务 `frontend` Service 回到 `ClusterIP`
 - 域名、TLS、HTTP 跳转 HTTPS 都由网关层承载
 
-## !!! 本节必刷脚本
+## 本节必刷脚本
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
+<strong>本节执行方式</strong><br/>
+这一节先发布正式业务入口，再用 3 条只读命令验证 HTTP 跳转、HTTPS 首页和后端健康接口。
+</div>
 
 ### 发布正式业务入口
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+把 <code>QYT NetDevOps</code> 正式发布到 <code>https://netdevops.qytk8s.com</code>。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/14_publish_netdevops_https_domain.sh
 ```
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>k8s/06-gitops-and-automation/manifests/21_gateway_netdevops_https.yaml</code><br/>
+对象：<code>HTTPRoute + ReferenceGrant</code><br/>
+作用：把 <code>netdevops.qytk8s.com</code> 接到统一网关；其中一条路由负责 <code>HTTP -&gt; HTTPS</code> 跳转，另一条路由负责把 HTTPS 流量转发到 <code>frontend</code>，<code>ReferenceGrant</code> 负责允许跨命名空间引用后端 Service。
+</div>
+
 ## 正式业务入口验证
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选执行</strong><br/>
+下面 3 条验证命令建议逐条执行；它们不改变状态，只用于证明正式入口已经发布成功。
+</div>
 
 ### 1. 验证 HTTP 是否会跳转到 HTTPS
 

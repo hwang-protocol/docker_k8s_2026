@@ -12,6 +12,10 @@
 - 集群里 Pod 与 Service 正常
 - 前端 Service 能返回真实业务数据
 
+## 执行标记
+
+- **执行标记：必须执行**
+
 ## 为什么这一节是第六章的核心落地点
 
 到前一节为止，我们只是准备好了：
@@ -98,7 +102,17 @@ flowchart TD
 
 ## 本节必刷脚本
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
+<strong>本节执行方式</strong><br/>
+这一节按下面 3 条主线脚本顺序执行：先构建推镜像，再安装并同步 <code>Argo CD</code>，最后做端到端只读验收。
+</div>
+
 ### 1. 远程构建并推送业务镜像
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+先在 <code>git</code> 节点完成远程构建，并把业务镜像推送到 <code>Harbor</code>。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/11_build_and_push_images_remote.sh
@@ -134,9 +148,28 @@ ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@git \
 
 ### 2. 安装 Argo CD 并同步应用
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+完成镜像准备后，安装 <code>Argo CD</code> 并把应用同步到集群。
+</div>
+
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/12_install_argocd_and_sync.sh
 ```
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>k8s/06-gitops-and-automation/manifests/30_argocd_install_v3.3.3_harbor.yaml</code><br/>
+对象：<code>Argo CD 安装清单</code><br/>
+作用：使用课程内 <code>Harbor</code> 镜像源安装 <code>Argo CD</code> 控制面，避免课堂环境大量依赖外部拉取。
+</div>
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>apps/qytang-netdevops/deploy/gitops/lab/application.yaml</code><br/>
+对象：<code>Application</code><br/>
+作用：告诉 <code>Argo CD</code> 从 <code>Gitea</code> 的哪个仓库和路径读取 <code>Helm Chart</code>，并把它同步到 <code>qytang-netdevops</code> 命名空间。
+</div>
 
 脚本主要任务：
 
@@ -172,6 +205,11 @@ kubectl apply -f "${APP_FILE}"
 - 密码：`Cisc0123`
 
 ### 3. 端到端只读验收
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+最后从 Git、镜像仓、<code>Argo CD</code> 和业务接口四个方向做一次端到端只读验收。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/13_verify_gitops_e2e.sh

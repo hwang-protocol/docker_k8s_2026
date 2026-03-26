@@ -9,6 +9,10 @@
 1. 改代码发布新版本
 2. 改 YAML 做声明式扩缩容
 
+## 执行标记
+
+- **执行标记：建议执行**
+
 ## 当前课堂定位
 
 这一节不是在讲新的基础设施，而是在验证第六章前面已经刷通的链路：
@@ -73,13 +77,37 @@ VERSION="${VERSION:-v0.1.3}"
 - `16_release_frontend_gitops.sh` 会自动回写这 3 处前端镜像 tag
 - 课堂上只需要改代码，再改 `VERSION`
 
-## !!! 演示 A 必刷脚本
+### 主线脚本
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
+<strong>本段执行方式</strong><br/>
+这一段先手工改前端代码和 <code>VERSION</code>，再执行主脚本；页面观察和命令行观察都放在脚本之后。
+</div>
 
 ### 改代码发布
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+先演示“改代码 -> 构建镜像 -> 回写 values -> Argo CD 同步 -> 页面更新”这条完整 GitOps 发布链。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/16_release_frontend_gitops.sh
 ```
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>apps/qytang-netdevops/deploy/gitops/lab/application.yaml</code><br/>
+对象：<code>Application</code><br/>
+作用：定义 <code>Argo CD</code> 的同步入口，决定发布仓、Chart 路径、目标命名空间，以及当前使用哪份 <code>values</code>。
+</div>
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml</code><br/>
+对象：<code>Helm values</code><br/>
+作用：这份文件是实验环境实际生效的业务参数入口；前端镜像 tag 变化、后面扩缩容演示的副本数变化，最终都会收敛到这里。
+</div>
 
 ### 当前课堂流程图
 
@@ -161,6 +189,11 @@ flowchart TD
 - `Revision`
 
 命令行也可以直接看：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选执行</strong><br/>
+下面这些命令属于课堂辅助观察，不是发布主线必跑命令。
+</div>
 
 #### 观察 1：Argo CD 当前同步状态
 
@@ -245,7 +278,17 @@ frontend   1/1     1            1           9h
 
 这一段不改代码，不重建镜像，只改目标状态。
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
+<strong>本段执行方式</strong><br/>
+这一段只手工改 <code>values-lab.yaml</code> 里的副本数，再执行脚本把变更同步到 <code>Gitea</code> 并观察 <code>Argo CD</code> 收敛。
+</div>
+
 ### 演示 B 必刷脚本
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+再演示“只改目标状态，不改代码、不重建镜像”的声明式扩缩容链路。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/17_scale_frontend_gitops.sh
@@ -254,6 +297,13 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/17_scale_frontend_git
 ### 直接改哪个文件
 
 - `apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml`
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml</code><br/>
+对象：<code>Helm values</code><br/>
+作用：课堂上手工调整 <code>replicaCount</code> 的主入口；这份文件被 <code>Application</code> 引用，所以改完后 <code>Argo CD</code> 会把目标副本数同步到集群。
+</div>
 
 ### 这一段最短动作
 
@@ -315,6 +365,11 @@ frontend:
 - `frontendAvailable`
 
 你也可以手工执行下面两条命令：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选执行</strong><br/>
+下面两条命令是辅助观察副本数变化，不是扩缩容主线必跑命令。
+</div>
 
 #### 观察 1：Deployment 期望副本数是否已经变化
 
