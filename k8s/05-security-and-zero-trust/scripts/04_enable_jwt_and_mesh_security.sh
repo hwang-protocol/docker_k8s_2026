@@ -13,6 +13,7 @@ INGRESS_AUTHZ_URL="http://ops:9000/05-security-and-zero-trust/manifests/31_autho
 PEER_AUTH_URL="http://ops:9000/05-security-and-zero-trust/manifests/32_peerauthentication_mesh_demo.yaml"
 HTTPBIN_AUTHZ_URL="http://ops:9000/05-security-and-zero-trust/manifests/33_authorizationpolicy_httpbin_waypoint.yaml"
 JWT_GENERATOR="${CHAPTER_DIR}/scripts/98_generate_demo_jwt.py"
+CILIUM_RESTARTED=0
 
 ensure_istioctl() {
   if ! command -v istioctl &>/dev/null; then
@@ -44,6 +45,29 @@ ensure_cilium_waypoint_prereq() {
     -p '{"data":{"bpf-lb-sock-hostns-only":"true"}}'
   kubectl -n kube-system rollout restart ds/cilium
   kubectl -n kube-system rollout status ds/cilium --timeout=600s
+  CILIUM_RESTARTED=1
+}
+
+restart_mesh_demo_workloads_if_needed() {
+  if [[ "${CILIUM_RESTARTED}" != "1" ]]; then
+    return
+  fi
+
+  echo "重启 mesh-demo 相关工作负载，确保数据面切换到新的 Cilium / ambient 状态"
+  kubectl -n mesh-demo rollout restart \
+    deploy/curl-trusted \
+    deploy/curl-untrusted \
+    deploy/public-whoami \
+    deploy/httpbin \
+    deploy/helloworld-v1 \
+    deploy/helloworld-v2
+
+  kubectl -n mesh-demo rollout status deploy/curl-trusted --timeout=180s
+  kubectl -n mesh-demo rollout status deploy/curl-untrusted --timeout=180s
+  kubectl -n mesh-demo rollout status deploy/public-whoami --timeout=180s
+  kubectl -n mesh-demo rollout status deploy/httpbin --timeout=180s
+  kubectl -n mesh-demo rollout status deploy/helloworld-v1 --timeout=180s
+  kubectl -n mesh-demo rollout status deploy/helloworld-v2 --timeout=180s
 }
 
 generate_jwt_materials() {
@@ -74,6 +98,9 @@ main() {
 
   echo "[2/6] 检查 Cilium waypoint 前置项"
   ensure_cilium_waypoint_prereq
+
+  echo "[2.5/6] 如有需要，重启 mesh-demo 工作负载"
+  restart_mesh_demo_workloads_if_needed
 
   echo "[3/6] 生成 JWT 演示材料"
   generate_jwt_materials
