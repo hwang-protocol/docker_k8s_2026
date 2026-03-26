@@ -394,4 +394,4 @@ curl -s "http://127.0.0.1:${LOCAL_FRONTEND_PORT}/api/device/api/v1/dashboard/sum
 
 进入正式业务入口、账户速查与 Git 边界说明：
 
-- `docs/05_domains_accounts_and_classroom_demo.md`
+- `docs/05_publish_netdevops_https_domain.md`

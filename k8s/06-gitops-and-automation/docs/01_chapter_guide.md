@@ -134,7 +134,7 @@ flowchart TD
 | 1 | `02_app_design_and_local_preview.md` | 讲清样板应用结构、本地联调与工程化资产 | 见文档内分步脚本 | 必须执行 |
 | 2 | `03_gitea_setup_and_repo_bootstrap.md` | 安装 `Gitea`、创建应用仓并完成首推同步 | `scripts/07_install_gitea_remote.sh` 等 | 必须执行 |
 | 3 | `04_harbor_argocd_and_e2e_verification.md` | 构建镜像、推送到 `Harbor`、安装 `Argo CD` 并完成同步 | 见文档内分步脚本 | 必须执行 |
-| 4 | `05_domains_accounts_and_classroom_demo.md` | 整理正式入口、域名、账户与课堂操作边界 | 无 | 建议执行 |
+| 4 | `05_publish_netdevops_https_domain.md` | 发布正式业务入口，并整理域名、账户与课堂操作边界 | 无 | 建议执行 |
 | 5 | `06_gitops_demo_and_testing.md` | 完成第六章最终演示与验证 | 见文档内分步脚本 | 建议执行 |
 
 ---
@@ -147,7 +147,7 @@ flowchart TD
 1. `02_app_design_and_local_preview.md`
 2. `03_gitea_setup_and_repo_bootstrap.md`
 3. `04_harbor_argocd_and_e2e_verification.md`
-4. `05_domains_accounts_and_classroom_demo.md`
+4. `05_publish_netdevops_https_domain.md`
 5. `06_gitops_demo_and_testing.md`
 
 ---
