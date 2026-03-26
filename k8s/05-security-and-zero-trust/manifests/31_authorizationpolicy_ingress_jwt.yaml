@@ -23,3 +23,19 @@ spec:
         - operation:
             hosts:
               - secure-app.qytk8s.com
+            paths:
+              - /hello
+    - from:
+        - source:
+            requestPrincipals:
+              - "https://secure-app.qytk8s.com/auth/*"
+      to:
+        - operation:
+            hosts:
+              - secure-app.qytk8s.com
+            paths:
+              - /headers
+      when:
+        - key: request.auth.claims[role]
+          values:
+            - admin

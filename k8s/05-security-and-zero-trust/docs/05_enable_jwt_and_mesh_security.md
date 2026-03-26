@@ -45,7 +45,7 @@
 | :--- | :--- |
 | `issuer` | token 里 `iss` 这个字段，表示谁签发了它 |
 | `claim` | token 里真正携带身份信息的字段，例如 `sub`、`role` |
-| `JWKS` | 服务端验签时要用到的公钥集合，对应后面的验签阶段 |
+| `JWKS` | 服务端验签时要用到的公钥集合（`JSON Web Key Set`），对应后面的验签阶段 |
 
 ### JWT 是怎么拼出来的
 
@@ -157,21 +157,11 @@ flowchart LR
 
 ---
 
-## 安全链路关系图
+上面这张图已经把北向入口上的 `JWT` 认证与授权链讲清楚了。
 
-### 北向入口安全
+下面把视角切到网格内部，再看东西向服务之间的安全链路。
 
-```mermaid
-flowchart LR
-    client[客户端] --> ingress[Istio Ingress Gateway]
-    ingress --> reqAuth[RequestAuthentication]
-    reqAuth --> ingressAuthz[AuthorizationPolicy]
-    ingressAuthz --> helloSvc[helloworld]
-```
-
-这张图表达的是北向入口上的认证与授权链。
-
-### 东西向服务间安全
+## 东西向服务间安全
 
 ```mermaid
 flowchart LR
@@ -262,7 +252,7 @@ bash /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/04_enable_jwt_and_m
 </div>
 
 ```bash
-python3 "${JWT_GENERATOR}"
+python3 /docker_k8s_2026/k8s/05-security-and-zero-trust/scripts/98_generate_demo_jwt.py
 ```
 
 关键介绍：
@@ -287,11 +277,28 @@ python3 "${JWT_GENERATOR}"
 - `admin.jwt`
   - 管理员演示 token
 
-可以先这样理解它们的关系：
+它们的关系可以直接看下面这张图：
+
+```mermaid
+flowchart LR
+    priv[jwt-demo-private.pem<br/>私钥] --> sign[负责签发 token]
+    sign --> user[user.jwt<br/>sub=demo-user<br/>role=user]
+    sign --> admin[admin.jwt<br/>sub=demo-admin<br/>role=admin]
+
+    pub[jwt-demo-public.pem<br/>公钥] --> jwks[jwks.json<br/>公钥集合]
+    jwks --> verify[RequestAuthentication<br/>负责验签]
+
+    user --> verify
+    admin --> verify
+    user --> same[相同部分<br/>iss / aud / iat / exp]
+    admin --> same
+```
+
+一句话理解：
 
 - 私钥负责“签”
 - 公钥 / `jwks.json` 负责“验”
-- `user.jwt` / `admin.jwt` 是后面实际拿去发请求测试的 token
+- `user.jwt` 和 `admin.jwt` 用的是同一套验签材料，但代表两种不同身份
 
 ### 动作 2：为 mesh-demo 部署 waypoint
 
@@ -340,7 +347,7 @@ kubectl apply -f "${HTTPBIN_AUTHZ_URL}"
 <strong>作用：</strong>让入口具备 JWT 验签与身份解析能力
 </div>
 
-- 详细配置放到下面“测试 1：入口 JWT 认证与授权”里结合请求一起看
+- 详细配置见：[测试 1：入口 JWT 认证与授权](#test-1-jwt)
 
 #### 31_authorizationpolicy_ingress_jwt.yaml
 
@@ -350,7 +357,7 @@ kubectl apply -f "${HTTPBIN_AUTHZ_URL}"
 <strong>作用：</strong>在入口层按 JWT 身份决定谁能访问
 </div>
 
-- 详细配置放到下面“测试 1：入口 JWT 认证与授权”里结合结果一起看
+- 详细配置见：[测试 1：入口 JWT 认证与授权](#test-1-jwt)
 
 #### 32_peerauthentication_mesh_demo.yaml
 
@@ -360,7 +367,7 @@ kubectl apply -f "${HTTPBIN_AUTHZ_URL}"
 <strong>作用：</strong>把 <code>mesh-demo</code> 命名空间切到 <code>STRICT mTLS</code>，为服务间零信任打底
 </div>
 
-- 详细配置放到下面“测试 2：命名空间 mTLS 边界验证”里结合对照测试一起看
+- 详细配置见：[测试 2：命名空间 mTLS 边界验证](#test-2-mtls)
 
 #### 33_authorizationpolicy_httpbin_waypoint.yaml
 
@@ -370,7 +377,7 @@ kubectl apply -f "${HTTPBIN_AUTHZ_URL}"
 <strong>作用：</strong>在 <code>waypoint</code> 路径上限制只有指定服务身份可以访问 <code>httpbin</code>
 </div>
 
-- 详细配置放到下面“测试 3：waypoint 上的 L7 服务身份授权”里结合访问结果一起看
+- 详细配置见：[测试 3：waypoint 上的 L7 服务身份授权](#test-3-l7-authz)
 
 ### 动作 4：最后统一查看安全对象
 
@@ -438,13 +445,13 @@ mesh-demo   peerauthentication.security.istio.io/mesh-demo-strict   STRICT   18s
 
 ## 后续讲解与验证方式
 
-主脚本执行完成后，测试部分只看 3 个边界明确的验证块：
+主脚本执行完成后，测试部分划分为下面 3 个边界明确的验证块：
 
 1. 入口 `JWT`
 2. 命名空间 `mTLS`
 3. `waypoint` 上的 `L7` 服务身份控制
 
-这一段的阅读方式也直接改成：
+每个验证块统一采用下面结构：
 
 - 先说明本测试对应哪些 `YAML`
 - 再给出关键 `YAML` 配置
@@ -469,6 +476,7 @@ mesh-demo   peerauthentication.security.istio.io/mesh-demo-strict   STRICT   18s
 
 ---
 
+<a id="test-1-jwt"></a>
 ## 测试 1：入口 JWT 认证与授权
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
@@ -478,12 +486,18 @@ mesh-demo   peerauthentication.security.istio.io/mesh-demo-strict   STRICT   18s
 
 ```mermaid
 flowchart LR
-    c1[无 token] --> ingress[Istio Ingress]
-    c2[错误 token] --> ingress
-    c3[正确 token] --> ingress
+    c0[无 token 访问 /public] --> ingress[Istio Ingress]
+    c1[无 token 访问 /hello] --> ingress
+    c2[错误 token 访问 /hello] --> ingress
+    c3[user 或 admin 访问 /hello] --> ingress
+    c4[user 访问 /headers] --> ingress
+    c5[admin 访问 /headers] --> ingress
+    ingress --> r0[200]
     ingress --> r1[403]
     ingress --> r2[401]
-    ingress --> r3[200 + helloworld]
+    ingress --> r3[200]
+    ingress --> r4[403]
+    ingress --> r5[200]
 ```
 
 <div style="padding: 12px 16px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 14px 0;">
@@ -494,7 +508,13 @@ flowchart LR
 开始状态：
 
 - 主脚本已经把入口 `JWT` 配好
-- 现在直接用 3 个请求看入口怎么处理
+- 现在只看两条入口路径：
+  - `/public`
+    - 用来做匿名访问对照
+  - `/hello`
+    - 用来演示“合法 token 都能访问”
+  - `/headers`
+    - 用来演示“只有 admin 能访问”
 
 对应的关键 YAML 配置：
 
@@ -561,23 +581,64 @@ spec:
         - operation:
             hosts:
               - secure-app.qytk8s.com
+            paths:
+              - /hello
+    - from:
+        - source:
+            requestPrincipals:
+              - "https://secure-app.qytk8s.com/auth/*"
+      to:
+        - operation:
+            hosts:
+              - secure-app.qytk8s.com
+            paths:
+              - /headers
+      when:
+        - key: request.auth.claims[role]
+          values:
+            - admin
 ```
 
 - `/public`
   - 匿名放行，作为对照路径
 - `requestPrincipals`
   - 要求请求必须带有通过验签后的身份
+- `/hello`
+  - 只要 token 合法，`user` 和 `admin` 都可以访问
+- `/headers`
+  - 只有 `role=admin` 才允许访问
+- `request.auth.claims[role]`
+  - 用来继续区分 `user` 和 `admin`
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本测试必须执行的代码</strong><br/>
 按顺序一条一条执行，每执行一步就看一次结果。
 </div>
 
-### 第 1 步：不带 token 访问一次
+### 第 1 步：不带 token 访问 `/public`
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-先看入口对“完全没有身份”的请求会怎么处理。
+先建立一个对照基线，确认匿名路径 `/public` 仍然可以正常访问。
+</div>
+
+```bash
+curl -s -o /tmp/ch5_jwt_public.txt -w '%{http_code}\n' \
+  --resolve secure-app.qytk8s.com:443:10.1.1.62 \
+  --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt \
+  https://secure-app.qytk8s.com/public
+```
+
+这一步看什么：
+
+- 应返回 `200`
+- 这说明入口、HTTPS 和匿名对照路径都正常
+
+### 第 2 步：不带 token 访问 `/hello`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+再看入口对“完全没有身份”的受保护路径会怎么处理。
 </div>
 
 ```bash
@@ -592,7 +653,7 @@ curl -s -o /tmp/ch5_jwt_no_token.txt -w '%{http_code}\n' \
 - 应返回 `403`
 - 这说明入口没有拿到可用身份时，会直接拒绝访问
 
-### 第 2 步：带错误 token 再访问一次
+### 第 3 步：带错误 token 访问 `/hello`
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
@@ -612,16 +673,16 @@ curl -s -o /tmp/ch5_jwt_bad_token.txt -w '%{http_code}\n' \
 - 应返回 `401`
 - 这说明 token 在验签阶段就被判定为非法
 
-### 第 3 步：带正确 token 访问一次
+### 第 4 步：带 `user.jwt` 访问 `/hello`
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-这次读取正确 token，看合法身份能不能通过入口。
+先验证普通用户是否可以访问共享路径 `/hello`。
 </div>
 
 ```bash
 USER_TOKEN="$(tr -d '\n' < /docker_k8s_2026/k8s/05-security-and-zero-trust/pki/user.jwt)"
-curl -s -o /tmp/ch5_jwt_good_token.txt -w '%{http_code}\n' \
+curl -s -o /tmp/ch5_jwt_user_hello.txt -w '%{http_code}\n' \
   --resolve secure-app.qytk8s.com:443:10.1.1.62 \
   --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt \
   -H "Authorization: Bearer ${USER_TOKEN}" \
@@ -631,17 +692,17 @@ curl -s -o /tmp/ch5_jwt_good_token.txt -w '%{http_code}\n' \
 这一步看什么：
 
 - 应返回 `200`
-- 这说明正确 token 已经通过入口验签和授权判断
+- 这说明 `user` 身份可以正常访问 `/hello`
 
-### 第 4 步：把成功响应正文读出来
+### 第 5 步：把 `/hello` 成功响应正文读出来
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-最后确认返回的确实是后端业务内容，而不是中间层误判。
+确认 `user.jwt` 访问 `/hello` 返回的确实是后端业务内容。
 </div>
 
 ```bash
-sed -n '1,20p' /tmp/ch5_jwt_good_token.txt
+sed -n '1,20p' /tmp/ch5_jwt_user_hello.txt
 ```
 
 这一步看什么：
@@ -649,8 +710,67 @@ sed -n '1,20p' /tmp/ch5_jwt_good_token.txt
 - 应能看到 `helloworld`
 - 这说明请求已经真正到达后端服务
 
+### 第 6 步：带 `user.jwt` 访问 `/headers`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+再验证普通用户虽然是合法 token，但不能访问 admin 专属路径。
+</div>
+
+```bash
+USER_TOKEN="$(tr -d '\n' < /docker_k8s_2026/k8s/05-security-and-zero-trust/pki/user.jwt)"
+curl -s -o /tmp/ch5_jwt_user_headers.txt -w '%{http_code}\n' \
+  --resolve secure-app.qytk8s.com:443:10.1.1.62 \
+  --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt \
+  -H "Authorization: Bearer ${USER_TOKEN}" \
+  https://secure-app.qytk8s.com/headers
+```
+
+这一步看什么：
+
+- 应返回 `403`
+- 这说明 `user` 虽然通过了验签，但没有命中 admin 路径授权规则
+
+### 第 7 步：带 `admin.jwt` 访问 `/headers`
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+最后验证 admin 身份是否可以访问 admin 专属路径。
+</div>
+
+```bash
+ADMIN_TOKEN="$(tr -d '\n' < /docker_k8s_2026/k8s/05-security-and-zero-trust/pki/admin.jwt)"
+curl -s -o /tmp/ch5_jwt_admin_headers.txt -w '%{http_code}\n' \
+  --resolve secure-app.qytk8s.com:443:10.1.1.62 \
+  --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt \
+  -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+  https://secure-app.qytk8s.com/headers
+```
+
+这一步看什么：
+
+- 应返回 `200`
+- 这说明 `admin` 身份可以访问 `/headers`
+
+### 第 8 步：把 `/headers` 成功响应正文读出来
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+确认 admin 请求已经真正到达 `/headers` 对应的后端服务。
+</div>
+
+```bash
+sed -n '1,20p' /tmp/ch5_jwt_admin_headers.txt
+```
+
+这一步看什么：
+
+- 应能看到 `headers` 相关返回内容
+- 这说明 admin 请求已经真正到达后端服务
+
 ---
 
+<a id="test-2-mtls"></a>
 ## 测试 2：命名空间 mTLS 边界验证
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
@@ -791,6 +911,7 @@ kubectl run mtls-check-strict -n default \
 
 ---
 
+<a id="test-3-l7-authz"></a>
 ## 测试 3：waypoint 上的 L7 服务身份授权
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #f28b82; border-radius: 6px; background: rgba(242,139,130,0.10); margin: 8px 0;">
