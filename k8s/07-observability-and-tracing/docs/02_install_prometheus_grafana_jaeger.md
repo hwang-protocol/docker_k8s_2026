@@ -41,14 +41,8 @@
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
 <strong>本步执行方式</strong><br/>
-这一页只需要执行一条主脚本；它会串起业务升级、观测栈安装和正式入口发布。
+这一页只需要执行一条主脚本 <a href="/docker_k8s_2026/k8s/07-observability-and-tracing/scripts/02_install_observability_stack.sh"><code>02_install_observability_stack.sh</code></a>；它会串起业务升级、观测栈安装和正式入口发布。
 </div>
-
-对应脚本：
-
-- [02_install_observability_stack.sh](/docker_k8s_2026/k8s/07-observability-and-tracing/scripts/02_install_observability_stack.sh)
-
-执行命令：
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
@@ -81,7 +75,43 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/02_install_observ
 
 ---
 
-## 总关系图
+## 图 1：Kubernetes 指标链路
+
+```mermaid
+flowchart LR
+  subgraph sources[主要指标来源]
+    apiserver[kube-apiserver<br/>API Server 指标]
+    kubelet[kubelet / cAdvisor<br/>Pod 与容器运行指标]
+    nodeexp[node-exporter<br/>节点主机指标]
+    ksm[kube-state-metrics<br/>K8s 对象状态指标]
+  end
+
+  prom[Prometheus]
+  grafana[Grafana]
+
+  apiserver -->|HTTP scrape| prom
+  kubelet -->|HTTP scrape| prom
+  nodeexp -->|HTTP scrape| prom
+  ksm -->|HTTP scrape| prom
+  prom -->|Prometheus datasource| grafana
+```
+
+这张图先看清 4 类来源：
+
+- `kube-apiserver`
+  - 主要看 API 请求量、错误和延迟
+- `kubelet / cAdvisor`
+  - 主要看 Pod / 容器 CPU、内存、文件系统等运行指标
+- `node-exporter`
+  - 主要看节点 CPU、内存、磁盘、网络等主机指标
+- `kube-state-metrics`
+  - 主要看 Pod、Deployment、Node、PVC 等 Kubernetes 对象状态
+
+一句话总结：
+
+- 第七章里，`Prometheus` 会持续抓取 Kubernetes 平台指标，再由 `Grafana` 统一展示。
+
+## 图 2：业务指标与 Trace 采集链路
 
 ```mermaid
 flowchart TD
@@ -127,13 +157,18 @@ flowchart TD
   prom -->|Prometheus datasource| grafana
 ```
 
-这张图最值得先看清 5 件事：
+这张图先看清 5 件事：
 
-- `Grafana` 和 `Jaeger` 对外都走现有的 `app-gateway`
-- 业务入口 `netdevops.qytk8s.com` 也仍然走同一个 `app-gateway`
-- 业务指标是 `Prometheus` 主动去抓各服务的 `/metrics`
-- 业务 Trace 是各服务主动发给 `OTel Collector`
-- `OTel Collector` 再把 Trace 转发给 `Jaeger`
+- `frontend`、`device-service`、`resource-service`、`audit-service`
+  - 都会暴露自己的 `/metrics`
+- `Prometheus`
+  - 会主动去抓这些服务的 `/metrics`
+- 这些业务指标
+  - 重点用于看请求量、错误率、延迟和服务间调用耗时
+- 业务服务
+  - 会把 `Trace` 按 `OTLP` 发给 `OTel Collector`
+- `OTel Collector`
+  - 统一接收并转发 `Trace`，最后由 `Jaeger` 展示完整调用链和瀑布图
 
 ---
 
@@ -147,19 +182,21 @@ flowchart TD
 - 本身就已经是“带指标与 Trace”的版本
 - 本步做的事情，是把这份已经改好的应用版本正式发布到集群
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 10px 0;">
+<strong>说明卡片</strong><br/>
+这一段属于回顾说明，目的是让学员看清第七章业务版本相比前一章到底多了哪些可观测能力。这里默认只读理解，不要求在本页手工修改应用代码。
+</div>
+
 最值得课堂上看清的改动，主要是下面 4 类。
 
 ### 改动 1：统一补了指标采集代码
 
-来源文件：
-
-- [metrics.py](/docker_k8s_2026/apps/qytang-netdevops/backend/common/metrics.py)
-
-文件类型：
-
-- Python 公共模块
-
-关键原文：
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 10px 0;">
+<strong>代码卡片</strong><br/>
+文件：<a href="/docker_k8s_2026/apps/qytang-netdevops/backend/common/metrics.py"><code>apps/qytang-netdevops/backend/common/metrics.py</code></a><br/>
+类型：<code>Python 公共模块</code><br/>
+作用：定义第七章统一复用的 HTTP 请求总量与请求耗时指标。
+</div>
 
 ```python
 HTTP_REQUESTS_TOTAL = Counter(
@@ -183,15 +220,12 @@ HTTP_REQUEST_DURATION_SECONDS = Histogram(
 
 ### 改动 2：服务里真正暴露了 /metrics
 
-来源文件：
-
-- [device_service/main.py](/docker_k8s_2026/apps/qytang-netdevops/backend/device_service/main.py)
-
-文件类型：
-
-- Python 服务入口代码
-
-关键原文：
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 10px 0;">
+<strong>代码卡片</strong><br/>
+文件：<a href="/docker_k8s_2026/apps/qytang-netdevops/backend/device_service/main.py"><code>apps/qytang-netdevops/backend/device_service/main.py</code></a><br/>
+类型：<code>Python 服务入口代码</code><br/>
+作用：在服务里记录 HTTP 指标，并真正暴露 <code>/metrics</code> 给 <code>Prometheus</code> 抓取。
+</div>
 
 ```python
 metrics = MetricsCollector(SERVICE_NAME)
@@ -219,15 +253,12 @@ def metrics_endpoint() -> str:
 
 ### 改动 3：服务里真正接了 OpenTelemetry
 
-来源文件：
-
-- [tracing.py](/docker_k8s_2026/apps/qytang-netdevops/backend/common/tracing.py)
-
-文件类型：
-
-- Python 公共模块
-
-关键原文：
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 10px 0;">
+<strong>代码卡片</strong><br/>
+文件：<a href="/docker_k8s_2026/apps/qytang-netdevops/backend/common/tracing.py"><code>apps/qytang-netdevops/backend/common/tracing.py</code></a><br/>
+类型：<code>Python 公共模块</code><br/>
+作用：把服务接到 <code>OpenTelemetry</code>，让入站请求自动产生并导出 <code>Trace</code>。
+</div>
 
 ```python
 provider.add_span_processor(
@@ -252,22 +283,24 @@ if app is not None:
 
 ### 改动 4：部署模板里补了 Trace 上报地址
 
-来源文件：
-
-- [deployments.yaml](/docker_k8s_2026/apps/qytang-netdevops/deploy/helm/qytang-netdevops/templates/deployments.yaml)
-- [values-lab.yaml](/docker_k8s_2026/apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml)
-
-文件类型：
-
-- `Helm` 模板文件
-- `Helm values` 文件
-
-关键原文：
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<a href="/docker_k8s_2026/apps/qytang-netdevops/deploy/helm/qytang-netdevops/templates/deployments.yaml"><code>apps/qytang-netdevops/deploy/helm/qytang-netdevops/templates/deployments.yaml</code></a><br/>
+对象：<code>Helm template</code><br/>
+作用：把 <code>OTel Collector</code> 的上报地址注入到业务服务环境变量。
+</div>
 
 ```yaml
 - name: QYTANG_OTEL_ENDPOINT
   value: {{ .Values.observability.otel.endpoint | quote }}
 ```
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<a href="/docker_k8s_2026/apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml"><code>apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml</code></a><br/>
+对象：<code>Helm values</code><br/>
+作用：定义第七章实验环境下 <code>OTel Collector</code> 的实际地址。
+</div>
 
 ```yaml
 observability:
@@ -289,7 +322,7 @@ observability:
 
 ---
 
-## 本步会用到的关键 YAML
+## 观测栈安装与入口发布的关键 YAML
 
 ### `01_kube_prometheus_stack_values.yaml`
 
@@ -299,16 +332,6 @@ YAML 文件：<code>k8s/07-observability-and-tracing/manifests/01_kube_prometheu
 对象：<code>Helm values</code><br/>
 作用：定义 <code>kube-prometheus-stack</code> 的持久化、节点放置和 Grafana 默认行为。
 </div>
-
-来源文件：
-
-- [01_kube_prometheus_stack_values.yaml](/docker_k8s_2026/k8s/07-observability-and-tracing/manifests/01_kube_prometheus_stack_values.yaml)
-
-文件类型：
-
-- `Helm values` 文件
-
-关键原文：
 
 ```yaml
 grafana:
@@ -353,16 +376,6 @@ YAML 文件：<code>k8s/07-observability-and-tracing/manifests/02_jaeger_values.
 作用：定义 <code>Jaeger</code> 的接收协议、查询界面和观测节点部署方式。
 </div>
 
-来源文件：
-
-- [02_jaeger_values.yaml](/docker_k8s_2026/k8s/07-observability-and-tracing/manifests/02_jaeger_values.yaml)
-
-文件类型：
-
-- `Helm values` 文件
-
-关键原文：
-
 ```yaml
 jaeger:
   nodeSelector:
@@ -404,16 +417,6 @@ YAML 文件：<code>k8s/07-observability-and-tracing/manifests/03_otel_collector
 对象：<code>Helm values</code><br/>
 作用：定义 <code>OTel Collector</code> 如何接收业务 Trace，再转发给 <code>Jaeger</code>。
 </div>
-
-来源文件：
-
-- [03_otel_collector_values.yaml](/docker_k8s_2026/k8s/07-observability-and-tracing/manifests/03_otel_collector_values.yaml)
-
-文件类型：
-
-- `Helm values` 文件
-
-关键原文：
 
 ```yaml
 mode: deployment
@@ -460,16 +463,6 @@ YAML 文件：<code>k8s/07-observability-and-tracing/manifests/10_qytang_netdevo
 作用：告诉 <code>Prometheus</code> 去哪里抓第七章业务应用的 <code>/metrics</code>。
 </div>
 
-来源文件：
-
-- [10_qytang_netdevops_servicemonitor.yaml](/docker_k8s_2026/k8s/07-observability-and-tracing/manifests/10_qytang_netdevops_servicemonitor.yaml)
-
-对象类型：
-
-- `ServiceMonitor`
-
-关键原文：
-
 ```yaml
 spec:
   namespaceSelector:
@@ -507,16 +500,6 @@ YAML 文件：<code>k8s/07-observability-and-tracing/manifests/20_gateway_observ
 作用：给现有 <code>app-gateway</code> 增量补上 <code>Grafana</code> 和 <code>Jaeger</code> 的监听入口。
 </div>
 
-来源文件：
-
-- [20_gateway_observability_listeners.json](/docker_k8s_2026/k8s/07-observability-and-tracing/manifests/20_gateway_observability_listeners.json)
-
-文件类型：
-
-- `Gateway listeners` 增量定义文件
-
-关键原文：
-
 ```json
 [
   {
@@ -536,6 +519,27 @@ YAML 文件：<code>k8s/07-observability-and-tracing/manifests/20_gateway_observ
         {
           "kind": "Secret",
           "name": "grafana-qytk8s-com-tls"
+        }
+      ]
+    }
+  },
+  {
+    "name": "jaeger-http",
+    "hostname": "jaeger.qytk8s.com",
+    "port": 80,
+    "protocol": "HTTP"
+  },
+  {
+    "name": "jaeger-https",
+    "hostname": "jaeger.qytk8s.com",
+    "port": 443,
+    "protocol": "HTTPS",
+    "tls": {
+      "mode": "Terminate",
+      "certificateRefs": [
+        {
+          "kind": "Secret",
+          "name": "jaeger-qytk8s-com-tls"
         }
       ]
     }
@@ -566,17 +570,6 @@ YAML 文件：<code>k8s/07-observability-and-tracing/manifests/21_gateway_observ
 作用：把 <code>grafana.qytk8s.com</code> 和 <code>jaeger.qytk8s.com</code> 正式接到统一网关入口。
 </div>
 
-来源文件：
-
-- [21_gateway_observability_https.yaml](/docker_k8s_2026/k8s/07-observability-and-tracing/manifests/21_gateway_observability_https.yaml)
-
-对象类型：
-
-- `HTTPRoute`
-- `ReferenceGrant`
-
-关键原文：
-
 ```yaml
 kind: HTTPRoute
 metadata:
@@ -604,6 +597,32 @@ spec:
         - name: kps-grafana
           namespace: monitoring
           port: 80
+---
+kind: HTTPRoute
+metadata:
+  name: jaeger-https-backend
+spec:
+  parentRefs:
+    - name: app-gateway
+      sectionName: jaeger-https
+  rules:
+    - backendRefs:
+        - name: jaeger-query
+          namespace: observability
+          port: 16686
+---
+kind: ReferenceGrant
+metadata:
+  name: allow-gateway-to-jaeger
+  namespace: observability
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: gateway-demo
+  to:
+    - group: ""
+      kind: Service
 ```
 
 关键解释：
@@ -675,26 +694,8 @@ kubectl get gateway,httproute -n gateway-demo
 - `app-gateway` 仍然存在
 - 第七章自己的 `HTTPRoute` 已经创建成功
 
-```bash
-curl --resolve grafana.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt -I https://grafana.qytk8s.com/login
-```
-
-```bash
-curl --resolve jaeger.qytk8s.com:443:10.1.1.60 --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt -I https://jaeger.qytk8s.com/
-```
-
-关键看点：
-
-- 两条命令都要看到成功的 `HTTP` 响应
-- 这说明 TLS、Gateway、HTTPRoute 和跨命名空间转发已经一起成立
-
-预期结果：
-
-- `Grafana` 登录页可访问
-- `Jaeger` 首页可访问
-
 ## 下一步
 
-进入第 3 步，做正式入口、Targets、Dashboard 和 Trace 验收：
+进入第 3 步，统一做正式入口、Targets、Dashboard 和 Trace 验收：
 
 - `docs/03_publish_grafana_and_verify.md`
