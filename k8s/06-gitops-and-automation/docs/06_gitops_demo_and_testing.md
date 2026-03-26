@@ -2,360 +2,252 @@
 
 ## 本节目标
 
-这一节专门用于课堂现场演示与测试，不再和域名、账户速查混在一起。
+这一节只做两组课堂测试：
 
-本节只关注两类动作：
-
-1. 改代码发布新版本
-2. 改 YAML 做声明式扩缩容
+1. 改代码，发布新版本
+2. 改 `values`，做声明式扩缩容
 
 ## 执行标记
 
 - **执行标记：建议执行**
 
-## 当前课堂定位
+## 先看总链路
 
-这一节不是在讲新的基础设施，而是在验证第六章前面已经刷通的链路：
+这一节不再讲新的基础设施，只看这条已经打通的 GitOps 主线：
 
-- 代码可以同步到 `Gitea`
-- 镜像可以推送到 `Harbor`
-- `Argo CD` 会自动收敛
-- 页面或副本数会按 Git 中目标状态变化
+```mermaid
+flowchart LR
+  subgraph win["Win2019"]
+    browser["10. 浏览器<br/>看到新页面内容"]
+  end
 
-## 演示 A：改代码发布新版本
+  subgraph ops["ops 节点"]
+    html["1. frontend/index.html / app.js<br/>手工改页面内容"]
+    version["2. 16_release_frontend_gitops.sh<br/>手工改 VERSION"]
+    run["3. 执行 16_release_frontend_gitops.sh"]
+    rewrite["6. 本地自动回写镜像 tag<br/>values.yaml<br/>values-lab.yaml<br/>gitops/lab/values-lab.yaml"]
+  end
 
-### 最短动作
+  subgraph gitnode["git 节点"]
+    gitea["Gitea 发布仓"]
+    build["5. git clone 最新代码<br/>构建 frontend:${VERSION}"]
+  end
 
-这部分现在已经收成课堂最短路径：
+  subgraph harbor_node["harbor 节点"]
+    harbor["8. Harbor<br/>frontend:${VERSION}"]
+  end
 
-1. 改前端代码
-2. 只改 `VERSION`
+  subgraph k8s["Kubernetes 集群"]
+    argocd["9. Argo CD<br/>发现 Gitea 新提交并同步"]
+  end
+
+  html --> run
+  version --> run
+  run -->|"4. 第一次 push 源码"| gitea
+  gitea --> build
+  build --> harbor
+  build --> rewrite
+  rewrite -->|"7. 第二次 push values"| gitea
+  harbor --> argocd
+  gitea --> argocd
+  argocd --> browser
+```
+
+按编号看这张图即可：
+
+1. 先改前端页面代码
+2. 再改 `VERSION`
 3. 执行脚本
+4. 第一次 push，把源码送到 `Gitea`
+5. `git` 节点从 `Gitea` 拉最新代码并构建镜像
+6. 脚本在本地自动回写镜像 tag
+7. 第二次 push，把回写后的 `values` 再送到 `Gitea`
+8. 新镜像进入 `Harbor`
+9. `Argo CD` 发现 `Gitea` 新提交并同步
+10. 浏览器看到新页面
 
-### 推荐修改位置
+## 测试 1：改代码发布新版本
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 10px 0;">
+<strong>测试边界</strong><br/>
+这一组测试只验证一件事：手工改前端代码后，执行一条脚本，页面能否通过 GitOps 自动发布出新版本。
+</div>
+
+### 第 1 步：改代码
+
+推荐修改位置：
 
 - `apps/qytang-netdevops/frontend/index.html`
 - `apps/qytang-netdevops/frontend/app.js`
 
-### 只改这一个变量
-
-打开：
+然后再改这一个变量：
 
 - `k8s/06-gitops-and-automation/scripts/16_release_frontend_gitops.sh`
-
-只修改：
 
 ```bash
 VERSION="${VERSION:-v0.1.3}"
 ```
 
-这里的 `VERSION` 主要不是去替你修改页面源码里的文字，而是作为这次发布的版本号，被脚本用在下面几处：
+这里要分清两件事：
 
-1. 构建前端镜像时，生成：
-   - `harbor.qytk8s.com/qytang-netdevops/frontend:${VERSION}`
-2. 回写前端镜像 `tag` 时，写入：
-   - `deploy/helm/qytang-netdevops/values.yaml`
-   - `deploy/helm/qytang-netdevops/values-lab.yaml`
-   - `deploy/gitops/lab/values-lab.yaml`
-3. 生成两次 Git 提交说明时，也会带上这个版本号
+- 页面内容改动
+  - 来自你手工改 `index.html / app.js`
+- `VERSION` 改动
+  - 决定这次发布生成的镜像 tag
 
-也就是说：
-
-- 页面内容改动，来自你手工修改前端代码
-- `VERSION` 改动，决定这次发布产出的镜像版本号，以及 GitOps 最终要切换到哪个镜像 `tag`
-
-### 明确不要手工改哪些文件
-
-在“改代码发布”这条演示链路里，不要再手工去改下面 3 个文件：
+不要手工去改下面 3 个文件：
 
 - `deploy/helm/qytang-netdevops/values.yaml`
 - `deploy/helm/qytang-netdevops/values-lab.yaml`
 - `deploy/gitops/lab/values-lab.yaml`
 
-原因是：
+因为：
 
 - `16_release_frontend_gitops.sh` 会自动回写这 3 处前端镜像 tag
-- 课堂上只需要改代码，再改 `VERSION`
 
-### 主线脚本
-
-<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
-<strong>本段执行方式</strong><br/>
-这一段先手工改前端代码和 <code>VERSION</code>，再执行主脚本；页面观察和命令行观察都放在脚本之后。
-</div>
-
-### 改代码发布
+### 第 2 步：执行脚本
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-先演示“改代码 -> 构建镜像 -> 回写 values -> Argo CD 同步 -> 页面更新”这条完整 GitOps 发布链。
+这一条脚本会串起“push 源码、构建镜像、回写 values、再次 push、等待 Argo CD 同步”整条发布链。
 </div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/16_release_frontend_gitops.sh
 ```
 
-<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
-<strong>YAML 卡片</strong><br/>
-YAML 文件：<code>apps/qytang-netdevops/deploy/gitops/lab/application.yaml</code><br/>
-对象：<code>Application</code><br/>
-作用：定义 <code>Argo CD</code> 的同步入口，决定发布仓、Chart 路径、目标命名空间，以及当前使用哪份 <code>values</code>。
+### 第 3 步：看效果
+
+主要看两个地方：
+
+- `https://argocd.qytk8s.com`
+- `https://netdevops.qytk8s.com`
+
+重点看：
+
+- `Argo CD`
+  - `Sync Status=Synced`
+  - `Health Status=Healthy`
+  - `Revision` 已变化
+- 业务页面
+  - 页面内容已经变成你刚改的新版本
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选执行</strong><br/>
+下面两条命令只是辅助观察，不是测试主线必跑命令。
 </div>
+
+```bash
+kubectl -n argocd get application qytang-netdevops -o wide
+kubectl -n qytang-netdevops get deploy frontend -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
+```
+
+## 测试 2：改 values 做声明式扩缩容
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 10px 0;">
+<strong>测试边界</strong><br/>
+这一组测试只验证一件事：不改代码、不重建镜像，只改 Git 里的目标副本数，集群也会自动收敛。
+</div>
+
+### 第 1 步：改 values
+
+这条链路和测试 1 不一样，可以直接看下面这张图：
+
+```mermaid
+flowchart LR
+  subgraph ops["ops 节点"]
+    values["1. 修改 values-lab.yaml<br/>frontend.replicaCount: 1 -> 2"]
+    run["2. 执行 17_scale_frontend_gitops.sh"]
+  end
+
+  subgraph gitnode["git 节点"]
+    gitea["3. push 到 Gitea<br/>新的目标副本数"]
+  end
+
+  subgraph k8s["Kubernetes 集群"]
+    argocd["4. Argo CD<br/>发现 Gitea 新提交并同步"]
+    deploy["5. Deployment / Pod<br/>副本数发生变化"]
+  end
+
+  values --> run
+  run --> gitea
+  gitea --> argocd
+  argocd --> deploy
+```
+
+按编号看这张图即可：
+
+1. 先手工修改 `values-lab.yaml` 里的目标副本数
+2. 执行 `17_scale_frontend_gitops.sh`
+3. 脚本把新的目标副本数同步到 `Gitea`
+4. `Argo CD` 发现 `Gitea` 新提交并开始同步
+5. `Deployment / Pod` 的副本数最终发生变化
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
 <strong>YAML 卡片</strong><br/>
 YAML 文件：<code>apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml</code><br/>
 对象：<code>Helm values</code><br/>
-作用：这份文件是实验环境实际生效的业务参数入口；前端镜像 tag 变化、后面扩缩容演示的副本数变化，最终都会收敛到这里。
+作用：课堂上手工调整 <code>replicaCount</code> 的主入口；改完以后，<code>Argo CD</code> 会把目标副本数同步到集群。
 </div>
 
-### 当前课堂流程图
+```yaml
+frontend:
+  replicaCount: 1
+  image:
+    repository: harbor.qytk8s.com/qytang-netdevops/frontend
+    tag: v0.2.3
 
-这一节直接沿用 [00_gitops_theory.md](/docker_k8s_2026/k8s/06-gitops-and-automation/docs/00_gitops_theory.md) 里的完整交付链路图。
+deviceService:
+  replicaCount: 1
 
-课堂上不需要再记一套新的抽象流程，只需要在这张图里重点观察：
+resourceService:
+  replicaCount: 1
 
-- `8`
-  - `Argo CD` 什么时候发现 Git 变化
-- `9`
-  - `Argo CD` 什么时候把目标状态同步到集群
-- `11`
-  - 浏览器什么时候看到最终结果
-
-```mermaid
-flowchart TD
-  user[操作者]
-  local[本地应用目录<br/>源码 Helm Chart values]
-  script[发布脚本]
-  gitea[Gitea 发布仓<br/>保存源码 Chart values Application]
-  gitnode[git 节点构建环境]
-  harbor[Harbor 镜像仓库]
-  argocd[Argo CD]
-  cluster[Kubernetes 集群]
-  browser[浏览器访问]
-
-  user -->|1. 手工修改代码或 Chart values| local
-  user -->|2. 手工执行脚本| script
-  local -->|3. 脚本读取源码与部署配置| script
-  script -->|4. 提交源码或配置变更| gitea
-  script -->|5. 在 git 节点构建镜像| gitnode
-  gitnode -->|6. docker push 到 Harbor| harbor
-  script -->|7. 回写 values 中的镜像 tag 并再次提交| gitea
-  gitea -->|8. Webhook 或轮询发现 Git 变化| argocd
-  argocd -->|9. 同步目标状态到集群| cluster
-  harbor -->|10. 节点按镜像地址拉取镜像| cluster
-  cluster -->|11. 浏览器访问最终结果| browser
+auditService:
+  replicaCount: 1
 ```
 
-### 这个脚本在图里对应哪些步骤
+课堂上最推荐先把：
 
-`16_release_frontend_gitops.sh` 在课堂上最主要会落到下面这些动作：
+- `frontend.replicaCount: 1`
 
-1. `2`
-   - 你手工执行脚本
-2. `4`
-   - 脚本先把应用目录同步到 `Gitea`
-3. `5`
-   - 脚本到 `git` 节点构建 `frontend:${VERSION}`
-4. `6`
-   - 新镜像 push 到 `Harbor`
-5. `7`
-   - 自动回写前端镜像 `tag`，再提交到 `Gitea`
-6. `8` 和 `9`
-   - 等待 `Argo CD` 发现变化并同步
-7. `11`
-   - 最后在浏览器里看到新结果
+改成：
 
-### 在哪里观察
+- `frontend.replicaCount: 2`
 
-课堂上最值得同时看两个地方：
+这一段只需要抓 3 个点：
 
-- `https://argocd.qytk8s.com`
-- `https://netdevops.qytk8s.com`
+- `frontend.replicaCount`
+  - 最推荐先改这里
+- `deviceService / resourceService / auditService`
+  - 这些也是无状态服务，也可以改副本数
+- `postgres`
+  - 当前不要拿来做横向扩容演示
 
-也就是对应图里的：
+### 第 2 步：执行脚本
 
-- `8`
-  - Git 变化是否已经被 `Argo CD` 发现
-- `9`
-  - 集群是否已经收敛到新目标状态
-- `11`
-  - 浏览器里是否已经看到新结果
-
-`Argo CD` 页面里建议重点看：
-
-- `Sync Status`
-- `Health Status`
-- `Revision`
-
-命令行也可以直接看：
-
-<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
-<strong>ℹ️ 可选执行</strong><br/>
-下面这些命令属于课堂辅助观察，不是发布主线必跑命令。
-</div>
-
-#### 观察 1：Argo CD 当前同步状态
+在执行脚本前，建议先看一眼当前副本数基线：
 
 ```bash
-kubectl -n argocd get application qytang-netdevops -o wide
+kubectl -n qytang-netdevops get deploy frontend device-service resource-service audit-service
+kubectl -n qytang-netdevops get pods -o wide
 ```
 
-原始输出示例：
+如果当前还是默认状态，你通常会看到：
 
-```text
-root@ops:/docker_k8s_2026# kubectl -n argocd get application qytang-netdevops -o wide
-NAME               SYNC STATUS   HEALTH STATUS   REVISION                                   PROJECT
-qytang-netdevops   Synced        Healthy         aa1ab0bf5fdf5a40b453b5cb4f9c086ac0057b52   default
-```
-
-关键看点：
-
-- `SYNC STATUS=Synced`
-  - 说明 `Argo CD` 看到的 Git 目标状态已经和集群一致
-- `HEALTH STATUS=Healthy`
-  - 说明应用当前资源状态正常
-- `REVISION`
-  - 说明当前同步到的是哪一个 Git 提交版本
-
-#### 观察 2：frontend 当前实际镜像版本
-
-```bash
-kubectl -n qytang-netdevops get deploy frontend -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-```
-
-原始输出示例：
-
-```text
-root@ops:/docker_k8s_2026# kubectl -n qytang-netdevops get deploy frontend -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-harbor.qytk8s.com/qytang-netdevops/frontend:v0.1.4
-```
-
-关键看点：
-
-- 重点看镜像名和 `tag`
-- 这里的 `v0.1.4`
-  - 说明集群里 `frontend` 当前准备运行的就是这次发布的新镜像版本
-
-#### 观察 3：frontend 滚动更新是否完成
-
-```bash
-kubectl -n qytang-netdevops get deploy frontend
-```
-
-原始输出示例：
-
-```text
-root@ops:/docker_k8s_2026# kubectl -n qytang-netdevops get deploy frontend
-NAME       READY   UP-TO-DATE   AVAILABLE   AGE
-frontend   1/1     1            1           9h
-```
-
-关键看点：
-
-- `READY`
-  - 当前已经就绪的 Pod 数量
-- `UP-TO-DATE`
-  - 当前使用最新模板创建出来的 Pod 数量
-- `AVAILABLE`
-  - 当前可对外提供服务的 Pod 数量
-- 这里 `1/1 1 1`
-  - 说明这次更新后的 `frontend` 已经正常滚动完成
-
-### 这一段最重要的话
-
-对课堂操作体验来说：
-
-- 你只执行一次脚本
-
-但对 Git 历史来说：
-
-- 当前仍然会形成“源码同步 + values 回写”两次提交
-
-这一点要和“未来 CI 接管后的真正单次 push 流程”区分开。
-
-## 演示 B：改 YAML 扩缩容
-
-这一段不改代码，不重建镜像，只改目标状态。
-
-<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
-<strong>本段执行方式</strong><br/>
-这一段只手工改 <code>values-lab.yaml</code> 里的副本数，再执行脚本把变更同步到 <code>Gitea</code> 并观察 <code>Argo CD</code> 收敛。
-</div>
-
-### 演示 B 必刷脚本
+- `frontend` 还是 `1/1`
+- `frontend` 相关 Pod 也只有 `1` 个
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-再演示“只改目标状态，不改代码、不重建镜像”的声明式扩缩容链路。
+这一条脚本只负责把新的目标副本数同步到 <code>Gitea</code>，再等待 <code>Argo CD</code> 收敛。
 </div>
 
 ```bash
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/17_scale_frontend_gitops.sh
 ```
 
-### 直接改哪个文件
-
-- `apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml`
-
-<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
-<strong>YAML 卡片</strong><br/>
-YAML 文件：<code>apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml</code><br/>
-对象：<code>Helm values</code><br/>
-作用：课堂上手工调整 <code>replicaCount</code> 的主入口；这份文件被 <code>Application</code> 引用，所以改完后 <code>Argo CD</code> 会把目标副本数同步到集群。
-</div>
-
-### 这一段最短动作
-
-1. 修改 `values-lab.yaml`
-2. 执行脚本
-3. 观察 `Argo CD` 和副本数变化
-
-### 哪些服务可以改 `replicaCount`
-
-- `frontend`
-- `deviceService`
-- `resourceService`
-- `auditService`
-
-原因：
-
-- 它们都是无状态服务
-- 适合用来演示声明式扩缩容
-
-### 哪些服务不要改
-
-- `postgres`
-
-原因：
-
-- 当前是单实例有状态服务
-- 使用单 PVC
-- 当前模板保持单副本
-- 部署策略是 `Recreate`
-
-### 示例
-
-把：
-
-- `frontend.replicaCount: 1`
-
-来源文件：
-
-- `apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-lab.yaml`
-
-文件类型：
-
-- Helm values 文件
-
-改成：
-
-```yaml
-frontend:
-  replicaCount: 2
-```
-
-### 观察方法
+### 第 3 步：看效果
 
 脚本会等待 `Argo CD` 收敛，并输出：
 
@@ -364,61 +256,30 @@ frontend:
 - `frontendDesired`
 - `frontendAvailable`
 
-你也可以手工执行下面两条命令：
-
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>ℹ️ 可选执行</strong><br/>
-下面两条命令是辅助观察副本数变化，不是扩缩容主线必跑命令。
+执行脚本后，建议再执行下面两条命令，对比扩缩容前后的变化。
 </div>
-
-#### 观察 1：Deployment 期望副本数是否已经变化
 
 ```bash
 kubectl -n qytang-netdevops get deploy frontend device-service resource-service audit-service
-```
-
-关键看点：
-
-- 重点看 `frontend`
-- 如果你把 `frontend.replicaCount` 从 `1` 改成 `2`
-  - 这里应能看到 `frontend` 的期望副本数和可用副本数都变成 `2`
-
-#### 观察 2：Pod 数量是否已经实际扩出来
-
-```bash
 kubectl -n qytang-netdevops get pods -o wide
 ```
 
-关键看点：
+重点看：
 
-- 重点看 `frontend` 相关 Pod
-- 应能看到对应数量的 `frontend` Pod 已经运行起来
+- `frontend` 的期望副本数和可用副本数都变成 `2`
+- `frontend` 相关 Pod 数量已经变多
+- 新 Pod 已经进入 `Running`
 
 ## 本节测试通过标准
 
-下面这些满足即可认为课堂测试链路正常：
+满足下面条件即可认为第六章课堂测试链路正常：
 
-- `https://argocd.qytk8s.com` 可访问
-- `https://netdevops.qytk8s.com` 可访问
-- `Application` 为 `Synced / Healthy`
 - 可以完成一次“改代码发布”演示
-- 可以完成一次“改 YAML 扩缩容”演示
-
-## 常见误区
-
-### 误区 1：运行 `16` 或 `17` 就等于本地目录已经自动备份
-
-不是。它们只是把应用目录同步到 `Gitea`，不等于替你自动 `commit/push` 本地目录到你的远端。
-
-### 误区 2：扩缩容演示应该去改 GitOps 目录里的 `values-lab.yaml`
-
-当前课堂入口应统一为：
-
-- `deploy/helm/qytang-netdevops/values-lab.yaml`
-
-### 误区 3：`postgres` 也应该一起演示横向扩容
-
-当前不合适。它在本课程环境里是单实例有状态服务。
+- 可以完成一次“改 values 扩缩容”演示
+- `Argo CD` 最终为 `Synced / Healthy`
+- 浏览器能看到页面变化或副本数变化
 
 ## 下一步
 
