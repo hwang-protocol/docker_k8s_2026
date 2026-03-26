@@ -99,9 +99,8 @@ flowchart LR
 | 步骤 | 文档 | 主要任务 | 对应脚本 | 执行标记 |
 | :--- | :--- | :--- | :--- | :--- |
 | 0 | `00_observability_theory.md` | 先理清 Metrics、Trace、Prometheus、Grafana、Jaeger 与 OTel 主线 | 无 | 建议先读 |
-| 1 | `02_install_prometheus_grafana_jaeger.md` | 升级业务到第七章版本，并安装 Prometheus、Grafana、Jaeger、OTel Collector | `scripts/02_install_observability_stack.sh` | 必须执行 |
-| 2 | `03_publish_grafana_and_verify.md` | 验收 Grafana、Jaeger、Targets、Dashboard 与 Trace 基线 | `scripts/03_verify_observability.sh` | 建议执行 |
-| 3 | `04_trace_demo_and_analysis.md` | 课堂上从指标进入 Trace，再分析问题服务和慢 span | 文档内分步请求 | 建议执行 |
+| 1 | `02_install_prometheus_grafana_jaeger.md` | 升级业务到第七章版本，安装 Prometheus、Grafana、Jaeger、OTel Collector，并完成正式入口与数据面验收 | `scripts/02_install_observability_stack.sh`<br/>`scripts/03_verify_observability.sh` | 必须执行 + 建议执行 |
+| 2 | `03_trace_demo_and_analysis.md` | 课堂上从指标进入 Trace，再分析问题服务和慢 span | 文档内分步请求 | 建议执行 |
 
 ---
 
@@ -111,8 +110,7 @@ flowchart LR
 
 0. `00_observability_theory.md`
 1. `02_install_prometheus_grafana_jaeger.md`
-2. `03_publish_grafana_and_verify.md`
-3. `04_trace_demo_and_analysis.md`
+2. `03_trace_demo_and_analysis.md`
 
 ---
 

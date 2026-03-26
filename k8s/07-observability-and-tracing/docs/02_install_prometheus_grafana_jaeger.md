@@ -1,4 +1,4 @@
-# 第 2 步：安装 Prometheus、Grafana、Jaeger 与 OTel Collector
+# 第 2 步：安装 Prometheus、Grafana、Jaeger 与 OTel Collector，并完成统一验收
 
 ## 本步目标
 
@@ -214,8 +214,12 @@ HTTP_REQUEST_DURATION_SECONDS = Histogram(
 
 关键解释：
 
-- 这里定义了统一的请求总量指标
-- 也定义了统一的请求耗时指标
+- `Counter`
+  - 用来累计请求次数
+- `Histogram`
+  - 用来统计请求耗时分布
+- `service / method / path / status_code`
+  - 这些标签决定了后面可以按服务、方法、路径和状态码拆分观察指标
 - 后面各个服务都会复用这套公共逻辑
 
 ### 改动 2：服务里真正暴露了 /metrics
@@ -245,9 +249,9 @@ def metrics_endpoint() -> str:
 关键解释：
 
 - `metrics_middleware`
-  - 说明这个服务会在每次请求进来时记录 HTTP 指标
+  - 会拦住进入这个 `FastAPI` 应用的 HTTP 请求，并把方法、路径、状态码和耗时统计成指标
 - `@app.get("/metrics")`
-  - 说明这个服务已经真正暴露了 `Prometheus` 可以抓取的指标接口
+  - 会把这些累计指标暴露出来，供 `Prometheus` 抓取
 
 所以第七章里业务指标不是临时拼出来的，而是服务代码自己产出的。
 
@@ -260,18 +264,33 @@ def metrics_endpoint() -> str:
 作用：把服务接到 <code>OpenTelemetry</code>，让入站请求自动产生并导出 <code>Trace</code>。
 </div>
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 8px 0;">
+<strong>Note</strong><br/>
+<code>OTLP</code> 是 <code>OpenTelemetry Protocol</code> 的缩写，可以先理解成 <code>OpenTelemetry</code> 这套埋点数据的统一导出标准。第七章里业务服务产生的 <code>Trace</code>，就是按 <code>OTLP</code> 发给 <code>OTel Collector</code> 的。常见端口是：<code>4317</code> 表示 <code>OTLP gRPC</code>，<code>4318</code> 表示 <code>OTLP HTTP</code>。
+</div>
+
 ```python
-provider.add_span_processor(
-    BatchSpanProcessor(
-        OTLPSpanExporter(
-            endpoint=get_trace_endpoint(),
-            insecure=True,
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+
+def setup_tracing(app, service_name: str, version: str, engine=None) -> None:
+    provider = TracerProvider(resource=resource)
+    provider.add_span_processor(
+        BatchSpanProcessor(
+            OTLPSpanExporter(
+                endpoint=get_trace_endpoint(),
+                insecure=True,
+            )
         )
     )
-)
+    trace.set_tracer_provider(provider)
 
-if app is not None:
-    FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
+    if app is not None:
+        FastAPIInstrumentor.instrument_app(app, tracer_provider=provider)
 ```
 
 关键解释：
@@ -279,7 +298,14 @@ if app is not None:
 - `OTLPSpanExporter`
   - 说明服务会把 Trace 按 `OTLP` 发出去
 - `FastAPIInstrumentor.instrument_app`
-  - 说明入站请求会自动产生 Trace
+  - 说明 `OpenTelemetry` 已经把自动埋点能力挂到了这个 `FastAPI` 应用上
+  - 这里的 `app` 就是当前服务创建出来的 `FastAPI` 应用对象
+  - `FastAPI` 本身不是天然自动产出 Trace；这里是通过 `FastAPIInstrumentor` 让入站请求和一部分框架事件自动生成 span
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 8px 0;">
+<strong>Note</strong><br/>
+<code>endpoint=get_trace_endpoint()</code> 的作用，是为 <code>OTLPSpanExporter</code> 读取当前 Trace 上报目标地址。业务服务不是把上报地址写死在代码里，而是通过这个函数读取部署时注入的环境变量。
+</div>
 
 ### 改动 4：部署模板里补了 Trace 上报地址
 
@@ -643,7 +669,7 @@ spec:
 
 ---
 
-## 验证方法
+## 安装完成后的基础检查
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>ℹ️ 可选执行</strong><br/>
@@ -694,8 +720,179 @@ kubectl get gateway,httproute -n gateway-demo
 - `app-gateway` 仍然存在
 - 第七章自己的 `HTTPRoute` 已经创建成功
 
+---
+
+## 安装后的统一验收
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
+<strong>本段执行方式</strong><br/>
+安装完成后，建议再执行一条只读验收主脚本 <a href="/docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observability.sh"><code>03_verify_observability.sh</code></a>，统一确认正式入口、Targets、Dashboard 和 Trace 是否已经形成闭环。
+</div>
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令建议粘贴执行</strong><br/>
+执行这条脚本，会从组件状态、正式入口和真实 Trace 三个方向做一次只读验收。
+</div>
+
+```bash
+bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observability.sh
+```
+
+这个脚本会按下面顺序完成整条验收链路：
+
+1. 查看 `monitoring` 和 `observability` 的核心资源
+2. 查看业务 `ServiceMonitor` 和相关 Pod
+3. 查看 `Prometheus` 是否已经具备抓取目标
+4. 验证 `Grafana` 与 `Jaeger` 正式入口
+5. 主动打一次真实业务流量
+6. 到 `Jaeger` 中检查服务名与完整 Trace
+
+如果只用一句最短的话概括，这个脚本其实同时做了 3 件事：
+
+- 验证组件是否都已就绪
+- 验证正式域名是否可访问
+- 验证真实业务 Trace 是否已经形成闭环
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 10px 0;">
+<strong>说明卡片</strong><br/>
+下面这几段是在拆解 <code>03_verify_observability.sh</code> 的内部关键动作，目的是帮助理解脚本到底验证了什么。课堂主线仍然是直接执行上面的脚本，不需要把下面每个片段再单独当成“必须执行步骤”重复跑一遍。
+</div>
+
+### 关键点 1：先验证正式入口
+
+脚本原文：
+
+```bash
+curl --resolve "${GRAFANA_DOMAIN}:443:${GRAFANA_VIP}" \
+  --cacert "${CA_CERT}" \
+  -I -s "https://${GRAFANA_DOMAIN}/login" | sed -n '1,5p'
+curl --resolve "${JAEGER_DOMAIN}:443:${JAEGER_VIP}" \
+  --cacert "${CA_CERT}" \
+  -I -s "https://${JAEGER_DOMAIN}/" | sed -n '1,5p'
+```
+
+关键解释：
+
+- `--resolve`
+  - 强制把域名解析到本章当前 VIP
+- `--cacert`
+  - 让 `curl` 使用课程统一 CA 验证证书
+- `-I`
+  - 只看响应头，不下载整页内容
+
+这一段真正要证明的是：
+
+- `Grafana` 入口已经能通过正式域名访问
+- `Jaeger` 入口也已经能通过正式域名访问
+
+### 关键点 2：主动生成一轮业务流量
+
+脚本原文：
+
+```bash
+device_id="$(get_demo_device_id)"
+curl --resolve "${NETDEVOPS_DOMAIN}:443:${NETDEVOPS_VIP}" \
+  --cacert "${CA_CERT}" \
+  -s "https://${NETDEVOPS_DOMAIN}/api/device/api/v1/dashboard/summary" >/dev/null
+curl --resolve "${NETDEVOPS_DOMAIN}:443:${NETDEVOPS_VIP}" \
+  --cacert "${CA_CERT}" \
+  -s "https://${NETDEVOPS_DOMAIN}/api/device/api/v1/devices/${device_id}" >/dev/null
+```
+
+关键解释：
+
+- 先取一个真实设备 ID
+- 再打两条真实业务请求
+- 这样后面去 `Jaeger` 查询时，才有更大概率立刻看到完整 Trace
+
+这一段真正要证明的是：
+
+- 第七章不是只检查“空跑的组件”
+- 而是要检查真实业务流量已经能留下 Trace
+
+如果要手工执行这一步，请使用下面这组自包含命令：
+
+```bash
+DEVICE_ID=$(curl --resolve netdevops.qytk8s.com:443:10.1.1.60 \
+  --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt \
+  -s https://netdevops.qytk8s.com/api/device/api/v1/devices | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["id"])')
+
+curl --resolve netdevops.qytk8s.com:443:10.1.1.60 \
+  --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt \
+  -s https://netdevops.qytk8s.com/api/device/api/v1/dashboard/summary >/dev/null
+
+curl --resolve netdevops.qytk8s.com:443:10.1.1.60 \
+  --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt \
+  -s "https://netdevops.qytk8s.com/api/device/api/v1/devices/${DEVICE_ID}" >/dev/null
+```
+
+### 关键点 3：在 Jaeger 中查完整 Trace
+
+脚本原文：
+
+```bash
+curl --resolve "${JAEGER_DOMAIN}:443:${JAEGER_VIP}" \
+  --cacert "${CA_CERT}" \
+  -s "https://${JAEGER_DOMAIN}/api/services"
+```
+
+以及：
+
+```bash
+verify_multiservice_trace "${device_id}"
+```
+
+关键解释：
+
+- `/api/services`
+  - 用来确认 `Jaeger` 已经开始识别到业务服务名
+- `verify_multiservice_trace`
+  - 会反复查最近 `15m` 的 Trace
+  - 直到找到同时包含：
+    - `frontend`
+    - `device-service`
+    - `resource-service`
+    - `audit-service`
+    的完整链路
+
+这一段真正要证明的是：
+
+- 第七章不是只有单服务 Trace
+- 而是已经形成了跨多个服务的真实调用链
+
+## GUI 观察重点
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选观察</strong><br/>
+脚本验收通过后，再用浏览器分别打开 <code>Grafana</code> 和 <code>Jaeger</code> 看大盘与 Trace，会更适合课堂演示。
+</div>
+
+### Grafana
+
+- 地址：`https://grafana.qytk8s.com`
+- 用户名：`admin`
+- 密码：`Cisc0123`
+- 先看 `QYT NetDevOps` 总览大盘
+- 再看 Kubernetes 基础大盘
+- 重点看请求量、延迟、错误率和 Pod / 节点状态
+
+### Jaeger
+
+- 进入 `Find Traces`
+- 选中 `frontend` 或 `device-service`
+- 再看完整调用链和瀑布图
+
+## 通过标准
+
+满足下面条件即可进入最后一页课堂演示：
+
+- `Grafana` 正式入口可访问
+- `Jaeger` 正式入口可访问
+- `Prometheus` 已采到业务指标
+- `Jaeger` 已能检索到完整业务 Trace
+
 ## 下一步
 
-进入第 3 步，统一做正式入口、Targets、Dashboard 和 Trace 验收：
+进入第 3 步，做课堂上的 Trace 演示与分析：
 
-- `docs/03_publish_grafana_and_verify.md`
+- `docs/03_trace_demo_and_analysis.md`
