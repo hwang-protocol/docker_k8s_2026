@@ -53,24 +53,44 @@
 
 ```mermaid
 flowchart LR
-  appDir[本地应用目录]
-  tempRepo[临时导出仓]
-  giteaRepo[Gitea 发布仓]
-  buildNode[构建节点]
-  argocd[Argo CD]
+  subgraph opsNode["ops 节点"]
+    appDir["本地应用目录"]
+    exportTmp["导出目录<br/>/tmp/qytang-netdevops-publish"]
+    gitTmp["临时 Git 仓<br/>在 /tmp 里执行 git"]
+  end
 
-  appDir --> tempRepo
-  tempRepo --> giteaRepo
-  giteaRepo --> buildNode
-  giteaRepo --> argocd
+  subgraph gitNode["git 节点"]
+    giteaRepo["Gitea 发布仓"]
+    buildNode["构建环境"]
+  end
+
+  subgraph harborNode["harbor 节点"]
+    harbor["Harbor 镜像仓库"]
+  end
+
+  subgraph k8sCluster["Kubernetes 集群"]
+    argocd["Argo CD"]
+    cluster["业务工作负载"]
+  end
+
+  appDir -->|复制应用目录内容| exportTmp
+  exportTmp -->|git init / git clone| gitTmp
+  gitTmp -->|git add / commit / push| giteaRepo
+  giteaRepo -->|拉代码并构建镜像| buildNode
+  buildNode -->|docker push| harbor
+  giteaRepo -->|读取目标状态| argocd
+  harbor -->|节点拉取镜像| cluster
+  argocd -->|同步资源到集群| cluster
 ```
 
-这里要特别强调：
+按这张图理解即可：
 
-- `Argo CD` 读取的是 `Gitea` 发布仓
-- 第六章真正参与发布的，只是其中的 `apps/qytang-netdevops`
-- 课堂脚本不是在 `apps/qytang-netdevops` 里直接做嵌套 Git 仓库
-- 当前采用的是“导出应用目录 -> 临时仓库 -> 同步到 Gitea”的方式
+- `ops` 节点上保存的是本地应用目录，课堂脚本也是从这里发起
+- 脚本会先把 `apps/qytang-netdevops` 导出到 `/tmp/qytang-netdevops-publish`
+- 真正的 `git add / commit / push` 是在这个 `/tmp` 临时仓里完成的，不是在原目录里做嵌套 Git 仓库
+- `git` 节点同时承担两件事：提供 `Gitea` 发布仓，并作为后续镜像构建环境
+- `Argo CD` 读取的是 `Gitea` 发布仓里的目标状态
+- `Harbor` 提供镜像，`Argo CD` 提供声明式配置，这两条线最后都在 `Kubernetes` 集群里汇合
 
 ## 当前固定信息
 
@@ -81,7 +101,23 @@ flowchart LR
 - 管理员密码：`Gitea12345`
 - 应用发布仓：`https://git.qytk8s.com/gitadmin/qytang-netdevops.git`
 
-## 这一套目录里分别放了什么
+## 应用目录概览
+
+先看目录树：
+
+```text
+apps/qytang-netdevops/
+├── frontend/
+├── backend/
+├── deploy/
+│   ├── docker/
+│   ├── helm/
+│   └── gitops/
+├── scripts/
+└── requirements.txt
+```
+
+再看各目录分别放什么：
 
 - `frontend/`
   - 前端页面代码
@@ -96,12 +132,9 @@ flowchart LR
 - `scripts/`
   - 本地辅助脚本与演示数据脚本
 
-所以这一节最重要的不是记目录名字，而是理解：
+这一节最重要的是看懂：
 
-- 源码在这里
-- 镜像构建资产也在这里
-- `Helm` 资产也在这里
-- `GitOps` 发布清单也在这里
+- 源码、镜像构建资产、`Helm` 资产和 `GitOps` 发布清单，都统一放在这一套应用目录里
 
 ## 本节必刷脚本
 
@@ -125,10 +158,56 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/07_install_gitea_remo
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
 <strong>YAML 卡片</strong><br/>
-YAML 文件：<code>k8s/06-gitops-and-automation/tmp/docker-compose-gitea.yaml</code><br/>
+来源：<code>k8s/06-gitops-and-automation/scripts/07_install_gitea_remote.sh</code> 里的 <code>write_local_compose_file()</code><br/>
+生成文件：<code>k8s/06-gitops-and-automation/tmp/docker-compose-gitea.yaml</code><br/>
 对象：<code>Docker Compose</code><br/>
-作用：在 <code>git</code> 节点拉起 <code>gitea</code> 和 <code>gitea-postgres</code>；这一节的 Git 服务本体就是由这份清单启动的。
+作用：脚本先在本地临时生成这份 <code>Compose</code> 清单，再下发到 <code>git</code> 节点拉起 <code>gitea</code> 和 <code>gitea-postgres</code>。
 </div>
+
+关键内容示例：
+
+```yaml
+services:
+  postgres:
+    image: harbor.qytk8s.com/library/postgres:17
+    container_name: gitea-postgres
+    environment:
+      POSTGRES_DB: gitea
+      POSTGRES_USER: gitea
+    volumes:
+      - /data/gitea/postgres:/var/lib/postgresql/data
+
+  gitea:
+    image: harbor.qytk8s.com/library/gitea:1.25.4
+    container_name: gitea
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      GITEA__server__DOMAIN: git.qytk8s.com
+      GITEA__server__ROOT_URL: https://git.qytk8s.com/
+      GITEA__server__PROTOCOL: https
+    ports:
+      - "443:3000"
+      - "2222:22"
+```
+
+这几个字段最关键：
+
+- `services.postgres`
+  - `Gitea` 使用的数据库服务
+- `services.gitea`
+  - 真正对外提供 Git Web 界面和 Git 协议服务的主体
+- `depends_on.postgres.condition: service_healthy`
+  - 先等数据库健康，再启动 `gitea`
+- `GITEA__server__DOMAIN`
+  - 对外发布使用的域名
+- `GITEA__server__ROOT_URL`
+  - `Gitea` 自己生成链接和回调时使用的根地址
+- `ports: "443:3000"`
+  - 宿主机用 `443` 对外提供 HTTPS，容器内部是 `3000`
+- `ports: "2222:22"`
+  - 预留 Git SSH 访问入口
 
 脚本主要任务：
 
@@ -189,18 +268,11 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/10_push_qytang_netdev
 - 生成临时仓库提交
 - 同步到 `Gitea`
 
-这一段最容易让学员困惑的是：
+这里最关键的是：
 
-- 什么叫“临时仓库”
-- 为什么这样做不会影响本地目录
-
-这里要先明确：
-
-- 脚本并不会在 `apps/qytang-netdevops` 里面直接执行 `git init`
-- 它会在：
-  - `/tmp/qytang-netdevops-publish`
-  - 这个临时目录里准备一个独立 Git 仓库
-- 然后把本地应用目录里的内容复制进去，再提交到 `Gitea`
+- 脚本不会在 `apps/qytang-netdevops` 里直接执行 `git init`
+- 它会先把内容导出到 `/tmp/qytang-netdevops-publish`
+- 然后只在这个 `/tmp` 临时仓里做 `git add / commit / push`
 
 来源文件：
 
@@ -224,19 +296,11 @@ prepare_temp_repo() {
 }
 ```
 
-这段的意思是：
+这段代码表达的是：
 
-- 先准备一个临时目录：
-  - `/tmp/qytang-netdevops-publish`
-- 如果远端仓库已经存在内容
-  - 就先把远端仓库 clone 到这个临时目录
-- 如果远端还是空仓
-  - 就在这个临时目录里执行 `git init`
-  - 再把远端 `origin` 指过去
-
-所以这里的“临时仓库”本质上就是：
-
-- 一个只用于发布的中转 Git 工作目录
+- 先准备 `/tmp/qytang-netdevops-publish`
+- 远端有内容就先 `clone`
+- 远端是空仓就在 `/tmp` 里 `git init`
 
 然后脚本再执行这组逻辑：
 
@@ -249,49 +313,17 @@ git -C "${TMP_REPO_DIR}" commit -m "..."
 git -C "${TMP_REPO_DIR}" -c http.sslCAInfo="${CA_CERT}" push -u "${PUSH_URL}" main
 ```
 
-这里真正发生的是：
+真正发生的是：
 
-1. 先把临时仓库里的旧文件清理掉
-2. 再把 `apps/qytang-netdevops` 里的内容复制进去
-3. 然后只在临时仓库里做：
-   - `git add`
-   - `git commit`
-   - `git push`
-
-所以为什么不会影响本地目录？
-
-因为：
-
-- 本地应用目录只是“复制源”
-- 真正执行 Git 提交和推送的是：
-  - `/tmp/qytang-netdevops-publish`
-- 脚本不会往 `apps/qytang-netdevops` 里写 `.git`
-- 也不会把本地应用目录改造成嵌套仓库
+- 先清理临时仓里的旧文件
+- 再把 `apps/qytang-netdevops` 的内容复制进去
+- 最后只在 `/tmp/qytang-netdevops-publish` 里执行 `git add / commit / push`
 
 一句最短的话：
 
-- 本地应用目录负责提供内容
-- 临时仓库负责提交和推送
+- 本地应用目录负责提供内容，临时仓库负责提交和推送
 
 ## 本节测试与校验
-
-### 访问首页
-
-```bash
-curl --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt -I https://git.qytk8s.com
-```
-
-### 查看版本接口
-
-```bash
-curl --cacert /docker_k8s_2026/k8s/01-k8s-architecture/pki/harbor/harbor-ca.crt https://git.qytk8s.com/api/v1/version
-```
-
-### 查看远端容器
-
-```bash
-ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@git "docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
-```
 
 ### 浏览器验证
 
@@ -306,10 +338,14 @@ ssh -o BatchMode=yes -o StrictHostKeyChecking=no root@git "docker ps --format 't
 
 ### 浏览器确认应用仓
 
-在浏览器登录 `https://git.qytk8s.com` 后，直接确认：
+登录 `https://git.qytk8s.com` 后，直接确认：
 
 - `gitadmin` 名下已经出现 `qytang-netdevops`
 - 仓库首页能看到应用目录内容
+
+页面示意如下：
+
+<img src="../images/qytang-netdevops.png" alt="Gitea 中的 qytang-netdevops 仓库页面" width="760" />
 
 ## 本节完成标准
 
