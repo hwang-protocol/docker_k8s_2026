@@ -66,6 +66,11 @@ flowchart LR
 9. `Argo CD` 发现 `Gitea` 新提交并同步
 10. 浏览器看到新页面
 
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 8px 0;">
+<strong>Note</strong><br/>
+这一页里的 <code>16</code> 和 <code>17</code> 脚本，本质上是在课堂里手工模拟一条发布链；在真实环境里，这些动作通常会由 <code>Jenkins</code>、<code>GitLab Runner</code> 等流水线系统接管。
+</div>
+
 ## 测试 1：改代码发布新版本
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 10px 0;">
