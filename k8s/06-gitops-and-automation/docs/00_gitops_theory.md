@@ -25,24 +25,15 @@ flowchart LR
   git --> sync --> cluster
 ```
 
-这里有两个关键词：
+可以先把 `GitOps` 理解成一句话：
 
-- `Git`
-  - 负责保存目标状态
-- `持续同步`
-  - 负责把目标状态落实到集群
+- 用 Git 中声明的目标状态，持续驱动集群收敛到这个状态
 
-所以 `GitOps` 关注的不是：
+它更接近**声明式**，关注的是“最终想要什么”，而不是“刚刚执行了什么命令”。
 
-- 人刚刚手工执行过什么命令
+课堂上也可以把 Git 提交先理解成一份“愿望清单”：
 
-而是：
-
-- 集群最终应该长成什么样
-
-例如：
-
-- 前端镜像应使用哪个 tag
+- 前端镜像应使用哪个 `tag`
 - 前端副本数应该是多少
 - 应用应该部署到哪个命名空间
 
@@ -50,13 +41,15 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  subgraph manual[手工发布]
+  subgraph left[手工发布]
+    direction TB
     cmd[kubectl / helm 手工执行]
     live[集群当前状态]
     cmd --> live
   end
 
-  subgraph gitops[GitOps]
+  subgraph right[GitOps]
+    direction TB
     desired[Git 中的目标状态]
     controller[Argo CD]
     actual[集群实际状态]
@@ -64,8 +57,8 @@ flowchart LR
   end
 ```
 
-- 手工发布更关注“人刚刚执行了什么命令”
-- GitOps 更关注“Git 里声明的目标状态是什么”
+- 手工发布更接近**命令式**：人手工执行 `kubectl` 或 `helm`，直接推动集群当前状态发生变化
+- GitOps 更接近**声明式**：先把目标状态写进 Git，再由 `Argo CD` 持续把集群实际状态收敛到这个目标状态
 
 ## 什么是 Helm
 
@@ -230,11 +223,22 @@ flowchart LR
 
 ## 什么是 Argo CD
 
-`Argo CD` 是 GitOps 控制器。
+先看官方口径：
 
-它最核心的职责只有一句：
+- 官网原文：
+  - `Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes.`
+- 官网地址：
+  - `https://argo-cd.readthedocs.io/`
+- 中文可以先理解成：
+  - `Argo CD` 是一个面向 Kubernetes 的**声明式 GitOps 持续交付工具**
+- GitHub 项目主页也把它定义成：
+  - 面向 Kubernetes 的声明式持续交付项目
+- GitHub 地址：
+  - `https://github.com/argoproj/argo-cd`
 
-**盯住 Git 中声明的目标状态，并把它同步到 Kubernetes。**
+放到第六章的课堂语境里，可以先把它理解成：
+
+- `Argo CD` 是负责盯住 Git 目标状态、并持续把它同步到 Kubernetes 的 GitOps 控制器
 
 它主要负责：
 
@@ -355,28 +359,10 @@ flowchart TD
 - Harbor 保存镜像
 - Argo CD 根据 Git 把目标状态同步到集群
 
-所以第六章先要讲清楚的，不是谁先点按钮，而是 4 个边界：
-
-- Git 保存什么
-- Harbor 保存什么
-- Helm 负责什么
-- Argo CD 负责什么
-
 ## 这一页先记住的最短结论
 
-- `GitOps`
-  - 用 Git 中声明的目标状态驱动集群
-- `Helm`
-  - 用模板和参数组织一套应用部署资源
-- `values.yaml`
-  - 给 `Helm` 提供具体部署参数
-- `Argo CD`
-  - 把 Git 中声明的部署目标同步到 Kubernetes
-- 第六章主线
-  - 代码和部署目标进 Git
-  - 镜像进 Harbor
-  - 配置由 Helm 组织
-  - 由 Argo CD 同步到集群
+- 第六章主线可以直接记成一句话：
+  - 代码和部署目标进 Git，镜像进 Harbor，配置由 Helm 组织，再由 Argo CD 同步到集群
 
 ## 下一步
 
