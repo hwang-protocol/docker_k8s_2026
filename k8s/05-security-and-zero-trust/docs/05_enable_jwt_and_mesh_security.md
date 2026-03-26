@@ -181,7 +181,7 @@ flowchart LR
     end
 
     meshMtls[PeerAuthentication STRICT<br/>基础 L4 / mTLS]
-    meshAuthz[L7 AuthorizationPolicy<br/>只允许 trusted-client]
+    meshAuthz[L7 AuthorizationPolicy<br/>按身份 / 方法 / URL 控制]
 
     trusted --> ztunnelA
     untrusted --> ztunnelA
@@ -518,7 +518,7 @@ mesh-demo   peerauthentication.security.istio.io/mesh-demo-strict   STRICT   18s
 
 - 入口会不会拒绝无身份或伪造身份的请求
 - 网格内部是不是已经进入严格 `mTLS`
-- 就算都在网格里，是不是也只能按服务身份最小放行
+- 就算都在网格里，是不是也只能按来源身份、方法和 URL 最小放行
 
 ---
 
