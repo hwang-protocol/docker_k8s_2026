@@ -89,7 +89,7 @@ flowchart TD
 
 ## 演示前的执行边界
 
-<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 12px 0;">
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 12px 0;">
 <strong>测试边界</strong><br/>
 这一页先执行下面 3 条业务请求，用来触发一轮真实流量。它们不会修改系统状态，但会直接影响后面在 <code>Grafana</code> 和 <code>Jaeger</code> 里看到的指标与 Trace。
 </div>
@@ -147,11 +147,11 @@ curl --resolve netdevops.qytk8s.com:443:10.1.1.60 \
 
 ---
 
-## 课堂演示顺序
+## 图形界面观察顺序
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>ℹ️ 可选观察</strong><br/>
-下面这一段主要是课堂上的 GUI 观察路径。重点是按顺序看大盘、看查询结果、看瀑布图，不涉及额外脚本。
+下面这一段主要是图形界面观察路径。重点是按顺序看大盘、看查询结果、看瀑布图，不涉及额外脚本。
 </div>
 
 ### Grafana
@@ -300,12 +300,12 @@ curl --resolve netdevops.qytk8s.com:443:10.1.1.60 \
 
 ---
 
-## 课堂结论
+## 本页结论
 
 这一节要让学员真正建立下面认知：
 
 - 看 Pod `Running` 远远不够
 - Metrics 负责快速发现异常
 - Trace 负责精确定位异常链路
-- `Jaeger` 的瀑布图最适合课堂上讲解调用耗时分布
+- `Jaeger` 的瀑布图最适合说明调用耗时分布
 - K8s 指标和微服务 Trace 组合起来，才是完整的现代可观测闭环

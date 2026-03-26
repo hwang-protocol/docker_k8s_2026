@@ -67,7 +67,7 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/02_install_observ
 10. 下发 `Grafana` Dashboard
 11. 等待 `Grafana` 和 `Jaeger` 正式入口就绪
 
-如果只用一句最短的话概括，这个脚本其实同时做了 3 件事：
+最短结论：
 
 - 升级业务应用
 - 安装观测栈
@@ -187,7 +187,7 @@ flowchart TD
 这一段属于回顾说明，目的是让学员看清第七章业务版本相比前一章到底多了哪些可观测能力。这里默认只读理解，不要求在本页手工修改应用代码。
 </div>
 
-最值得课堂上看清的改动，主要是下面 4 类。
+最值得先看清的改动，主要是下面 4 类。
 
 ### 改动 1：统一补了指标采集代码
 
@@ -340,7 +340,7 @@ observability:
 - 应用不是凭空知道 Trace 该发到哪里
 - 第七章是在部署模板里把 `OTel Collector` 地址注入进服务环境变量
 
-如果只用一句最短的话概括 App 级改动，就是：
+最短结论：
 
 - 代码里补了指标
 - 代码里补了 Trace
@@ -747,7 +747,7 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observa
 5. 主动打一次真实业务流量
 6. 到 `Jaeger` 中检查服务名与完整 Trace
 
-如果只用一句最短的话概括，这个脚本其实同时做了 3 件事：
+最短结论：
 
 - 验证组件是否都已就绪
 - 验证正式域名是否可访问
@@ -755,7 +755,7 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observa
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 10px 0;">
 <strong>说明卡片</strong><br/>
-下面这几段是在拆解 <code>03_verify_observability.sh</code> 的内部关键动作，目的是帮助理解脚本到底验证了什么。课堂主线仍然是直接执行上面的脚本，不需要把下面每个片段再单独当成“必须执行步骤”重复跑一遍。
+下面这几段是在拆解 <code>03_verify_observability.sh</code> 的内部关键动作，目的是帮助理解脚本到底验证了什么。本页主线仍然是直接执行上面的脚本，不需要把下面每个片段再单独当成“必须执行步骤”重复跑一遍。
 </div>
 
 ### 关键点 1：先验证正式入口
@@ -864,7 +864,7 @@ verify_multiservice_trace "${device_id}"
 
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
 <strong>ℹ️ 可选观察</strong><br/>
-脚本验收通过后，再用浏览器分别打开 <code>Grafana</code> 和 <code>Jaeger</code> 看大盘与 Trace，会更适合课堂演示。
+脚本验收通过后，再用浏览器分别打开 <code>Grafana</code> 和 <code>Jaeger</code> 查看大盘与 Trace，作为图形界面补充确认。
 </div>
 
 ### Grafana
@@ -884,7 +884,7 @@ verify_multiservice_trace "${device_id}"
 
 ## 通过标准
 
-满足下面条件即可进入最后一页课堂演示：
+满足下面条件即可进入下一页：
 
 - `Grafana` 正式入口可访问
 - `Jaeger` 正式入口可访问
@@ -893,6 +893,6 @@ verify_multiservice_trace "${device_id}"
 
 ## 下一步
 
-进入第 3 步，做课堂上的 Trace 演示与分析：
+进入第 3 步，继续做 Trace 演示与分析：
 
 - `docs/03_trace_demo_and_analysis.md`
