@@ -824,6 +824,9 @@ spec:
   - 先临时切到 `PERMISSIVE`
   - 再切回 `STRICT`
 
+> note
+> 命名空间上的 label 主要解决“是否纳入 mesh / waypoint / ambient 管理”；真正把服务间通信切到 `STRICT mTLS` 的核心对象，还是这里的 `PeerAuthentication`。
+
 <div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
 <strong>❗ 本测试必须执行的代码</strong><br/>
 按顺序一条一条执行，每执行一步就看一次结果。
@@ -908,6 +911,123 @@ kubectl run mtls-check-strict -n default \
   - `Recv failure: Connection reset by peer`
   - 或其他非成功结果
 - 这说明切回 `STRICT` 后，mesh 外明文访问已经被拒绝
+
+### 第 5 步：在 `STRICT` 下，从 mesh 内再测一次
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+这一步专门证明：`STRICT` 不是把服务彻底打挂，而是只拒绝 mesh 外明文访问；已经纳入 mesh 的客户端仍然可以通过。
+</div>
+
+```bash
+kubectl -n mesh-demo exec deploy/curl-trusted -- \
+  curl -sS --max-time 5 http://public-whoami.mesh-demo
+```
+
+这一步看什么：
+
+- 应该能看到正常返回内容
+- 这说明 `STRICT` 下 mesh 内客户端访问仍然成功
+- 也就是说，前面失败的不是“服务坏了”，而是“mesh 外明文访问被拒绝了”
+
+### 第 6 步：从 `ztunnel` 日志里确认走的是 mTLS / HBONE
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+这一步用日志做一个更直接的证明：不是“刚好访问成功”，而是流量确实经过了 `ztunnel` 的安全通道。
+</div>
+
+```bash
+kubectl -n mesh-demo exec deploy/curl-trusted -- \
+  curl -sS --max-time 5 http://public-whoami.mesh-demo >/dev/null
+
+kubectl -n istio-system logs -l app=ztunnel --since=2m --prefix=true | \
+  grep 'public-whoami' | grep 'connection complete' | tail -n 2 | \
+  awk '{
+    for (i=1; i<=NF; i++) {
+      if ($i ~ /^src.identity=/ ||
+          $i ~ /^dst.identity=/ ||
+          $i ~ /^dst.addr=/ ||
+          $i ~ /^dst.hbone_addr=/ ||
+          $i ~ /^direction=/) print $i
+    }
+    print "---"
+  }'
+```
+
+这一步里看到的 `sa = trusted-client`，来源于第五章前面已经部署好的 mesh 内客户端清单：
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>YAML 文件：</strong><code>manifests/01_mesh_clients.yaml</code><br/>
+<strong>对象：</strong><code>ServiceAccount</code> + <code>Deployment</code><br/>
+<strong>作用：</strong>定义 mesh 内测试客户端，以及它绑定的服务身份
+</div>
+
+```yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: trusted-client
+  namespace: mesh-demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: curl-trusted
+  namespace: mesh-demo
+spec:
+  template:
+    spec:
+      serviceAccountName: trusted-client
+```
+
+也就是说：
+
+- `curl-trusted` 这个 Pod
+- 绑定的服务身份就是 `trusted-client`
+
+下面这张图只表达一件事：
+
+- 这条 mesh 内流量不是工作负载自己直接明文互访
+- 而是先进入源侧 `ztunnel`
+- 再经过 `HBONE + mTLS`
+- 最后到达目标侧 `ztunnel` 和目标 workload
+
+```mermaid
+flowchart LR
+    subgraph nodeA[源节点]
+        src[curl-trusted workload<br/>sa = trusted-client]
+        srcz[源侧 ztunnel<br/>接管并发起 HBONE]
+    end
+
+    tunnel[HBONE + mTLS 隧道]
+
+    subgraph nodeB[目标节点]
+        dstz[目标 workload 网络命名空间里的<br/>ztunnel 监听入口<br/>dst.addr = public-whoami Pod IP:15008]
+        app[public-whoami workload<br/>sa = default<br/>真实业务端口<br/>dst.hbone_addr = public-whoami Pod IP:80]
+    end
+
+    src --> srcz
+    srcz --> tunnel
+    tunnel --> dstz
+    dstz --> app
+```
+
+这一步看什么：
+
+- 日志里应能看到：
+  - `src.identity=spiffe://cluster.local/ns/mesh-demo/sa/trusted-client`
+  - `dst.identity=spiffe://cluster.local/ns/mesh-demo/sa/default`
+  - `dst.addr=...:15008`
+  - `dst.hbone_addr=...`
+- 这里主要抓 3 个点：
+  - `identity`
+    - 说明双方都带着网格身份
+  - `dst.addr=...:15008`
+    - 对应图里的目标侧 `HBONE` 监听入口
+  - `dst.hbone_addr=...:80`
+    - 对应图里最终交给 workload 的真实业务端口
+- 看到这 3 组字段同时出现，就可以判断这条 mesh 内流量确实经过了 `ztunnel`，并走了 `HBONE / mTLS` 通道。
 
 ---
 
