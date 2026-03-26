@@ -35,13 +35,25 @@
 - `grafana.qytk8s.com`
 - `jaeger.qytk8s.com`
 
+---
+
 ## 执行命令与脚本操作
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
+<strong>本步执行方式</strong><br/>
+这一页只需要执行一条主脚本；它会串起业务升级、观测栈安装和正式入口发布。
+</div>
 
 对应脚本：
 
 - [02_install_observability_stack.sh](/docker_k8s_2026/k8s/07-observability-and-tracing/scripts/02_install_observability_stack.sh)
 
 执行命令：
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令必须粘贴执行</strong><br/>
+执行这条脚本，会一次性完成第七章观测栈安装、业务升级和观测入口发布。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/02_install_observability_stack.sh
@@ -66,6 +78,8 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/02_install_observ
 - 升级业务应用
 - 安装观测栈
 - 发布 `Grafana` 与 `Jaeger` 正式入口
+
+---
 
 ## 总关系图
 
@@ -120,6 +134,8 @@ flowchart TD
 - 业务指标是 `Prometheus` 主动去抓各服务的 `/metrics`
 - 业务 Trace 是各服务主动发给 `OTel Collector`
 - `OTel Collector` 再把 Trace 转发给 `Jaeger`
+
+---
 
 ## App 级别到底改了什么
 
@@ -271,9 +287,18 @@ observability:
 - 代码里补了 Trace
 - 部署里补了 `OTel Collector` 上报地址
 
+---
+
 ## 本步会用到的关键 YAML
 
 ### `01_kube_prometheus_stack_values.yaml`
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>k8s/07-observability-and-tracing/manifests/01_kube_prometheus_stack_values.yaml</code><br/>
+对象：<code>Helm values</code><br/>
+作用：定义 <code>kube-prometheus-stack</code> 的持久化、节点放置和 Grafana 默认行为。
+</div>
 
 来源文件：
 
@@ -321,6 +346,13 @@ prometheus:
 
 ### `02_jaeger_values.yaml`
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>k8s/07-observability-and-tracing/manifests/02_jaeger_values.yaml</code><br/>
+对象：<code>Helm values</code><br/>
+作用：定义 <code>Jaeger</code> 的接收协议、查询界面和观测节点部署方式。
+</div>
+
 来源文件：
 
 - [02_jaeger_values.yaml](/docker_k8s_2026/k8s/07-observability-and-tracing/manifests/02_jaeger_values.yaml)
@@ -365,6 +397,13 @@ config:
 - `OTLP` 是第七章微服务上报 Trace 的正式入口
 
 ### `03_otel_collector_values.yaml`
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>k8s/07-observability-and-tracing/manifests/03_otel_collector_values.yaml</code><br/>
+对象：<code>Helm values</code><br/>
+作用：定义 <code>OTel Collector</code> 如何接收业务 Trace，再转发给 <code>Jaeger</code>。
+</div>
 
 来源文件：
 
@@ -414,6 +453,13 @@ nodeSelector:
 
 ### `10_qytang_netdevops_servicemonitor.yaml`
 
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>k8s/07-observability-and-tracing/manifests/10_qytang_netdevops_servicemonitor.yaml</code><br/>
+对象：<code>ServiceMonitor</code><br/>
+作用：告诉 <code>Prometheus</code> 去哪里抓第七章业务应用的 <code>/metrics</code>。
+</div>
+
 来源文件：
 
 - [10_qytang_netdevops_servicemonitor.yaml](/docker_k8s_2026/k8s/07-observability-and-tracing/manifests/10_qytang_netdevops_servicemonitor.yaml)
@@ -453,6 +499,13 @@ spec:
 - 还明确告诉了它去哪里抓业务指标
 
 ### `20_gateway_observability_listeners.json`
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>k8s/07-observability-and-tracing/manifests/20_gateway_observability_listeners.json</code><br/>
+对象：<code>Gateway listeners</code><br/>
+作用：给现有 <code>app-gateway</code> 增量补上 <code>Grafana</code> 和 <code>Jaeger</code> 的监听入口。
+</div>
 
 来源文件：
 
@@ -505,6 +558,13 @@ spec:
 - 不会覆盖前面章节已经存在的 `longhorn` 和 `netdevops` listener
 
 ### `21_gateway_observability_https.yaml`
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
+<strong>YAML 卡片</strong><br/>
+YAML 文件：<code>k8s/07-observability-and-tracing/manifests/21_gateway_observability_https.yaml</code><br/>
+对象：<code>HTTPRoute + ReferenceGrant</code><br/>
+作用：把 <code>grafana.qytk8s.com</code> 和 <code>jaeger.qytk8s.com</code> 正式接到统一网关入口。
+</div>
 
 来源文件：
 
@@ -562,7 +622,14 @@ spec:
 - `HTTPS` 才真正转发到 `Grafana` 和 `Jaeger`
 - 第七章自己的入口对象全部由本章自己管理
 
+---
+
 ## 验证方法
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选执行</strong><br/>
+下面这些命令都是安装完成后的只读检查，用来确认组件、网关入口和正式域名是否已经就绪。
+</div>
 
 ```bash
 kubectl -n monitoring get pods,svc

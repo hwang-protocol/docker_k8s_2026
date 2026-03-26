@@ -2,15 +2,7 @@
 
 ## 本章目标
 
-第七章的目标，是把前 6 章已经具备：
-
-- Kubernetes 集群
-- Cilium 北向入口
-- Longhorn 存储
-- GitOps 自动发布
-- QYT NetDevOps 微服务
-
-推进到 **具备完整可观测能力** 的状态。
+第七章的目标，是把前 6 章已经具备的集群、业务入口、存储和 GitOps 交付能力，推进到 **具备完整可观测能力** 的状态。
 
 本章结束后，应达到下面状态：
 
@@ -22,6 +14,8 @@
 - `Jaeger` 已通过正式域名自动发布
 - `Grafana` 数据源与 Dashboard 已自动预置
 - 课堂上可直接进入 `Jaeger` 看瀑布图
+
+---
 
 ## 课前理论导读
 
@@ -35,6 +29,8 @@
 - Kubernetes 指标到底看什么
 - `Prometheus / Grafana / Jaeger / OpenTelemetry` 分别做什么
 - 为什么业务 Trace 和 K8s 指标要分层理解
+
+---
 
 ## 本章范围
 
@@ -53,6 +49,8 @@
 - 完整告警平台
 - 多集群可观测
 - 更复杂的网格观测增强
+
+---
 
 ## 本章总关系图
 
@@ -77,30 +75,46 @@ flowchart LR
   prometheus --> grafana
 ```
 
-这张图建议配合下面 4 句话：
+这张图建议先记住 4 句话：
 
 - `Prometheus` 负责采集和存储指标
 - `Grafana` 负责统一展示指标
 - `Jaeger` 负责展示分布式调用链和瀑布图
 - `OpenTelemetry` 负责让微服务把 Trace 发出来
 
-## 本章脚本执行矩阵
+---
 
-| 步骤 | 文档 | 脚本 | 执行标记 | 说明 |
+## 执行标记
+
+为了便于在 `ops` 上直接执行，第七章继续采用统一执行标记：
+
+- **建议先读**：这一项以建立认知为主，默认先阅读
+- **必须执行**：从第七章标准起点开始时，默认需要实际执行
+- **建议执行**：这一项主要用于演示或补充验证，建议执行
+
+---
+
+## 本章小单元与对应脚本
+
+| 步骤 | 文档 | 主要任务 | 对应脚本 | 执行标记 |
 | :--- | :--- | :--- | :--- | :--- |
-| 0 | `00_observability_theory.md` | 无 | 建议先读 | 先理清 Metrics、Trace 与 K8s 观测主线 |
-| 1 | `02_install_prometheus_grafana_jaeger.md` | `scripts/02_install_observability_stack.sh` | 必须执行 | 升级业务应用到第七章版本，并安装 Prometheus、Grafana、Jaeger、OTel Collector |
-| 2 | `03_publish_grafana_and_verify.md` | `scripts/03_verify_observability.sh` | 只读验收 | 验证 Grafana、Jaeger、Targets 与大盘 |
-| 3 | `04_trace_demo_and_fault_location.md` | 无 | 课堂演示 | 从 Grafana 指标跳到 Jaeger 瀑布图定位问题 |
+| 0 | `00_observability_theory.md` | 先理清 Metrics、Trace、Prometheus、Grafana、Jaeger 与 OTel 主线 | 无 | 建议先读 |
+| 1 | `02_install_prometheus_grafana_jaeger.md` | 升级业务到第七章版本，并安装 Prometheus、Grafana、Jaeger、OTel Collector | `scripts/02_install_observability_stack.sh` | 必须执行 |
+| 2 | `03_publish_grafana_and_verify.md` | 验收 Grafana、Jaeger、Targets、Dashboard 与 Trace 基线 | `scripts/03_verify_observability.sh` | 建议执行 |
+| 3 | `04_trace_demo_and_analysis.md` | 课堂上从指标进入 Trace，再分析问题服务和慢 span | 文档内分步请求 | 建议执行 |
+
+---
 
 ## 本章执行顺序
 
-请严格按下面顺序执行：
+请按下面顺序执行：
 
 0. `00_observability_theory.md`
 1. `02_install_prometheus_grafana_jaeger.md`
 2. `03_publish_grafana_and_verify.md`
-3. `04_trace_demo_and_fault_location.md`
+3. `04_trace_demo_and_analysis.md`
+
+---
 
 ## 第七章起点状态
 
@@ -112,6 +126,8 @@ flowchart LR
 - `ops` 已提供 `http://ops:9000/`
 - `Harbor`、`Gitea`、`Argo CD` 仍然保留
 - `https://netdevops.qytk8s.com` 可访问
+
+---
 
 ## 正式入口设计
 
@@ -127,6 +143,8 @@ flowchart LR
 
 也就是说，第七章只增加自己的观测入口，不替换前面章节已经存在的入口对象。
 
+---
+
 ## 版本冻结
 
 - Kubernetes：`v1.33.9`
@@ -136,6 +154,8 @@ flowchart LR
 - Grafana 域名：`grafana.qytk8s.com`
 - Jaeger 域名：`jaeger.qytk8s.com`
 
+---
+
 ## 关键设计冻结
 
 - 正式业务入口仍沿用 `Cilium Gateway API`
@@ -144,6 +164,8 @@ flowchart LR
 - `Jaeger` 专注展示 Trace 瀑布图
 - `Grafana` 与 `Jaeger` 都必须自动发布，不允许课堂手工点配置
 - `wk-obs01` 优先承载本章可观测组件
+
+---
 
 ## 下一步
 

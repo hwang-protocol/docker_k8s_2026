@@ -1,4 +1,4 @@
-# 第 4 步：Trace 演示与故障定位
+# 第 4 步：Trace 演示与分析
 
 ## 本步目标
 
@@ -17,6 +17,8 @@
 - `Metrics` 适合先发现异常
 - `Trace` 适合再定位异常
 - 两者结合，才是现代微服务平台真正的可观测性
+
+---
 
 ## 演示总关系图
 
@@ -64,7 +66,14 @@ flowchart TD
   prom -->|Prometheus datasource| grafana
 ```
 
+---
+
 ## 建议先触发一轮业务流量
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选执行</strong><br/>
+下面 3 条请求不会改系统状态，但强烈建议先执行一轮，这样后面看 Grafana 和 Jaeger 会更直观。
+</div>
 
 ### 请求 1：先取一个真实设备 ID
 
@@ -125,6 +134,8 @@ curl --resolve netdevops.qytk8s.com:443:10.1.1.60 \
 - 第 3 条请求更适合看单设备下钻型 Trace
 - 三条请求连起来后，后面看 `Grafana` 和 `Jaeger` 会更直观
 
+---
+
 ## 课堂演示顺序
 
 ### Grafana
@@ -172,6 +183,8 @@ curl --resolve netdevops.qytk8s.com:443:10.1.1.60 \
 - 慢点是在 `device-service` 自己，还是在下游调用
 - 慢的是 `resource-service`、`audit-service`，还是数据库相关 span
 
+---
+
 ## 通过标准
 
 满足下面条件，就说明第七章已经完整闭环：
@@ -179,6 +192,8 @@ curl --resolve netdevops.qytk8s.com:443:10.1.1.60 \
 - 你能先从 `Grafana` 指标看到业务或平台现象
 - 你能在 `Jaeger` 中找到对应 Trace
 - 你能指出慢调用落在哪个服务或哪个 span
+
+---
 
 ## 课堂结论
 

@@ -24,13 +24,25 @@
 2. 数据有没有进来
 `Prometheus`、`Grafana`、`Jaeger` 就算组件都启动了，如果没有业务指标、没有 Trace，这一章也不算完成。
 
+---
+
 ## 执行命令与脚本操作
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
+<strong>本步执行方式</strong><br/>
+这一页以一条只读验收脚本为主，再配合 GUI 观察 Grafana 和 Jaeger。
+</div>
 
 对应脚本：
 
 - [03_verify_observability.sh](/docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observability.sh)
 
 执行命令：
+
+<div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
+<strong>❗ 本条命令建议粘贴执行</strong><br/>
+执行这条脚本，会从组件状态、正式入口和真实 Trace 三个方向做一次只读验收。
+</div>
 
 ```bash
 bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observability.sh
@@ -50,6 +62,8 @@ bash /docker_k8s_2026/k8s/07-observability-and-tracing/scripts/03_verify_observa
 - 验证组件是否都已就绪
 - 验证正式域名是否可访问
 - 验证真实业务 Trace 是否已经形成闭环
+
+---
 
 ## 脚本关键内容
 
@@ -139,7 +153,14 @@ verify_multiservice_trace "${device_id}"
 - 第七章不是只有单服务 Trace
 - 而是已经形成了跨多个服务的真实调用链
 
+---
+
 ## GUI 观察重点
+
+<div style="padding: 10px 14px; border: 1px solid #666; border-left: 4px solid #8ab4f8; border-radius: 6px; background: rgba(138,180,248,0.08); margin: 8px 0;">
+<strong>ℹ️ 可选观察</strong><br/>
+脚本验收通过后，再用浏览器分别打开 <code>Grafana</code> 和 <code>Jaeger</code> 看大盘与 Trace，会更适合课堂演示。
+</div>
 
 ### Grafana
 
@@ -165,8 +186,10 @@ verify_multiservice_trace "${device_id}"
 - `Prometheus` 已采到业务指标
 - `Jaeger` 已能检索到完整业务 Trace
 
+---
+
 ## 下一步
 
 进入第 4 步，做课堂上的 Trace 与故障定位演示：
 
-- `docs/04_trace_demo_and_fault_location.md`
+- `docs/04_trace_demo_and_analysis.md`
