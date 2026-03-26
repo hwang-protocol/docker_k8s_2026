@@ -8,12 +8,22 @@ set -euo pipefail
 # ==============================================================================
 
 main() {
+  local frontend_html
+
   echo "========================================================="
   echo "验证 QYTANG NetDevOps 本地预览"
   echo "========================================================="
 
   echo "[1/5] 前端页面"
-  curl -s --max-time 5 -o /tmp/qytang_local_frontend.html -w 'HTTP %{http_code}\n' http://127.0.0.1:8080
+  frontend_html="$(curl -s --max-time 5 http://127.0.0.1:8080 || true)"
+  if [[ "${frontend_html}" == *"QYTANG NetDevOps"* ]]; then
+    echo "OK: 检测到 QYTANG NetDevOps 页面"
+  else
+    echo "ERROR: 8080 返回的不是 QYTANG NetDevOps 页面"
+    echo "${frontend_html}" | head -c 240
+    echo
+    exit 1
+  fi
 
   echo "[2/5] 设备服务"
   curl -s --max-time 5 http://127.0.0.1:8001/healthz

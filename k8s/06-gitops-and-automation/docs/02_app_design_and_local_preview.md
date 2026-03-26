@@ -48,6 +48,20 @@
 
 其中设备详情不是独立导航页，而是 `Devices` 页面中的详情区域。
 
+页面示意如下：
+
+### `Dashboard`
+
+<img src="../images/dashboard.png" alt="QYT NetDevOps Dashboard 页面" width="760" />
+
+### `Devices`
+
+<img src="../images/devices.png" alt="QYT NetDevOps Devices 页面" width="760" />
+
+### `Audit Center`
+
+<img src="../images/audit.png" alt="QYT NetDevOps Audit Center 页面" width="760" />
+
 核心业务对象有 3 类：
 
 - `devices`
@@ -112,15 +126,13 @@ flowchart TD
 
 - 负责审计日志写入与查询
 
-这里最容易混的是：
+最容易混的是：
 
 - `device-service`
-  - 更像设备主业务服务
-  - 它关心“设备本身”
+  - 更像设备主业务服务，关心“设备本身”
   - 例如设备列表、设备详情、设备增删改、Dashboard 汇总
 - `resource-service`
-  - 更像设备资源查询服务
-  - 它关心“设备下面的资源”
+  - 更像设备资源查询服务，关心“设备下面的资源”
   - 例如接口列表、接口状态、资源统计
 
 可以先记成一句最短的话：
@@ -161,50 +173,6 @@ flowchart TD
   auditService --> audits
 ```
 
-课堂上最适合举这 3 类动作：
-
-1. `Dashboard`
-- `frontend -> device-service`
-- `device-service` 汇总全局设备信息
-- `device-service -> resource-service`
-  - 取全局接口与资源统计
-- `device-service -> audit-service`
-  - 取全局审计统计或最近操作记录
-
-2. 设备详情
-- `frontend -> device-service`
-- `device-service` 先返回某一台设备的主体信息
-- `device-service -> resource-service`
-  - 补充这台设备的接口与资源详情
-- `device-service -> audit-service`
-  - 补充这台设备相关的审计记录
-
-3. 增删改设备
-- `frontend -> device-service`
-- `device-service` 直接处理设备变更
-- `device-service -> audit-service`
-  - 记录审计日志
-
-这里最关键的区别可以先记成一句话：
-
-- `Dashboard`
-  - 看全局总览
-- 设备详情
-  - 看单台设备下钻
-
-也就是说，这两条链路虽然都会经过：
-
-- `device-service`
-- `resource-service`
-- `audit-service`
-
-但它们查询的粒度并不一样：
-
-- `Dashboard`
-  - 返回的是全局汇总与统计结果
-- 设备详情
-  - 返回的是单台设备的明细结果
-
 ## 为什么要先做本地联调
 
 在进入 `Docker`、`Helm`、`Gitea`、`Argo CD` 之前，先做本地联调有两个价值：
@@ -218,16 +186,18 @@ flowchart TD
 
 在当前课程环境中，本地联调阶段常用这些地址：
 
-- 页面入口：`http://10.1.1.201:8080`
-- `device-service` Swagger：`http://10.1.1.201:8001/docs`
-- `resource-service` Swagger：`http://10.1.1.201:8002/docs`
-- `audit-service` Swagger：`http://10.1.1.201:8003/docs`
+- 页面入口：`http://<宿主机地址>:8080`
+- `device-service` Swagger：`http://<宿主机地址>:8001/docs`
+- `resource-service` Swagger：`http://<宿主机地址>:8002/docs`
+- `audit-service` Swagger：`http://<宿主机地址>:8003/docs`
+
+> 说明：本实验环境里的宿主机地址就是 `10.1.1.201`。
 
 ## 前端为什么能被远程浏览器正常访问
 
 这一点在课堂上必须讲清楚，否则学员会疑惑：
 
-- 为什么浏览器打开的是 `10.1.1.201:8080`
+- 为什么浏览器打开的是 `宿主机地址:8080`
 - 但前端还能同时访问 `8001/8002/8003`
 
 当前实现的关键不是“浏览器直接跨端口请求所有后端”，而是：
@@ -266,14 +236,14 @@ flowchart LR
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #34a853; border-radius: 6px; background: rgba(52,168,83,0.08); margin: 12px 0;">
 <strong>本节执行方式</strong><br/>
-这一节先把本地联调环境拉起来，再做自动化验证；页面观察放到最后人工确认。
+这一节先把本地联调环境拉起来，再做自动化验证；如果宿主机上残留了旧的本地示例或占用 <code>8080</code> 的容器，主脚本会先自动清理，再继续启动。
 </div>
 
 ### 1. 启动本地联调
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #ea4335; border-radius: 6px; background: rgba(234,67,53,0.10); margin: 8px 0;">
 <strong>❗ 本条命令必须粘贴执行</strong><br/>
-先启动本地 <code>docker compose</code> 联调环境。
+先启动本地预览环境。
 </div>
 
 ```bash
@@ -282,14 +252,11 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/01_run_local_preview.
 
 这一步的作用是：
 
-- 启动本地 `docker compose` 联调环境
+- 启动本地预览环境
 - 拉起前端、三个后端和本地 `Postgres`
 - 让样板应用先在本地跑起来
 
-课堂上要先讲清楚：
-
-- 这一节不是直接发布到 Kubernetes
-- 而是先证明应用本身可以在本地跑通
+这一节不是直接发布到 Kubernetes，而是先证明应用本身可以在本地跑通。
 
 ### 2. 验证本地联调
 
@@ -302,41 +269,31 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/01_run_local_preview.
 bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/02_verify_local_preview.sh
 ```
 
-这一步的作用是：
+示例输出：
 
-- 检查页面入口是否可访问
-- 检查三个后端健康状态
-- 检查 Dashboard 汇总接口和指标接口
+```text
+验证 QYTANG NetDevOps 本地预览
+=========================================================
+[1/5] 前端页面
+OK: 检测到 QYTANG NetDevOps 页面
+[2/5] 设备服务
+{"status":"ok","service":"device-service"}
+[3/5] 资源服务
+{"status":"ok","service":"resource-service"}
+[4/5] 审计服务
+{"status":"ok","service":"audit-service"}
+[5/5] Dashboard 汇总
+{"total_devices":11,"online_devices":7,"interface_up_count":63,...,"service_matrix":[...]}
+OK: 本地预览链路正常
+```
 
-也就是说，这一步重点验证的是：
+这一步主要看 3 件事：
 
-- 本地联调环境已经可用
-- 当前问题如果存在，更可能是应用本身问题，而不是后面的交付问题
+- 前端返回的确实是 `QYTANG NetDevOps` 页面，而不是其他占用 `8080` 的旧服务
+- 3 个后端服务都返回 `status=ok`
+- `Dashboard` 汇总接口能返回真实业务数据，而不是空壳响应
 
-所以这 2 个脚本的关系可以先记成：
-
-- `01`
-  - 负责把环境拉起来
-- `02`
-  - 负责验证本地联调是否正常
-
-## 本节测试方式
-
-这一节的接口与健康检查，默认由：
-
-- `02_verify_local_preview.sh`
-
-自动完成。
-
-也就是说，下面这些检查不需要学员手工逐条执行：
-
-- 页面入口是否可达
-- 三个后端健康检查是否正常
-- `Dashboard` 汇总接口是否可用
-- 指标接口是否可用
-- 应用目录是否存在
-
-这一节更适合保留给学员手工观察的，是 `win2019` 远程打开页面后的实际效果。
+> 常见现象：如果 `8080` 被宿主机上其他旧服务占用，你可能会看到一个完全无关的 JSON 或页面。这时不是本节应用没页面，而是前端根本没有成功绑定到 `8080`。
 
 ## 建议人工观察
 
@@ -347,7 +304,9 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/02_verify_local_previ
 
 建议在 `win2019` 浏览器中直接打开：
 
-- `http://10.1.1.201:8080`
+- `http://<宿主机地址>:8080`
+
+> 说明：本实验环境里的宿主机地址仍然是 `10.1.1.201`。
 
 课堂上重点观察：
 
@@ -357,13 +316,6 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/02_verify_local_previ
 - 设备详情区域是否能显示接口列表与最近审计
 
 ## 本节通过标准
-
-这一节不要求把应用本身讲得很深。
-
-更重要的是确认两件事：
-
-- 这个样板应用现在能够正常工作
-- 它已经具备后续进入容器化、`Helm` 和 `GitOps` 的基础
 
 满足下面条件即可继续下一节：
 
@@ -376,19 +328,12 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/02_verify_local_previ
 
 不用。
 
-这一节里的本地联调，只是先证明样板应用本身可以正常工作。
-
-验证通过后，这套本地预览环境就不再是后面主线的长期依赖。后面的重点会切换到：
+这一节里的本地联调只是前置验证，后面主线会切换到：
 
 - `Gitea`
 - `Harbor`
 - `Argo CD`
 - 正式业务入口
-
-也就是说：
-
-- 本地联调是一个前置验证步骤
-- 不是第六章后半段需要长期维持的发布环境
 
 如果这一阶段验证已经完成，也可以主动收掉本地预览进程：
 
@@ -403,7 +348,7 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/18_stop_local_preview
 
 ## 本节后半段看什么
 
-这一节后半段不再继续展开业务功能，而是直接看后续发布要用到的三类资产：
+这一节后半段直接看后续发布要用到的三类资产：
 
 - `Docker` 资产
 - `Helm` 资产
@@ -411,36 +356,41 @@ bash /docker_k8s_2026/k8s/06-gitops-and-automation/scripts/18_stop_local_preview
 
 ## 当前关键目录
 
+先看目录树：
+
+```text
+apps/qytang-netdevops/deploy/
+├── docker/
+│   ├── audit-service/Dockerfile
+│   ├── device-service/Dockerfile
+│   ├── frontend/Dockerfile
+│   ├── resource-service/Dockerfile
+│   └── docker-compose.yaml
+├── gitops/
+│   └── lab/
+│       ├── application.yaml
+│       └── values-lab.yaml
+└── helm/
+    └── qytang-netdevops/
+        ├── Chart.yaml
+        ├── templates/
+        ├── values-lab.yaml
+        └── values.yaml
+```
+
 ### Docker 资产
 
-- `apps/qytang-netdevops/deploy/docker/`
-
-这里应包含：
-
-- `frontend` 的 `Dockerfile`
-- 3 个后端服务的 `Dockerfile`
-- `docker-compose.yaml`
-
-这一层的作用是：
-
-- 把应用拆成可独立构建的镜像
-- 保留本地多服务联调入口
+- 路径：`apps/qytang-netdevops/deploy/docker/`
+- 这一层的作用：
+  - 把应用拆成可独立构建的镜像
+  - 保留本地多服务联调入口
 
 ### Helm 资产
 
-- `apps/qytang-netdevops/deploy/helm/qytang-netdevops/`
-
-这里应包含：
-
-- `Chart.yaml`
-- `values.yaml`
-- `values-lab.yaml`
-- `templates/`
-
-这一层的作用是：
-
-- 把应用整理成可部署到 Kubernetes 的 `Chart`
-- 把实验环境参数单独放进 `values` 文件
+- 路径：`apps/qytang-netdevops/deploy/helm/qytang-netdevops/`
+- 这一层的作用：
+  - 把应用整理成可部署到 Kubernetes 的 `Chart`
+  - 把实验环境参数单独放进 `values` 文件
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
 <strong>YAML 卡片</strong><br/>
@@ -449,19 +399,40 @@ YAML 文件：<code>apps/qytang-netdevops/deploy/helm/qytang-netdevops/values-la
 作用：保存实验环境下的副本数、镜像标签等参数；后面“改 YAML 扩缩容”演示就是直接改这里。
 </div>
 
+关键内容示例：
+
+```yaml
+namespace: qytang-netdevops
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: harbor.qytk8s.com/qytang-netdevops/frontend
+    tag: v0.2.3
+
+deviceService:
+  replicaCount: 1
+```
+
+这几个字段先看懂：
+
+- `namespace`
+  - 这套应用最终要部署到哪个命名空间
+- `frontend.replicaCount`
+  - 前端副本数，后面扩缩容演示直接改这里
+- `frontend.image.repository`
+  - 前端镜像仓地址
+- `frontend.image.tag`
+  - 当前发布要使用的前端镜像版本
+- `deviceService.replicaCount`
+  - 说明不只是前端，后端无状态服务也能用同样方式控制副本数
+
 ### GitOps 资产
 
-- `apps/qytang-netdevops/deploy/gitops/lab/`
-
-这里应包含：
-
-- `application.yaml`
-- `values-lab.yaml`
-
-这一层的作用是：
-
-- 把 `Argo CD` 真正要同步的入口单独整理出来
-- 让后面发布时不需要再从应用目录里临时拼装对象
+- 路径：`apps/qytang-netdevops/deploy/gitops/lab/`
+- 这一层的作用：
+  - 把 `Argo CD` 真正要同步的入口单独整理出来
+  - 让后面发布时不需要再从应用目录里临时拼装对象
 
 <div style="padding: 12px 14px; border: 1px solid #666; border-left: 6px solid #fbbc04; border-radius: 6px; background: rgba(251,188,4,0.10); margin: 10px 0;">
 <strong>YAML 卡片</strong><br/>
@@ -469,6 +440,44 @@ YAML 文件：<code>apps/qytang-netdevops/deploy/gitops/lab/application.yaml</co
 对象：<code>Argo CD Application</code><br/>
 作用：告诉 <code>Argo CD</code> 应该从哪个 Git 仓、哪个 Chart 路径、用哪份 <code>values</code>，把应用同步到哪个命名空间。
 </div>
+
+关键内容示例：
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: qytang-netdevops
+  namespace: argocd
+spec:
+  source:
+    repoURL: https://git.qytk8s.com/gitadmin/qytang-netdevops.git
+    targetRevision: main
+    path: deploy/helm/qytang-netdevops
+    helm:
+      valueFiles:
+        - values-lab.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: qytang-netdevops
+```
+
+这几个字段最关键：
+
+- `metadata.name`
+  - `Argo CD` 里这套应用显示成什么名字
+- `spec.source.repoURL`
+  - 要盯住哪个 Git 仓库
+- `spec.source.targetRevision`
+  - 盯哪个分支，这里是 `main`
+- `spec.source.path`
+  - Git 仓里真正要渲染的 `Helm Chart` 路径
+- `spec.source.helm.valueFiles`
+  - 这次同步具体使用哪份 `values` 文件
+- `spec.destination.namespace`
+  - 最终要把这套应用同步到哪个命名空间
+
+> 说明：这里的 `path: deploy/helm/qytang-netdevops` 和 `valueFiles: values-lab.yaml`，都是相对于 Git 仓库内容的相对路径，不是宿主机本地文件系统路径。
 
 ## 从应用到 GitOps 资产的过渡图
 

@@ -19,6 +19,66 @@ stop_existing_processes() {
   pkill -f 'backend.audit_service.main:app' || true
 }
 
+cleanup_runtime_container_by_name() {
+  local runtime="$1"
+  local name="$2"
+  if ! command -v "${runtime}" >/dev/null 2>&1; then
+    return 0
+  fi
+  if "${runtime}" ps -a --format '{{.Names}}' | grep -Fxq "${name}"; then
+    echo "清理旧容器: ${runtime} ${name}"
+    "${runtime}" stop "${name}" >/dev/null 2>&1 || true
+    "${runtime}" rm "${name}" >/dev/null 2>&1 || true
+  fi
+}
+
+cleanup_runtime_published_8080() {
+  local runtime="$1"
+  local ids id name
+  if ! command -v "${runtime}" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  ids="$("${runtime}" ps -a --filter publish=8080 --format '{{.ID}}' 2>/dev/null || true)"
+  [[ -z "${ids}" ]] && return 0
+
+  while IFS= read -r id; do
+    [[ -z "${id}" ]] && continue
+    name="$("${runtime}" inspect -f '{{.Name}}' "${id}" 2>/dev/null | sed 's#^/##' || true)"
+    echo "清理 8080 端口冲突容器: ${runtime} ${name:-$id}"
+    "${runtime}" stop "${id}" >/dev/null 2>&1 || true
+    "${runtime}" rm "${id}" >/dev/null 2>&1 || true
+  done <<< "${ids}"
+}
+
+cleanup_port_conflicts() {
+  cleanup_runtime_container_by_name podman basic-nginx-1
+  cleanup_runtime_container_by_name podman basic-app-1
+  cleanup_runtime_container_by_name podman basic-redis-1
+  cleanup_runtime_container_by_name docker basic-nginx-1
+  cleanup_runtime_container_by_name docker basic-app-1
+  cleanup_runtime_container_by_name docker basic-redis-1
+
+  cleanup_runtime_published_8080 podman
+  cleanup_runtime_published_8080 docker
+}
+
+frontend_healthcheck_ok() {
+  curl -s --max-time 3 http://127.0.0.1:8080/healthz | grep -q '"service": "frontend"\|"service":"frontend"'
+}
+
+ensure_frontend_port_available() {
+  if ss -ltn '( sport = :8080 )' | grep -q ':8080'; then
+    if frontend_healthcheck_ok; then
+      return 0
+    fi
+    echo "失败: 8080 端口已被其他进程占用，当前不是 QYT NetDevOps 前端。"
+    echo "请先处理 8080 端口冲突后再重试。当前监听信息："
+    ss -ltnp '( sport = :8080 )' || true
+    return 1
+  fi
+}
+
 start_service() {
   local name="$1"
   local extra_seed="${2:-false}"
@@ -43,7 +103,7 @@ wait_for_local_preview() {
   local i
 
   for i in $(seq 1 "${attempts}"); do
-    if curl -s --max-time 3 http://127.0.0.1:8080 >/dev/null 2>&1 && \
+    if frontend_healthcheck_ok && \
        curl -s --max-time 3 http://127.0.0.1:8001/healthz >/dev/null 2>&1 && \
        curl -s --max-time 3 http://127.0.0.1:8002/healthz >/dev/null 2>&1 && \
        curl -s --max-time 3 http://127.0.0.1:8003/healthz >/dev/null 2>&1; then
@@ -108,7 +168,9 @@ main() {
   pgrep -af "qytang-netdevops|backend.*uvicorn|frontend/server.py" || true
 
   echo "[4/4] 启动或保持本地预览"
-  if curl -s http://127.0.0.1:8080 >/dev/null 2>&1 && \
+  cleanup_port_conflicts
+  ensure_frontend_port_available
+  if frontend_healthcheck_ok && \
      curl -s http://127.0.0.1:8001/healthz >/dev/null 2>&1; then
     echo "本地预览已在运行，无需重复启动"
   else
