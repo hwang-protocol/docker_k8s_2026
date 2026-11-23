@@ -9,3 +9,7 @@ __pycache__/
 
 # 证书序列号文件
 *.srl
+
+# >100MB, exceeds GitHub limit; download from upstream
+k8s/01-k8s-architecture/tmp/harbor-offline-installer-v2.13.0.tgz
+k8s/02-cloud-native-networking/artifacts/bin/cilium
