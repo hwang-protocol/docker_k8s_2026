@@ -20,13 +20,15 @@
 
 | 章 | 内容 | 状态 | AWS 上要改的地方 |
 |---|---|---|---|
-| 01 | kubeadm 集群架构 | ⬜ 未开始 | Keepalived VIP 不能用（VPC 不支持 VRRP），改用 NLB 或单 HAProxy |
-| 02 | 云原生网络（Cilium/Hubble） | ⬜ 未开始 | Cilium 用 VXLAN 隧道，或关闭源/目标检查 |
-| 03 | 北向入口（MetalLB/Gateway API） | ⬜ 未开始 | MetalLB L2 地址需改成网卡辅助 IP，或改用 NodePort + NLB |
-| 04 | 存储（Longhorn） | ⬜ 未开始 | 每个 worker 挂一块 EBS 数据盘 |
-| 05 | 安全与零信任 | ⬜ 未开始 | 预计可照做 |
-| 06 | GitOps（Argo CD） | ⬜ 未开始 | 预计可照做 |
-| 07 | 可观测性与链路追踪 | ⬜ 未开始 | 预计可照做 |
+| 01 | kubeadm 集群架构 | ✅ 完成 | Keepalived 加 EC2 API 钩子挂 VIP；containerd 钉 1.7.12；见 [k8s-01-architecture.md](k8s-01-architecture.md) |
+| 02 | 云原生网络（Cilium/Hubble） | ✅ 完成 | 不用改（native routing 靠关闭源/目标检查）；见 [k8s-02-networking.md](k8s-02-networking.md) |
+| 03 | 北向入口（MetalLB/Gateway API） | ✅ 完成 | VIP 挂成 wk-edge01 的辅助 IP；见 [k8s-03-north-south.md](k8s-03-north-south.md) |
+| 04 | 存储（Longhorn） | ✅ 完成 | `/dev/sdb` → `/dev/nvme1n1`；runc AppArmor 问题；见 [k8s-04-storage.md](k8s-04-storage.md) |
+| 05 | 安全与零信任 | ✅ 完成 | 不用改；扩展测试被课程自己的 JWT 策略拦截；见 [k8s-05-security.md](k8s-05-security.md) |
+| 06 | GitOps（Argo CD） | ✅ 完成 | 无 AWS 改动；补 Harbor `library` 镜像、标签 v0.2.3、ops 上建 git 基线；见 [k8s-06-gitops.md](k8s-06-gitops.md) |
+| 07 | 可观测性与链路追踪 | ✅ 完成 | Longhorn 超额分配调到 200%；Jaeger 2.23 用 v3 API 验收；见 [k8s-07-observability.md](k8s-07-observability.md) |
+
+**K8s 部分的总结和 review 清单：** [k8s-summary.md](k8s-summary.md)
 
 ## AWS 环境
 
@@ -53,12 +55,26 @@ MSYS_NO_PATHCONV=1 aws ec2 start-instances --region ap-northeast-1 --instance-id
 git -c core.autocrlf=false archive --format=tar HEAD docker apps | ssh k8s-docker 'tar -xf - -C /docker_k8s_2026'
 ```
 
+## K8s 集群环境（第 1–7 章）
+
+| 项 | 值 |
+|---|---|
+| VPC | `k8s-course-vpc` 10.1.1.0/24（和课程同网段），所有资源打 `Project=k8s-course` |
+| 节点 | 12 台：ops .201、harbor .203、git .202、lb01/02 .11/.12、cp01–03 .101–.103、wk-app01/02、wk-edge01、wk-obs01 **.21–.24** |
+| API VIP | 10.1.1.10（`api.qytk8s.com`） |
+| DNS | Route 53 私有域 `qytk8s.com`，搜索域已配，短主机名可用 |
+| SSH | `ssh k8s-ops`（root，经 `ec2-tokyo` 跳板到 ops 的弹性 IP）；在 ops 上 `ssh root@cp01` 等，和课程一样 |
+| 建环境 | [k8s-infra/create.sh](k8s-infra/create.sh)（可重复执行） |
+| 开机 / 停机 | `bash aws-lab-notes/k8s-infra/start-stop.sh start|stop|status` |
+
 ## 费用
 
 | 资源 | 大约费用 |
 |---|---|
-| t3.large 运行中 | 约 0.11 美元/小时 |
-| 40 GB 硬盘（停机也收） | 约 3.8 美元/月 |
+| Docker 实验机 t3.large 运行中 | 约 0.11 美元/小时 |
+| Docker 实验机 40 GB 硬盘（停机也收） | 约 3.8 美元/月 |
+| K8s 集群 12 台运行中 | 约 0.85 美元/小时 |
+| K8s 集群硬盘约 450 GB + ops 弹性 IP（停机也收） | 约 45 美元/月 |
 
 价格是东京区大致数字，以 AWS 账单为准。**不用就停机。**
 
